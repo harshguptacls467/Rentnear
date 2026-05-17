@@ -18,6 +18,8 @@ import Bookings from './pages/Bookings'
 import Chat from './pages/Chat'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
+import MyListings from './pages/MyListings'
+// Force Vite HMR to rebuild
 
 function App() {
   const { initialize } = useAuthStore();
@@ -44,6 +46,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="home" element={<Home />} />
             <Route path="list-product" element={<ListProduct />} />
+            <Route path="list-product/:id" element={<ListProduct />} />
+            <Route path="my-listings" element={<MyListings />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="chat" element={<Chat />} />
             <Route path="profile" element={<Profile />} />

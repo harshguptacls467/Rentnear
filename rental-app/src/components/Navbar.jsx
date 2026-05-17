@@ -28,6 +28,7 @@ const Navbar = () => {
               <Link to="/home" className="text-gray-300 hover:text-white font-medium transition-colors">Dashboard</Link>
               <Link to="/products" className="text-gray-300 hover:text-white font-medium transition-colors">Discover</Link>
               <Link to="/list-product" className="text-gray-300 hover:text-white font-medium transition-colors">List Item</Link>
+              <Link to="/my-listings" className="text-gray-300 hover:text-white font-medium transition-colors">My Listings</Link>
               <Link to="/bookings" className="text-gray-300 hover:text-white font-medium transition-colors">Bookings</Link>
               <Link to="/profile" className="text-gray-300 hover:text-white font-medium transition-colors">Profile</Link>
               
