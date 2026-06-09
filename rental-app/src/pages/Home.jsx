@@ -1,8 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
-import { Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, MapPin, Sparkles, User as UserIcon, Clock, ChevronRight } from 'lucide-react';
+import { Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, MapPin, Sparkles, User as UserIcon, ChevronRight } from 'lucide-react';
+import { MOCK_USER, MOCK_PRODUCTS } from '../data/mockData';
+import { motion } from 'framer-motion';
+import AnimatedPage from '../components/AnimatedPage';
+import TiltCard from '../components/TiltCard';
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15 }
+  }
+};
 
 // ==========================================
 // REUSABLE UI COMPONENTS
@@ -96,73 +113,81 @@ const DashboardHeader = ({ profile, mode, setMode }) => {
   );
 };
 
-const QuickActionCard = ({ title, desc, icon: Icon, to, gradient, delay }) => (
-  <Link to={to} className={`group relative bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 overflow-hidden block ${delay} animate-fade-in-up`}>
-    {/* Hover Gradient Background injection */}
-    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}></div>
-    
-    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg bg-gradient-to-br ${gradient} group-hover:scale-110 transition-transform duration-500`}>
-      <Icon size={28} />
-    </div>
-    <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors">{title}</h3>
-    <p className="text-gray-500 text-sm leading-relaxed mb-6">{desc}</p>
-    
-    <div className="flex items-center gap-2 text-sm font-bold text-primary opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500">
-      Get Started <ArrowRight size={16} />
-    </div>
-  </Link>
+const QuickActionCard = ({ title, desc, icon: Icon, to, gradient }) => (
+  <motion.div variants={fadeUp}>
+    <TiltCard scaleOnHover={1.05}>
+      <Link to={to} className={`group relative bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:shadow-2xl transition-all duration-500 overflow-hidden block h-full`}>
+        {/* Hover Gradient Background injection */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}></div>
+        
+        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg bg-gradient-to-br ${gradient} group-hover:scale-110 transition-transform duration-500`}>
+          <Icon size={28} />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors">{title}</h3>
+        <p className="text-gray-500 text-sm leading-relaxed mb-6">{desc}</p>
+        
+        <div className="flex items-center gap-2 text-sm font-bold text-primary opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500">
+          Get Started <ArrowRight size={16} />
+        </div>
+      </Link>
+    </TiltCard>
+  </motion.div>
 );
 
-const ProductCard = ({ product, delay }) => (
-  <Link to={`/products/${product.id}`} className={`group relative bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 block ${delay} animate-fade-in-up`}>
-    
-    {/* Image Container with Zoom */}
-    <div className="h-56 relative overflow-hidden bg-gray-100">
-      {product.images && product.images.length > 0 ? (
-        <img 
-          src={product.images[0]} 
-          alt={product.title} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" 
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-gray-300">
-          <PackageOpen size={48} />
-        </div>
-      )}
-      
-      {/* Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-      
-      {/* Badges */}
-      <div className="absolute top-4 left-4">
-        {product.is_available !== false ? (
-          <span className="bg-white/90 backdrop-blur-md text-primary text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span> Available
-          </span>
-        ) : (
-          <span className="bg-white/90 backdrop-blur-md text-red-500 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-            Rented
-          </span>
-        )}
-      </div>
-      
-      <div className="absolute top-4 right-4 bg-navy/90 backdrop-blur-md px-4 py-2 rounded-2xl text-white shadow-lg border border-white/10">
-        <span className="text-lg font-bold">${product.price_per_day}</span>
-        <span className="text-xs text-gray-400 font-normal"> /day</span>
-      </div>
+const ProductCard = ({ product }) => (
+  <motion.div variants={fadeUp}>
+    <TiltCard scaleOnHover={1.03}>
+      <Link to={`/products/${product.id}`} className={`group relative bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 block h-full`}>
+        
+        {/* Image Container with Zoom */}
+        <div className="h-56 relative overflow-hidden bg-gray-100">
+          {product.images && product.images.length > 0 ? (
+            <img 
+              src={product.images[0]} 
+              alt={product.title} 
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" 
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300">
+              <PackageOpen size={48} />
+            </div>
+          )}
+          
+          {/* Overlays */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+          
+          {/* Badges */}
+          <div className="absolute top-4 left-4">
+            {product.is_available !== false ? (
+              <span className="bg-white/90 backdrop-blur-md text-primary text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span> Available
+              </span>
+            ) : (
+              <span className="bg-white/90 backdrop-blur-md text-red-500 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
+                Rented
+              </span>
+            )}
+          </div>
+          
+          <div className="absolute top-4 right-4 bg-navy/90 backdrop-blur-md px-4 py-2 rounded-2xl text-white shadow-lg border border-white/10">
+            <span className="text-lg font-bold">${product.price_per_day}</span>
+            <span className="text-xs text-gray-400 font-normal"> /day</span>
+          </div>
 
-      <div className="absolute bottom-4 left-4 right-4 flex items-center text-white/90 text-sm font-medium">
-        <MapPin size={16} className="mr-1.5" />
-        <span className="truncate drop-shadow-md">{product.location || 'Local Area'}</span>
-      </div>
-    </div>
-    
-    {/* Content */}
-    <div className="p-6">
-      <h4 className="font-bold text-gray-900 text-xl mb-2 truncate group-hover:text-primary transition-colors">{product.title}</h4>
-      <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description || 'No description provided'}</p>
-    </div>
-  </Link>
+          <div className="absolute bottom-4 left-4 right-4 flex items-center text-white/90 text-sm font-medium">
+            <MapPin size={16} className="mr-1.5" />
+            <span className="truncate drop-shadow-md">{product.location || 'Local Area'}</span>
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="p-6">
+          <h4 className="font-bold text-gray-900 text-xl mb-2 truncate group-hover:text-primary transition-colors">{product.title}</h4>
+          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description || 'No description provided'}</p>
+        </div>
+      </Link>
+    </TiltCard>
+  </motion.div>
 );
 
 
@@ -187,32 +212,53 @@ const Home = () => {
         setLoading(true);
         
         // 1. Fetch User Profile
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('users')
           .select('*')
           .eq('id', user.id)
           .single();
           
-        if (profileData) {
+        if (profileData && !profileError) {
           setProfile(profileData);
           setViewMode(profileData.role === 'owner' ? 'owner' : 'renter');
+        } else {
+          // Fallback to mock user
+          setProfile(MOCK_USER);
+          setViewMode(MOCK_USER.role === 'owner' ? 'owner' : 'renter');
         }
 
         // 2. Fetch Recent Products
-        const { data: productsData } = await supabase
+        const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select('*')
           .limit(4)
           .order('created_at', { ascending: false });
           
-        if (productsData) setRecentProducts(productsData);
+        if (productsData && !productsError && productsData.length > 0) {
+          setRecentProducts(productsData);
+        } else {
+          // Fallback to mock products
+          setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
+        }
 
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error('Error fetching dashboard data — using mock data:', error);
+        setProfile(MOCK_USER);
+        setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
       } finally {
         setLoading(false);
       }
     };
+
+    // If no user (not logged in), still show mock data for demo
+    if (!user) {
+      Promise.resolve().then(() => {
+        setProfile(MOCK_USER);
+        setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
+        setLoading(false);
+      });
+      return;
+    }
 
     fetchDashboardData();
   }, [user]);
@@ -220,25 +266,31 @@ const Home = () => {
   if (loading) return <LoadingSkeleton />;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24 relative overflow-hidden">
+    <AnimatedPage className="min-h-screen bg-[#F8FAFC] pb-24 relative overflow-hidden">
       
       {/* Background ambient mesh */}
       <div className="absolute top-0 left-1/4 w-full h-[600px] bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none"></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <motion.div 
+        initial="hidden" 
+        animate="visible" 
+        variants={staggerContainer}
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"
+      >
         
         {/* Header */}
-        <DashboardHeader profile={profile} mode={viewMode} setMode={setViewMode} />
+        <motion.div variants={fadeUp}>
+          <DashboardHeader profile={profile} mode={viewMode} setMode={setViewMode} />
+        </motion.div>
 
         {/* Quick Actions Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20 relative z-10">
+        <motion.div variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20 relative z-10">
           <QuickActionCard 
             title="Browse Nearby" 
             desc="Discover tools, electronics, and gear available to rent from your neighbors right now."
             icon={Search} 
             to="/products"
             gradient="from-blue-500 to-indigo-600"
-            delay="delay-100"
           />
           <QuickActionCard 
             title="List an Item" 
@@ -246,7 +298,6 @@ const Home = () => {
             icon={PlusCircle} 
             to="/list-product"
             gradient="from-primary to-teal-600"
-            delay="delay-200"
           />
           <QuickActionCard 
             title="My Bookings" 
@@ -254,12 +305,11 @@ const Home = () => {
             icon={Calendar} 
             to="/bookings"
             gradient="from-purple-500 to-pink-500"
-            delay="delay-300"
           />
-        </div>
+        </motion.div>
 
         {/* Recent Listings Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 animate-fade-in-up delay-400">
+        <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-end justify-between mb-10">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
               <LayoutDashboard className="text-primary" size={28} />
@@ -270,19 +320,18 @@ const Home = () => {
           <Link to="/products" className="group flex items-center gap-2 text-primary font-bold mt-4 sm:mt-0 hover:text-primary-dark transition-colors bg-primary/10 px-6 py-3 rounded-full">
             View Directory <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
           </Link>
-        </div>
+        </motion.div>
 
         {/* Recent Listings Grid */}
         {recentProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {recentProducts.map((product, index) => (
+          <motion.div variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {recentProducts.map((product) => (
               <ProductCard 
                 key={product.id} 
                 product={product} 
-                delay={`delay-${(index + 5) * 100}`} 
               />
             ))}
-          </div>
+          </motion.div>
         ) : (
           // Premium Empty State
           <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm relative overflow-hidden">
@@ -301,8 +350,8 @@ const Home = () => {
             </Link>
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </AnimatedPage>
   );
 };
 

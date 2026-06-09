@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import Button from '../components/Button';
-import { Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, Shield, AlertCircle, UploadCloud } from 'lucide-react';
+import { Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, Shield, AlertCircle } from 'lucide-react';
+import { MOCK_USER, MOCK_REVIEWS } from '../data/mockData';
 
 const Profile = () => {
   const { user } = useAuthStore();
   
   // States
   const [profile, setProfile] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -23,7 +25,14 @@ const Profile = () => {
   // Fetch Profile Data
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        // No logged-in user — show mock data
+        setProfile(MOCK_USER);
+        setEditForm({ name: MOCK_USER.name, phone: MOCK_USER.phone });
+        setReviews(MOCK_REVIEWS);
+        setLoading(false);
+        return;
+      }
       
       try {
         setLoading(true);
@@ -35,13 +44,30 @@ const Profile = () => {
           .eq('id', user.id)
           .single();
 
-        if (dbError) throw dbError;
+        if (dbError || !data) throw dbError || new Error('no data');
         
         setProfile(data);
         setEditForm({ name: data.name || '', phone: data.phone || '' });
+
+        // Fetch recent reviews
+        let reviewsData = [];
+        let reviewsError = null;
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/reviews/user/${user.id}?limit=3`);
+          if (!res.ok) throw new Error('Failed to fetch reviews');
+          reviewsData = await res.json();
+        } catch (err) {
+          reviewsError = err;
+        }
+          
+        setReviews(reviewsError ? MOCK_REVIEWS : (reviewsData || MOCK_REVIEWS));
+        
       } catch (err) {
-        setError("Failed to load profile. Make sure your RLS policies are set correctly.");
-        console.error(err);
+        // Fallback to mock profile
+        console.warn('Using mock profile:', err.message);
+        setProfile(MOCK_USER);
+        setEditForm({ name: MOCK_USER.name, phone: MOCK_USER.phone });
+        setReviews(MOCK_REVIEWS);
       } finally {
         setLoading(false);
       }
@@ -275,31 +301,66 @@ const Profile = () => {
               <h3 className="text-lg font-bold mb-6 text-gray-100">Community Reputation</h3>
               
               <div className="mb-8">
-                <div className="text-4xl font-black text-primary-light mb-2">4.9</div>
-                <div className="flex gap-1 text-yellow-400 mb-2">
-                  <Star size={20} fill="currentColor" />
-                  <Star size={20} fill="currentColor" />
-                  <Star size={20} fill="currentColor" />
-                  <Star size={20} fill="currentColor" />
-                  <Star size={20} fill="currentColor" className="opacity-50" />
+                <div className="text-4xl font-black text-primary-light mb-2">
+                  {profile.rating_average ? Number(profile.rating_average).toFixed(1) : 'New'}
                 </div>
-                <p className="text-sm text-gray-400">Based on 24 community reviews</p>
+                <div className="flex gap-1 text-yellow-400 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star 
+                      key={star} 
+                      size={20} 
+                      fill={(profile.rating_average || 0) >= star ? "currentColor" : "transparent"} 
+                      className={(profile.rating_average || 0) >= star ? "" : "opacity-30"}
+                    />
+                  ))}
+                </div>
+                <p className="text-sm text-gray-400">Based on {profile.rating_count || 0} community reviews</p>
               </div>
               
-              <div className="space-y-4 border-t border-gray-700 pt-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Items Rented</span>
-                  <span className="font-bold text-white">12</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Items Listed</span>
-                  <span className="font-bold text-white">{profile.role === 'renter' ? '0' : '4'}</span>
-                </div>
+              <div className="space-y-4 border-t border-gray-700 pt-6 mb-8">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400 text-sm">Response Time</span>
                   <span className="font-bold text-white">&lt; 1 hour</span>
                 </div>
               </div>
+
+              {/* Recent Reviews */}
+              <div>
+                <h4 className="font-bold text-sm text-gray-300 uppercase tracking-wider mb-4">Recent Reviews</h4>
+                {reviews.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">No reviews yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {reviews.map((review) => (
+                      <div key={review.id} className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {review.reviewer?.avatar_url ? (
+                              <img src={review.reviewer.avatar_url} alt="Reviewer" className="w-6 h-6 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-6 h-6 bg-primary/20 text-primary rounded-full flex items-center justify-center text-xs font-bold">
+                                {review.reviewer?.name?.charAt(0)}
+                              </div>
+                            )}
+                            <span className="text-sm font-bold text-gray-200">{review.reviewer?.name}</span>
+                          </div>
+                          <div className="flex text-yellow-400">
+                            <Star size={12} fill="currentColor" />
+                            <span className="text-xs ml-1 font-bold">{review.rating}</span>
+                          </div>
+                        </div>
+                        {review.comment && (
+                          <p className="text-sm text-gray-400 mt-2 italic">"{review.comment}"</p>
+                        )}
+                        <p className="text-[10px] text-gray-500 mt-2 text-right">
+                          {formatDate(review.created_at)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
 
           </div>

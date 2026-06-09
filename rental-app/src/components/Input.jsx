@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle } from 'lucide-react';
 
 const Input = ({ label, id, error, className = '', ...props }) => {

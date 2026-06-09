@@ -1,4 +1,3 @@
-import React from 'react';
 
 const TextArea = ({ label, id, error, maxLength, value = '', className = '', ...props }) => {
   // Ensure value is treated as a string to count length

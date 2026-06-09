@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
@@ -8,6 +8,7 @@ import TextArea from '../components/TextArea';
 import FileUpload from '../components/FileUpload';
 import Button from '../components/Button';
 import { ChevronRight, ChevronLeft, CheckCircle2, AlertCircle, PackageOpen } from 'lucide-react';
+import AnimatedPage from '../components/AnimatedPage';
 
 const CATEGORY_OPTIONS = [
   { value: 'Cameras', label: 'Cameras & Lenses' },
@@ -30,7 +31,7 @@ const CONDITION_OPTIONS = [
 const ListProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams(); // If id exists, we are in EDIT mode
-  const { session, user } = useAuthStore();
+  const { user } = useAuthStore();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -73,7 +74,7 @@ const ListProduct = () => {
           deposit_amount: data.deposit_amount || '0',
           is_available: data.is_available !== false,
         });
-      } catch (err) {
+      } catch {
         setError('Failed to load product for editing. You may not have permission.');
       } finally {
         setInitialFetchLoading(false);
@@ -85,9 +86,16 @@ const ListProduct = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
+    // Prevent negative numbers for pricing/deposits
+    let finalValue = type === 'checkbox' ? checked : value;
+    if (type === 'number' && parseFloat(finalValue) < 0) {
+      finalValue = '0';
+    }
+
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: finalValue
     });
   };
 
@@ -190,6 +198,24 @@ const ListProduct = () => {
     }
   };
 
+  // KYC CHECK
+  if (user && user.kyc_status !== 'verified') {
+    return (
+      <div className="max-w-2xl mx-auto p-4 py-12 text-center">
+        <div className="bg-yellow-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+          <AlertCircle className="text-yellow-600" size={40} />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Identity Verification Required</h2>
+        <p className="text-gray-600 mb-8 max-w-md mx-auto">
+          To build a safe community, we require all lenders to verify their identity before listing products.
+        </p>
+        <Button onClick={() => navigate('/kyc')} size="lg">
+          {user.kyc_status === 'pending' ? 'Check Verification Status' : 'Complete KYC Now'}
+        </Button>
+      </div>
+    );
+  }
+
   if (initialFetchLoading) {
     return (
       <div className="min-h-screen pt-20 flex justify-center bg-gray-50">
@@ -202,7 +228,7 @@ const ListProduct = () => {
   const steps = ['Basic Info', 'Photos & Condition', 'Pricing'];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <AnimatedPage className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         
         {/* Header & Progress Indicator */}
@@ -379,7 +405,7 @@ const ListProduct = () => {
           
         </div>
       </div>
-    </div>
+    </AnimatedPage>
   );
 };
 

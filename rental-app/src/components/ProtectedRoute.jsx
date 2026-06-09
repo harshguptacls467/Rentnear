@@ -1,9 +1,8 @@
-import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 
-const ProtectedRoute = () => {
-  const { session, initialized } = useAuthStore();
+const ProtectedRoute = ({ adminOnly = false }) => {
+  const { session, initialized, user } = useAuthStore();
 
   // If Supabase hasn't finished checking the session yet, show a loading spinner
   // This prevents the screen from "flickering" to the login page on a hard refresh
@@ -16,8 +15,15 @@ const ProtectedRoute = () => {
   }
 
   // If checking is done and there is NO active session, redirect to Login
-  if (!session) {
+  // Allow both real Supabase sessions and mock demo sessions
+  const isMockSession = session?.access_token === 'mock-token-demo';
+  if (!session && !isMockSession) {
     return <Navigate to="/login" replace />;
+  }
+
+  // If the route requires admin privileges, check the user object
+  if (adminOnly && user && user.is_admin !== true) {
+    return <Navigate to="/home" replace />;
   }
 
   // If there IS a session, render the child routes (Outlet)

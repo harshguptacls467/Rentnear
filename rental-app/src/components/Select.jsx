@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle, ChevronDown } from 'lucide-react';
 
 const Select = ({ label, id, options = [], error, className = '', ...props }) => {

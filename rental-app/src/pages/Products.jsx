@@ -1,9 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Search, MapPin, Inbox, Filter } from 'lucide-react';
+import { Search, MapPin, Inbox } from 'lucide-react';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import Skeleton from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
+import { MOCK_PRODUCTS } from '../data/mockData';
+import { motion } from 'framer-motion';
+import AnimatedPage from '../components/AnimatedPage';
+import TiltCard from '../components/TiltCard';
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+};
 
 const CATEGORIES = ['All', 'Cameras', 'Tools', 'Bikes', 'Electronics', 'Books', 'Speakers', 'Gaming', 'Sports', 'Other'];
 
@@ -46,18 +65,12 @@ const Products = () => {
         // Start building the Supabase query
         let query = supabase.from('products').select('*');
 
-        // 1. Filter by Category (Server-Side)
         if (category !== 'All') {
           query = query.eq('category', category);
         }
-
-        // 2. Filter by Search Query (Server-Side using text search)
         if (debouncedQuery.trim() !== '') {
-          // ilike is case-insensitive pattern matching in Postgres
           query = query.ilike('title', `%${debouncedQuery}%`);
         }
-
-        // 3. Sort Results (Server-Side)
         if (sortBy === 'newest') {
           query = query.order('created_at', { ascending: false });
         } else if (sortBy === 'price_asc') {
@@ -69,11 +82,24 @@ const Products = () => {
         const { data, error: fetchError } = await query;
 
         if (fetchError) throw fetchError;
-        setProducts(data || []);
 
-      } catch (err) {
-        setError('Failed to fetch products. Please try again.');
-        console.error(err);
+        if (data && data.length > 0) {
+          setProducts(data);
+        } else {
+          throw new Error('empty'); // trigger mock fallback
+        }
+
+      } catch {
+        // Fallback: filter + sort mock products client-side
+        let mock = [...MOCK_PRODUCTS];
+        if (category !== 'All') mock = mock.filter(p => p.category === category);
+        if (debouncedQuery.trim()) {
+          const q = debouncedQuery.toLowerCase();
+          mock = mock.filter(p => p.title.toLowerCase().includes(q));
+        }
+        if (sortBy === 'price_asc') mock.sort((a, b) => a.price_per_day - b.price_per_day);
+        else if (sortBy === 'price_desc') mock.sort((a, b) => b.price_per_day - a.price_per_day);
+        setProducts(mock);
       } finally {
         setLoading(false);
       }
@@ -84,11 +110,11 @@ const Products = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <AnimatedPage className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Header Section */}
-        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <h1 className="text-4xl font-black text-gray-900 tracking-tight">Discover Gear</h1>
             <p className="text-gray-500 mt-2">Find exactly what you need, exactly when you need it.</p>
@@ -115,10 +141,10 @@ const Products = () => {
               />
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Categories Pills */}
-        <div className="flex overflow-x-auto gap-3 pb-4 mb-8 hide-scrollbar">
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex overflow-x-auto gap-3 pb-4 mb-8 hide-scrollbar">
           {CATEGORIES.map(cat => (
             <button
               key={cat}
@@ -132,7 +158,7 @@ const Products = () => {
               {cat}
             </button>
           ))}
-        </div>
+        </motion.div>
 
         {/* Error State */}
         {error && (
@@ -143,43 +169,42 @@ const Products = () => {
 
         {/* Loading State (Skeletons) */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-              <div key={n} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm animate-pulse">
-                <div className="w-full h-48 bg-gray-200 rounded-xl mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+              <div key={n} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                <Skeleton className="w-full aspect-[4/3] mb-4" />
+                <Skeleton variant="text" className="w-3/4 mb-3" />
+                <Skeleton variant="text" className="w-1/2 mb-4" />
                 <div className="flex justify-between items-end mt-6">
-                  <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+                  <Skeleton variant="text" className="w-1/3 h-6" />
+                  <Skeleton variant="text" className="w-1/3 h-8" />
                 </div>
               </div>
             ))}
           </div>
         ) : products.length === 0 ? (
           /* Empty State */
-          <div className="bg-white rounded-3xl p-16 text-center border border-gray-100 shadow-sm mt-8">
-            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Inbox size={40} className="text-gray-300" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">No products found</h3>
-            <p className="text-gray-500 max-w-sm mx-auto">
-              We couldn't find any items matching your current filters or search query. Try adjusting your search!
-            </p>
-            <button 
-              onClick={() => { setCategory('All'); setSearchQuery(''); }}
-              className="mt-6 text-primary font-bold hover:underline"
-            >
-              Clear all filters
-            </button>
-          </div>
+          <EmptyState 
+            icon={Inbox}
+            title="No products found"
+            message="We couldn't find any items matching your current filters or search query. Try adjusting your search!"
+            actionLabel="Clear all filters"
+            onAction={() => { setCategory('All'); setSearchQuery(''); }}
+          />
         ) : (
           /* Products Grid */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <motion.div 
+            initial="hidden" 
+            animate="visible" 
+            variants={staggerContainer}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
             {products.map(product => {
               const image = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
               return (
-                <Link key={product.id} to={`/products/${product.id}`} className="group bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full">
+                <motion.div variants={fadeUp} key={product.id} className="h-full">
+                  <TiltCard scaleOnHover={1.03}>
+                    <Link to={`/products/${product.id}`} className="group bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-2xl hover:border-primary/20 transition-all duration-500 flex flex-col h-full">
                   
                   {/* Image Container */}
                   <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 mb-4 relative">
@@ -215,13 +240,15 @@ const Products = () => {
                       </div>
                     </div>
                   </div>
-                </Link>
+                  </Link>
+                  </TiltCard>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </AnimatedPage>
   );
 };
 

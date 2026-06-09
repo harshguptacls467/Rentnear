@@ -1,15 +1,37 @@
-import React from 'react';
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { Menu, X } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const Navbar = () => {
-  const { session, logout } = useAuthStore();
+  const { session, user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const handleLogout = async () => {
     await logout();
+    setMobileMenuOpen(false);
     navigate('/login');
   };
+
+  const closeMenu = () => setMobileMenuOpen(false);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        closeMenu();
+      }
+    };
+    if (mobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
 
   return (
     <nav className="bg-navy text-white p-4 shadow-md sticky top-0 z-50">
@@ -21,16 +43,34 @@ const Navbar = () => {
           <Link to="/">RentNear</Link>
         </div>
         
-        <div className="flex space-x-6 items-center">
+        {/* Hamburger Icon (Mobile Only) */}
+        <button 
+          className="md:hidden text-white focus:outline-none p-2"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu size={28} />
+        </button>
+
+        {/* Desktop Menu */}
+        <div className="hidden md:flex space-x-6 items-center">
           {session ? (
             <>
               {/* Authenticated Links */}
               <Link to="/home" className="text-gray-300 hover:text-white font-medium transition-colors">Dashboard</Link>
               <Link to="/products" className="text-gray-300 hover:text-white font-medium transition-colors">Discover</Link>
+              <Link to="/map" className="text-gray-300 hover:text-white font-medium transition-colors border border-gray-600 px-3 py-1 rounded-full text-xs">Map View</Link>
               <Link to="/list-product" className="text-gray-300 hover:text-white font-medium transition-colors">List Item</Link>
               <Link to="/my-listings" className="text-gray-300 hover:text-white font-medium transition-colors">My Listings</Link>
               <Link to="/bookings" className="text-gray-300 hover:text-white font-medium transition-colors">Bookings</Link>
+              
+              <NotificationBell />
+              
               <Link to="/profile" className="text-gray-300 hover:text-white font-medium transition-colors">Profile</Link>
+              
+              {/* Show Admin link only if user is an admin */}
+              {user?.is_admin && (
+                <Link to="/admin" className="text-yellow-400 hover:text-yellow-300 font-bold transition-colors">Admin Panel</Link>
+              )}
               
               <button 
                 onClick={handleLogout}
@@ -55,6 +95,61 @@ const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* Mobile Overlay & Slide-in Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[100] flex md:hidden bg-black/60 backdrop-blur-sm">
+          <div className="flex-1" onClick={closeMenu}></div>
+          <div ref={menuRef} className="w-64 bg-navy h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out translate-x-0">
+            <div className="flex justify-between items-center p-6 border-b border-gray-800">
+              <span className="font-bold text-xl text-white">Menu</span>
+              <div className="flex items-center gap-4">
+                {session && <NotificationBell />}
+                <button onClick={closeMenu} className="text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-col p-6 space-y-6 overflow-y-auto">
+              {session ? (
+                <>
+                  <Link to="/home" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Dashboard</Link>
+                  <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
+                  <Link to="/map" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Map View</Link>
+                  <Link to="/list-product" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">List Item</Link>
+                  <Link to="/my-listings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">My Listings</Link>
+                  <Link to="/bookings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Bookings</Link>
+                  <Link to="/profile" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Profile</Link>
+                  
+                  {user?.is_admin && (
+                    <Link to="/admin" onClick={closeMenu} className="text-yellow-400 hover:text-yellow-300 text-lg font-bold">Admin Panel</Link>
+                  )}
+                  
+                  <button 
+                    onClick={handleLogout}
+                    className="mt-4 bg-red-500/10 text-red-400 border border-red-500/30 px-5 py-3 rounded-xl font-bold w-full text-left flex items-center justify-center"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link to="/" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Home</Link>
+                  <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
+                  
+                  <div className="pt-6 mt-6 border-t border-gray-800 flex flex-col gap-4">
+                    <Link to="/login" onClick={closeMenu} className="text-center text-white font-bold border border-gray-600 px-5 py-3 rounded-xl">Login</Link>
+                    <Link to="/register" onClick={closeMenu} className="text-center bg-primary text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-primary/30">
+                      Sign Up
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 };

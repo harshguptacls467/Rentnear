@@ -1,14 +1,17 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react'
 import { UploadCloud, X, AlertCircle, PlusCircle } from 'lucide-react';
 
-const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 2 }) => {
+import { compressImage } from '../utils/imageCompressor';
+
+const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 10 }) => {
   const [files, setFiles] = useState([]);
   const [localError, setLocalError] = useState('');
+  const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef(null);
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     setLocalError('');
     const selectedFiles = Array.from(e.target.files);
     
@@ -18,20 +21,23 @@ const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 2 }) => 
       return;
     }
 
+    setIsCompressing(true);
     const validFiles = [];
     let hasSizeError = false;
 
-    selectedFiles.forEach((file) => {
+    for (const file of selectedFiles) {
       if (file.size > maxSizeBytes) {
         hasSizeError = true;
       } else {
+        // Compress the image before storing it in state
+        const compressedFile = await compressImage(file);
         // Create an object URL so we can instantly show an image preview
-        Object.assign(file, {
-          preview: URL.createObjectURL(file)
+        Object.assign(compressedFile, {
+          preview: URL.createObjectURL(compressedFile)
         });
-        validFiles.push(file);
+        validFiles.push(compressedFile);
       }
-    });
+    }
 
     if (hasSizeError) {
       setLocalError(`Some files exceeded the ${maxSizeMB}MB limit and were skipped.`);
@@ -43,6 +49,7 @@ const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 2 }) => 
     // Pass the new files up to the parent component
     if(onChange) onChange(newFiles);
     
+    setIsCompressing(false);
     // Clear the internal input value so the same file can be selected again if deleted
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -68,15 +75,15 @@ const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 2 }) => 
       {/* Upload Dropzone */}
       <div 
         className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
-          files.length >= maxFiles 
+          files.length >= maxFiles || isCompressing
             ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' 
             : 'bg-white border-gray-300 hover:bg-gray-50 hover:border-primary cursor-pointer'
         } ${displayError ? 'border-red-300 bg-red-50' : ''}`}
-        onClick={() => files.length < maxFiles && fileInputRef.current?.click()}
+        onClick={() => !isCompressing && files.length < maxFiles && fileInputRef.current?.click()}
       >
-        <UploadCloud className={`mx-auto h-12 w-12 mb-3 ${displayError ? 'text-red-400' : 'text-gray-400'}`} />
+        <UploadCloud className={`mx-auto h-12 w-12 mb-3 ${displayError ? 'text-red-400' : 'text-gray-400'} ${isCompressing ? 'animate-pulse' : ''}`} />
         <p className="text-sm text-gray-700 font-semibold">
-          Click to upload <span className="font-normal text-gray-500">or drag and drop</span>
+          {isCompressing ? 'Compressing images...' : <>Click to upload <span className="font-normal text-gray-500">or drag and drop</span></>}
         </p>
         <p className="text-xs text-gray-400 mt-2 font-medium">PNG, JPG up to {maxSizeMB}MB (Max {maxFiles} files)</p>
         
@@ -87,7 +94,7 @@ const FileUpload = ({ label, error, onChange, maxFiles = 5, maxSizeMB = 2 }) => 
           accept="image/*"
           className="hidden"
           onChange={handleFileChange}
-          disabled={files.length >= maxFiles}
+          disabled={files.length >= maxFiles || isCompressing}
         />
       </div>
 
