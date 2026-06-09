@@ -31,9 +31,10 @@ const NotificationBell = () => {
 
     fetchNotifications();
 
-    // Supabase Realtime Subscription
+    // Supabase Realtime Subscription (Unique channel name for multiple instances)
+    const channelName = `public:notifications:${user.id}-${Math.random().toString(36).substring(7)}`;
     const channel = supabase
-      .channel(`public:notifications:user_id=eq.${user.id}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
