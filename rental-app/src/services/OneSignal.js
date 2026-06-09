@@ -2,9 +2,9 @@ import OneSignal from 'react-onesignal';
 
 export const initOneSignal = async (userId) => {
   try {
-    // Replace with your actual OneSignal App ID
+    // Provided OneSignal App ID
     await OneSignal.init({
-      appId: "00000000-0000-0000-0000-000000000000", // Placeholder App ID
+      appId: "109c1bae-e0a1-4b1c-a781-53f1ab90e9ec",
       allowLocalhostAsSecureOrigin: true,
       notifyButton: {
         enable: true,
