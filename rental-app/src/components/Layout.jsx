@@ -1,5 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import Navbar from './Navbar';
+import AIChatbot from './AIChatbot';
 
 const Layout = () => {
   return (
@@ -50,6 +51,9 @@ const Layout = () => {
           <p>&copy; {new Date().getFullYear()} RentNear Marketplace. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* Floating AI Chatbot */}
+      <AIChatbot />
     </div>
   );
 };
