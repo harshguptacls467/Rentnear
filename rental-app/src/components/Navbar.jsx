@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from './NotificationBell';
 
 const Navbar = () => {
@@ -97,59 +98,78 @@ const Navbar = () => {
       </div>
 
       {/* Mobile Overlay & Slide-in Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] flex md:hidden bg-black/60 backdrop-blur-sm">
-          <div className="flex-1" onClick={closeMenu}></div>
-          <div ref={menuRef} className="w-64 bg-navy h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out translate-x-0">
-            <div className="flex justify-between items-center p-6 border-b border-gray-800">
-              <span className="font-bold text-xl text-white">Menu</span>
-              <div className="flex items-center gap-4">
-                {session && <NotificationBell />}
-                <button onClick={closeMenu} className="text-gray-400 hover:text-white">
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-[100] flex md:hidden">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={closeMenu}
+            ></motion.div>
             
-            <div className="flex flex-col p-6 space-y-6 overflow-y-auto">
-              {session ? (
-                <>
-                  <Link to="/home" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Dashboard</Link>
-                  <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
-                  <Link to="/map" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Map View</Link>
-                  <Link to="/list-product" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">List Item</Link>
-                  <Link to="/my-listings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">My Listings</Link>
-                  <Link to="/bookings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Bookings</Link>
-                  <Link to="/profile" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Profile</Link>
-                  
-                  {user?.is_admin && (
-                    <Link to="/admin" onClick={closeMenu} className="text-yellow-400 hover:text-yellow-300 text-lg font-bold">Admin Panel</Link>
-                  )}
-                  
-                  <button 
-                    onClick={handleLogout}
-                    className="mt-4 bg-red-500/10 text-red-400 border border-red-500/30 px-5 py-3 rounded-xl font-bold w-full text-left flex items-center justify-center"
-                  >
-                    Logout
+            {/* Drawer */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              ref={menuRef} 
+              className="absolute right-0 w-72 bg-navy h-full shadow-2xl flex flex-col"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-gray-800">
+                <span className="font-bold text-xl text-white">Menu</span>
+                <div className="flex items-center gap-4">
+                  {session && <NotificationBell />}
+                  <button onClick={closeMenu} className="text-gray-400 hover:text-white p-1">
+                    <X size={24} />
                   </button>
-                </>
-              ) : (
-                <>
-                  <Link to="/" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Home</Link>
-                  <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
-                  
-                  <div className="pt-6 mt-6 border-t border-gray-800 flex flex-col gap-4">
-                    <Link to="/login" onClick={closeMenu} className="text-center text-white font-bold border border-gray-600 px-5 py-3 rounded-xl">Login</Link>
-                    <Link to="/register" onClick={closeMenu} className="text-center bg-primary text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-primary/30">
-                      Sign Up
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col p-6 space-y-6 overflow-y-auto h-full pb-20">
+                {session ? (
+                  <>
+                    <Link to="/home" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Dashboard</Link>
+                    <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
+                    <Link to="/map" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Map View</Link>
+                    <Link to="/list-product" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">List Item</Link>
+                    <Link to="/my-listings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">My Listings</Link>
+                    <Link to="/bookings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Bookings</Link>
+                    <Link to="/profile" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Profile</Link>
+                    
+                    {user?.is_admin && (
+                      <Link to="/admin" onClick={closeMenu} className="text-yellow-400 hover:text-yellow-300 text-lg font-bold">Admin Panel</Link>
+                    )}
+                    
+                    <button 
+                      onClick={handleLogout}
+                      className="mt-4 bg-red-500/10 text-red-400 border border-red-500/30 px-5 py-3 rounded-xl font-bold w-full text-center hover:bg-red-500 hover:text-white transition-all"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Home</Link>
+                    <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
+                    
+                    <div className="pt-6 mt-6 border-t border-gray-800 flex flex-col gap-4">
+                      <Link to="/login" onClick={closeMenu} className="text-center text-white font-bold border border-gray-600 px-5 py-3 rounded-xl">Login</Link>
+                      <Link to="/register" onClick={closeMenu} className="text-center bg-primary text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-primary/30">
+                        Sign Up
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </nav>
   );
 };
