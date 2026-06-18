@@ -34,6 +34,8 @@ const Payment = lazy(() => import('./pages/Payment'));
 const ChatWindow = lazy(() => import('./pages/ChatWindow'));
 const DisputeForm = lazy(() => import('./pages/DisputeForm'));
 const DisputeDetail = lazy(() => import('./pages/DisputeDetail'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Support = lazy(() => import('./pages/Support'));
 
 // Full-screen loading fallback for Suspense
 const PageLoader = () => (
@@ -61,6 +63,7 @@ const AnimatedRoutes = () => {
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="map" element={<MapSearch />} />
+          <Route path="support" element={<Support />} />
           
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
@@ -80,6 +83,7 @@ const AnimatedRoutes = () => {
             <Route path="chat/:bookingId" element={<ChatWindow />} />
             <Route path="profile" element={<Profile />} />
             <Route path="kyc" element={<KYCForm />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
           {/* Admin Routes */}

@@ -31,7 +31,7 @@ const Layout = () => {
             <ul className="space-y-3 text-sm">
               <li><Link to="/products" className="hover:text-primary transition-colors">Browse Items</Link></li>
               <li><Link to="/list-product" className="hover:text-primary transition-colors">List an Item</Link></li>
-              <li><Link to="/" className="hover:text-primary transition-colors">How it Works</Link></li>
+              <li><Link to="/support" className="hover:text-primary transition-colors">How it Works</Link></li>
             </ul>
           </div>
           
@@ -40,8 +40,8 @@ const Layout = () => {
             <h3 className="text-lg font-semibold text-white mb-4">Company</h3>
             <ul className="space-y-3 text-sm">
               <li><Link to="/" className="hover:text-primary transition-colors">About Us</Link></li>
-              <li><Link to="/" className="hover:text-primary transition-colors">Trust & Safety</Link></li>
-              <li><Link to="/" className="hover:text-primary transition-colors">Contact Support</Link></li>
+              <li><Link to="/support#trust-safety" className="hover:text-primary transition-colors">Trust & Safety</Link></li>
+              <li><Link to="/support#contact" className="hover:text-primary transition-colors">Contact Support</Link></li>
             </ul>
           </div>
         </div>

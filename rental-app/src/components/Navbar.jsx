@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from './NotificationBell';
 
@@ -67,6 +67,8 @@ const Navbar = () => {
               <NotificationBell />
               
               <Link to="/profile" className="text-gray-300 hover:text-white font-medium transition-colors">Profile</Link>
+              <Link to="/settings" className="text-gray-300 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10" title="Settings"><Settings size={18} /></Link>
+              <Link to="/support" className="text-gray-300 hover:text-white font-medium transition-colors text-sm border border-gray-600/60 px-3 py-1 rounded-full">Help</Link>
               
               {/* Show Admin link only if user is an admin */}
               {user?.is_admin && (
@@ -85,6 +87,7 @@ const Navbar = () => {
               {/* Public Links */}
               <Link to="/" className="text-gray-300 hover:text-white font-medium transition-colors">Home</Link>
               <Link to="/products" className="text-gray-300 hover:text-white font-medium transition-colors">Discover</Link>
+              <Link to="/support" className="text-gray-300 hover:text-white font-medium transition-colors">Help</Link>
               
               <div className="flex items-center gap-3 ml-2">
                 <Link to="/login" className="text-gray-300 hover:text-white font-medium transition-colors px-2">Login</Link>
@@ -143,6 +146,8 @@ const Navbar = () => {
                     <Link to="/my-listings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">My Listings</Link>
                     <Link to="/bookings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Bookings</Link>
                     <Link to="/profile" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Profile</Link>
+                    <Link to="/settings" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Settings</Link>
+                    <Link to="/support" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Help & Support</Link>
                     
                     {user?.is_admin && (
                       <Link to="/admin" onClick={closeMenu} className="text-yellow-400 hover:text-yellow-300 text-lg font-bold">Admin Panel</Link>
@@ -159,6 +164,7 @@ const Navbar = () => {
                   <>
                     <Link to="/" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Home</Link>
                     <Link to="/products" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Discover</Link>
+                    <Link to="/support" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Help & Support</Link>
                     
                     <div className="pt-6 mt-6 border-t border-gray-800 flex flex-col gap-4">
                       <Link to="/login" onClick={closeMenu} className="text-center text-white font-bold border border-gray-600 px-5 py-3 rounded-xl">Login</Link>
