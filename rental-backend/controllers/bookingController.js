@@ -6,7 +6,8 @@ const bookingController = {
   // POST /api/bookings
   createBooking: async (req, res, next) => {
     try {
-      const { product_id, start_date, end_date, total_amount } = req.body;
+      const { product_id, start_date, end_date } = req.body;
+      // SECURITY: Do NOT trust total_amount from the client — calculate server-side
       const renter_id = req.user.id;
 
       // Basic date validation
@@ -25,7 +26,7 @@ const bookingController = {
       // 1. Fetch Product to get owner_id and deposit_amount
       const { data: product, error: productError } = await supabase
         .from('products')
-        .select('owner_id, deposit_amount, is_available')
+        .select('owner_id, deposit_amount, is_available, price_per_day')
         .eq('id', product_id)
         .single();
 
@@ -58,6 +59,12 @@ const bookingController = {
         return res.status(409).json({ message: 'These dates are already booked or pending' });
       }
 
+      // SECURITY: Calculate price server-side — never trust client input for money
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      const rentalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+      const calculatedTotal = parseFloat((rentalDays * product.price_per_day + (product.deposit_amount || 0)).toFixed(2));
+
       // 3. Create Booking
       const { data: newBooking, error: insertError } = await supabase
         .from('bookings')
@@ -67,7 +74,7 @@ const bookingController = {
           owner_id: product.owner_id,
           start_date,
           end_date,
-          total_amount,
+          total_amount: calculatedTotal,
           deposit_amount: product.deposit_amount,
           message: req.body.message,
           status: 'pending'

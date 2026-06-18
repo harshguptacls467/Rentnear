@@ -1,5 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const healthRoutes = require('./routes/health');
 const bookingRoutes = require('./routes/bookings');
 const adminRoutes = require('./routes/admin');
@@ -11,16 +14,45 @@ const app = express();
 
 const paymentController = require('./controllers/paymentController');
 
-// 1. CORS is configured to allow cross-origin requests from the frontend
-app.use(cors());
+// ── 1. Security Headers (helmet) ─────────────────────────────────────────────
+// Sets X-Content-Type-Options, X-Frame-Options, HSTS, CSP etc.
+app.use(helmet());
 
-// 2. Parse incoming JSON requests
-app.use(express.json());
+// ── 2. CORS — Restricted to frontend origin only ─────────────────────────────
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({
+  origin: allowedOrigin,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
 
-// Routes
+// ── 3. Global Rate Limiter — 100 requests per 15 minutes per IP ──────────────
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests, please try again later.' },
+});
+app.use(globalLimiter);
+
+// ── 4. Strict Rate Limiter — for write operations (booking, payment) ─────────
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests on this endpoint, please slow down.' },
+});
+
+// ── 5. Parse incoming JSON requests ──────────────────────────────────────────
+app.use(express.json({ limit: '2mb' })); // Limit body size to 2MB
+
+// ── 6. Routes ─────────────────────────────────────────────────────────────────
 app.use('/api', healthRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/bookings', bookingRoutes);
+app.use('/api/bookings', strictLimiter, bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 
@@ -35,3 +67,4 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 module.exports = app;
+

@@ -4,7 +4,10 @@ const productController = {
   // GET /api/products
   getAllProducts: async (req, res, next) => {
     try {
-      const { category, search, limit = 50, offset = 0 } = req.query;
+      // SECURITY: Validate and cap limit/offset to prevent DoS via huge data dumps
+      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+      const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+      const { category, search } = req.query;
 
       let query = supabase
         .from('products')
@@ -135,7 +138,27 @@ const productController = {
     try {
       const { id } = req.params;
       const owner_id = req.user.id;
-      const updates = req.body;
+      // SECURITY: Use explicit field allowlist — never pass raw req.body to DB
+      // This prevents mass-assignment attacks (e.g. user setting owner_id or created_at)
+      const {
+        title, description, category, condition,
+        price_per_day, price_per_hour, deposit_amount,
+        location, latitude, longitude, images, is_available
+      } = req.body;
+
+      const allowedUpdates = {};
+      if (title !== undefined) allowedUpdates.title = title;
+      if (description !== undefined) allowedUpdates.description = description;
+      if (category !== undefined) allowedUpdates.category = category;
+      if (condition !== undefined) allowedUpdates.condition = condition;
+      if (price_per_day !== undefined) allowedUpdates.price_per_day = price_per_day;
+      if (price_per_hour !== undefined) allowedUpdates.price_per_hour = price_per_hour;
+      if (deposit_amount !== undefined) allowedUpdates.deposit_amount = deposit_amount;
+      if (location !== undefined) allowedUpdates.location = location;
+      if (latitude !== undefined) allowedUpdates.latitude = latitude;
+      if (longitude !== undefined) allowedUpdates.longitude = longitude;
+      if (images !== undefined) allowedUpdates.images = images;
+      if (is_available !== undefined) allowedUpdates.is_available = is_available;
 
       // Verify ownership
       const { data: existing, error: fetchError } = await supabase
@@ -152,13 +175,9 @@ const productController = {
         return res.status(403).json({ message: 'Only the owner can update this product' });
       }
 
-      // We do not want to allow updating the owner_id or id
-      delete updates.id;
-      delete updates.owner_id;
-
       const { data, error } = await supabase
         .from('products')
-        .update(updates)
+        .update(allowedUpdates)
         .eq('id', id)
         .select()
         .single();

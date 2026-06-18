@@ -1,12 +1,19 @@
 const errorHandler = (err, req, res, next) => {
-  console.error(err.stack);
-  
-  res.status(err.status || 500).json({
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  // Always log the full error on the server
+  console.error(`[${new Date().toISOString()}] ${err.stack || err.message}`);
+
+  const statusCode = err.status || 500;
+
+  res.status(statusCode).json({
     error: {
-      message: err.message || 'Internal Server Error',
-      status: err.status || 500,
+      message: isDev ? (err.message || 'Internal Server Error') : 'An unexpected error occurred.',
+      status: statusCode,
+      ...(isDev && { stack: err.stack }),
     }
   });
 };
 
 module.exports = errorHandler;
+
