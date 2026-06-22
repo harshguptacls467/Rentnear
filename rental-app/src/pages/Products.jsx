@@ -7,6 +7,8 @@ import Select from '../components/Select';
 import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { MOCK_PRODUCTS } from '../data/mockData';
+import { getLocalProducts } from '../utils/localDb';
+import useAuthStore from '../store/authStore';
 import { motion } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
@@ -29,6 +31,7 @@ const SORT_OPTIONS = [
 ];
 
 const Products = () => {
+  const { isMock } = useAuthStore();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -48,6 +51,9 @@ const Products = () => {
       setLoading(true);
       setError('');
       try {
+        if (isMock) {
+          throw new Error('mock');
+        }
         let query = supabase.from('products').select('*');
         if (category !== 'All') query = query.eq('category', category);
         if (debouncedQuery.trim() !== '') query = query.ilike('title', `%${debouncedQuery}%`);
@@ -61,21 +67,26 @@ const Products = () => {
         if (data && data.length > 0) setProducts(data);
         else throw new Error('empty');
       } catch {
-        let mock = [...MOCK_PRODUCTS];
+        let mock = [...getLocalProducts()];
         if (category !== 'All') mock = mock.filter(p => p.category === category);
         if (debouncedQuery.trim()) {
           const q = debouncedQuery.toLowerCase();
           mock = mock.filter(p => p.title.toLowerCase().includes(q));
         }
-        if (sortBy === 'price_asc') mock.sort((a, b) => a.price_per_day - b.price_per_day);
-        else if (sortBy === 'price_desc') mock.sort((a, b) => b.price_per_day - a.price_per_day);
+        if (sortBy === 'newest') {
+          mock.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        } else if (sortBy === 'price_asc') {
+          mock.sort((a, b) => a.price_per_day - b.price_per_day);
+        } else if (sortBy === 'price_desc') {
+          mock.sort((a, b) => b.price_per_day - a.price_per_day);
+        }
         setProducts(mock);
       } finally {
         setLoading(false);
       }
     };
     fetchProducts();
-  }, [debouncedQuery, category, sortBy]);
+  }, [debouncedQuery, category, sortBy, isMock]);
 
 
   return (

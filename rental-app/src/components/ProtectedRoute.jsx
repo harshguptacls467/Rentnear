@@ -4,6 +4,8 @@ import useAuthStore from '../store/authStore';
 const ProtectedRoute = ({ adminOnly = false }) => {
   const { session, initialized, user } = useAuthStore();
 
+  console.log('ProtectedRoute Auth State:', { session, initialized, user, isMockSession: session?.access_token === 'mock-token-demo' });
+
   // If Supabase hasn't finished checking the session yet, show a loading spinner
   // This prevents the screen from "flickering" to the login page on a hard refresh
   if (!initialized) {
@@ -18,6 +20,7 @@ const ProtectedRoute = ({ adminOnly = false }) => {
   // Allow both real Supabase sessions and mock demo sessions
   const isMockSession = session?.access_token === 'mock-token-demo';
   if (!session && !isMockSession) {
+    console.log('ProtectedRoute: No session found, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 

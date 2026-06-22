@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import { Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, MapPin, Sparkles, User as UserIcon, ChevronRight, TrendingUp, ShieldCheck, Zap, Lightbulb } from 'lucide-react';
 import { MOCK_USER, MOCK_PRODUCTS } from '../data/mockData';
+import { getLocalProducts } from '../utils/localDb';
 import { motion } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
@@ -177,7 +178,7 @@ const ProductCard = ({ product }) => (
 // ==========================================
 
 const Home = () => {
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   const [profile, setProfile] = useState(null);
   const [recentProducts, setRecentProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +189,9 @@ const Home = () => {
       if (!user) return;
       try {
         setLoading(true);
+        if (isMock) {
+          throw new Error('mock');
+        }
         const { data: profileData } = await supabase.from('users').select('*').eq('id', user.id).single();
         if (profileData) {
           setProfile(profileData);
@@ -202,8 +206,18 @@ const Home = () => {
         else setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
 
       } catch (error) {
-        setProfile(MOCK_USER);
-        setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
+        if (isMock) {
+          setProfile(user);
+          setViewMode(user?.role === 'owner' ? 'owner' : 'renter');
+          
+          const localProds = getLocalProducts();
+          // Sort newest (created_at desc)
+          const sortedProds = [...localProds].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          setRecentProducts(sortedProds.slice(0, 4));
+        } else {
+          setProfile(MOCK_USER);
+          setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
+        }
       } finally {
         setLoading(false);
       }
@@ -218,7 +232,7 @@ const Home = () => {
       return;
     }
     fetchDashboardData();
-  }, [user]);
+  }, [user, isMock]);
 
   if (loading) return <LoadingSkeleton />;
 

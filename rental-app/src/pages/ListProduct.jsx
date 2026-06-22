@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
+import { getLocalProducts, saveLocalProducts } from '../utils/localDb';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import TextArea from '../components/TextArea';
@@ -31,7 +32,7 @@ const CONDITION_OPTIONS = [
 const ListProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,9 @@ const ListProduct = () => {
   useEffect(() => {
     const fetchExistingProduct = async () => {
       try {
+        if (isMock) {
+          throw new Error('mock');
+        }
         const { data, error } = await supabase.from('products').select('*').eq('id', id).eq('owner_id', user.id).single();
         if (error) throw error;
         setFormData({
@@ -53,14 +57,28 @@ const ListProduct = () => {
           photos: data.images || [], condition: data.condition || 'Good', price_per_day: data.price_per_day || '',
           price_per_hour: data.price_per_hour || '', deposit_amount: data.deposit_amount || '0', is_available: data.is_available !== false,
         });
-      } catch {
-        setError('Failed to load product for editing.');
+      } catch (err) {
+        if (isMock && id) {
+          const allProducts = getLocalProducts();
+          const foundProduct = allProducts.find(p => p.id === id && p.owner_id === user?.id);
+          if (foundProduct) {
+            setFormData({
+              title: foundProduct.title || '', category: foundProduct.category || '', description: foundProduct.description || '',
+              photos: foundProduct.images || [], condition: foundProduct.condition || 'Good', price_per_day: foundProduct.price_per_day || '',
+              price_per_hour: foundProduct.price_per_hour || '', deposit_amount: foundProduct.deposit_amount || '0', is_available: foundProduct.is_available !== false,
+            });
+          } else {
+            setError('Failed to load product for editing.');
+          }
+        } else {
+          setError('Failed to load product for editing.');
+        }
       } finally {
         setInitialFetchLoading(false);
       }
     };
     if (id && user) fetchExistingProduct();
-  }, [id, user]);
+  }, [id, user, isMock]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -84,7 +102,48 @@ const ListProduct = () => {
     try {
       setLoading(true);
       setError('');
+      
       const uploadedImageUrls = [];
+      if (isMock) {
+        for (const file of formData.photos) {
+          if (typeof file === 'string') {
+            uploadedImageUrls.push(file);
+          } else {
+            uploadedImageUrls.push(URL.createObjectURL(file));
+          }
+        }
+        if (uploadedImageUrls.length === 0) {
+          uploadedImageUrls.push('https://via.placeholder.com/400x300?text=' + encodeURIComponent(formData.title));
+        }
+
+        const productPayload = {
+          id: id || 'mock-prod-id-' + Math.random().toString(36).substring(2, 11),
+          title: formData.title,
+          category: formData.category,
+          description: formData.description,
+          condition: formData.condition,
+          price_per_day: parseFloat(formData.price_per_day),
+          price_per_hour: formData.price_per_hour ? parseFloat(formData.price_per_hour) : null,
+          deposit_amount: parseFloat(formData.deposit_amount),
+          is_available: formData.is_available,
+          images: uploadedImageUrls,
+          owner_id: user.id,
+          created_at: new Date().toISOString(),
+        };
+
+        const localProducts = getLocalProducts();
+        if (id) {
+          const updated = localProducts.map(p => p.id === id ? productPayload : p);
+          saveLocalProducts(updated);
+        } else {
+          localProducts.push(productPayload);
+          saveLocalProducts(localProducts);
+        }
+
+        navigate('/my-listings');
+        return;
+      }
+
       for (const file of formData.photos) {
         if (typeof file === 'string') { uploadedImageUrls.push(file); continue; }
         const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${file.name.split('.').pop()}`;

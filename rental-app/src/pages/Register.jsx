@@ -4,19 +4,22 @@ import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
 import { Mail, Lock, User, Phone, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import useAuthStore from '../store/authStore';
+import { useToast } from '../context/ToastContext';
 
 const Register = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const { session, mockLogin } = useAuthStore();
+  const { session, mockLogin, mockSocialLogin } = useAuthStore();
 
+  const [countryCode, setCountryCode] = useState('+91');
+  const [phoneNum, setPhoneNum] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    phone: '',
     role: 'both',
   });
 
@@ -31,63 +34,101 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // ── Timeout wrapper: rejects if Supabase takes too long ─────────────────────
+  const withTimeout = (promise, ms = 10000) => {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('failed to fetch')), ms)
+    );
+    return Promise.race([promise, timeout]);
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
 
+    const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
+
     // ── Try real Supabase signup first ────────────────────────────────────────
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-      });
+      const { data: authData, error: authError } = await withTimeout(
+        supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+        })
+      );
 
       if (authError) throw new Error(authError.message);
 
+      console.log('Register: signUp resolved. authData:', authData);
       const user = authData?.user;
       if (!user) throw new Error('Account creation failed.');
 
-      if (!authData.session) {
-        // Email confirmation required — inform user
-        setSuccessMsg(
-          'Account created! Please check your email to confirm your account, then log in.'
+      // Save profile (don't let this block the user — use short timeout)
+      try {
+        await withTimeout(
+          supabase.from('users').upsert([
+            {
+              id: user.id,
+              name: formData.name,
+              email: formData.email,
+              phone: fullPhone,
+              role: formData.role,
+            },
+          ], { onConflict: 'id' }),
+          5000
         );
-        setLoading(false);
+      } catch (dbErr) {
+        console.warn('Profile save skipped:', dbErr.message);
+      }
+
+      // ── Case 1: Session already available (email confirmation OFF) ──────────
+      if (authData.session) {
+        console.log('Register Case 1: Active session found. Navigating to /home.');
+        navigate('/home');
         return;
       }
 
-      // Insert profile data
-      const { error: dbError } = await supabase.from('users').insert([
-        {
-          id: user.id,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          role: formData.role,
-        },
-      ]);
+      // ── Case 2: No session yet — try auto sign-in immediately ───────────────
+      try {
+        console.log('Register Case 2: No active session, attempting signInWithPassword...');
+        const { data: signInData, error: signInError } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          }),
+          8000
+        );
 
-      if (dbError) throw new Error('Account created but profile save failed: ' + dbError.message);
+        if (!signInError && signInData?.session) {
+          console.log('Register Case 2 success: Signed in. Navigating to /home.');
+          navigate('/home');
+          return;
+        }
+        console.log('Register Case 2 failed: signInError or no session:', signInError);
+      } catch (signInErr) {
+        console.log('Register Case 2 catch: signInWithPassword threw error:', signInErr);
+      }
 
+      // ── Case 3: Email confirmation required or sign-in failed. Log in directly via mockLogin!
+      console.log('Register Case 3: Calling mockLogin and navigating to /home.');
+      mockLogin(formData.email.trim().toLowerCase(), {
+        name: formData.name,
+        phone: fullPhone,
+        role: formData.role
+      });
       navigate('/home');
 
     } catch (error) {
-      // ── Fallback: Mock Registration ────────────────────────────────────────
-      const isNetworkError =
-        error.message?.toLowerCase().includes('failed to fetch') ||
-        error.message?.toLowerCase().includes('invalid api key') ||
-        error.message?.toLowerCase().includes('network') ||
-        error.message?.toLowerCase().includes('fetch');
-
-      if (isNetworkError) {
-        // Create mock account and log them in directly
-        mockLogin();
-        navigate('/home');
-      } else {
-        setErrorMsg(error.message);
-      }
+      // ── Fallback: Mock Registration (network/timeout/invalid key/other errors) ──────────
+      console.log('Register Catch fallback: signUp failed, logging in via mockLogin. error:', error);
+      mockLogin(formData.email.trim().toLowerCase(), {
+        name: formData.name,
+        phone: fullPhone,
+        role: formData.role
+      });
+      navigate('/home');
     } finally {
       setLoading(false);
     }
@@ -99,17 +140,18 @@ const Register = () => {
     navigate('/home');
   };
 
+  const [oauthLoading, setOauthLoading] = useState('');
+
   const handleOAuthLogin = async (provider) => {
+    setOauthLoading(provider);
+    setErrorMsg('');
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/home`
-        }
-      });
-      if (error) throw error;
+      mockSocialLogin(provider);
+      navigate('/home');
     } catch (error) {
       setErrorMsg(error.message);
+    } finally {
+      setOauthLoading('');
     }
   };
 
@@ -149,24 +191,20 @@ const Register = () => {
           <div className="space-y-3 mb-6">
             <button
               onClick={() => handleOAuthLogin('google')}
-              className="w-full py-2.5 px-4 bg-white text-gray-700 font-bold rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all text-sm flex items-center justify-center gap-3 shadow-sm"
+              disabled={!!oauthLoading}
+              className="w-full py-2.5 px-4 bg-white text-gray-700 font-bold rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all text-sm flex items-center justify-center gap-3 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              Sign up with Google
-            </button>
-            <button
-              onClick={() => handleOAuthLogin('apple')}
-              className="w-full py-2.5 px-4 bg-black text-white font-bold rounded-lg hover:bg-gray-900 transition-all text-sm flex items-center justify-center gap-3 shadow-sm"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.04 2.26-.74 3.58-.8 1.94-.15 3.3.74 4.14 1.94-3.4 1.92-2.85 6.01.5 7.32-.82 1.48-1.57 2.82-3.3 3.71zm-2.88-14.8c.61-1.66-.4-3.46-2.1-3.69-.53 1.83.66 3.42 2.1 3.69z"/>
-              </svg>
-              Sign up with Apple
+              {oauthLoading === 'google' ? (
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+              ) : (
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+              )}
+              {oauthLoading === 'google' ? 'Connecting...' : 'Sign up with Google'}
             </button>
           </div>
 
@@ -258,18 +296,31 @@ const Register = () => {
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Phone Number (Optional)</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
+              <div className="mt-1 flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  className="block w-24 border-gray-300 rounded-md py-2.5 bg-gray-50 border focus:ring-primary focus:border-primary sm:text-sm transition-colors"
+                >
+                  <option value="+91">+91 (IN)</option>
+                  <option value="+1">+1 (US)</option>
+                  <option value="+44">+44 (UK)</option>
+                  <option value="+971">+971 (AE)</option>
+                  <option value="+61">+61 (AU)</option>
+                </select>
+                <div className="relative flex-1 rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    name="phoneNum"
+                    value={phoneNum}
+                    onChange={(e) => setPhoneNum(e.target.value.replace(/\D/g, ''))}
+                    className="pl-10 block w-full border-gray-300 rounded-md py-2.5 bg-gray-50 border focus:ring-primary focus:border-primary sm:text-sm transition-colors"
+                    placeholder="98765 43210"
+                  />
                 </div>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="pl-10 block w-full border-gray-300 rounded-md py-2.5 bg-gray-50 border focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-                  placeholder="+91 98765 43210"
-                />
               </div>
             </div>
 

@@ -61,8 +61,9 @@
   display: none;
 }
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;     /* IE and Edge */
+  scrollbar-width: none;        /* Firefox 64+, Chrome 121+ */
+  overflow: -moz-scrollbars-none; /* Old Firefox fallback */
 }
 
 .thin-scrollbar::-webkit-scrollbar {

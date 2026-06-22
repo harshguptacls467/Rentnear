@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import { Shield, Star, Info, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, ShieldCheck, Clock } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { MOCK_PRODUCTS, MOCK_USER } from '../data/mockData';
+import { getLocalProducts, getLocalBookings, saveLocalBookings, getLocalUsers } from '../utils/localDb';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 
@@ -17,7 +18,7 @@ const fadeUp = {
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
 
   const [product, setProduct] = useState(null);
   const [owner, setOwner] = useState(null);
@@ -48,6 +49,37 @@ const ProductDetail = () => {
     try {
       setBookingLoading(true);
       setBookingError('');
+
+      if (isMock) {
+        const newBookingId = 'mock-booking-id-' + Math.random().toString(36).substring(2, 11);
+        const newBooking = {
+          id: newBookingId,
+          renter_id: user?.id,
+          owner_id: product.owner_id,
+          product_id: product.id,
+          status: 'pending',
+          start_date: startDate,
+          end_date: endDate,
+          total_amount: totalCost,
+          message: message,
+          product: {
+            title: product.title,
+            images: product.images,
+          },
+          renter: {
+            name: user?.name,
+            avatar_url: user?.avatar_url,
+          }
+        };
+        const localBookings = getLocalBookings();
+        localBookings.push(newBooking);
+        saveLocalBookings(localBookings);
+
+        setBookingId(newBookingId);
+        setCheckoutStage('success');
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('You must be logged in to book');
 
@@ -73,6 +105,9 @@ const ProductDetail = () => {
     const fetchProductData = async () => {
       try {
         setLoading(true);
+        if (isMock) {
+          throw new Error('mock');
+        }
         const { data: productData, error: productError } = await supabase.from('products').select('*').eq('id', id).single();
         if (productError || !productData) throw productError || new Error('not found');
         setProduct(productData);
@@ -81,15 +116,41 @@ const ProductDetail = () => {
         ]);
         if (!ownerResponse.error) setOwner(ownerResponse.data);
       } catch (err) {
-        const mockProduct = MOCK_PRODUCTS.find(p => p.id === id) || MOCK_PRODUCTS[0];
-        setProduct({ ...mockProduct, deposit_amount: mockProduct.price_per_day * 2, condition: 'Excellent' });
-        setOwner({ name: MOCK_USER.name, avatar_url: MOCK_USER.avatar_url, created_at: MOCK_USER.created_at, rating_average: 4.8, rating_count: 12 });
+        const allProducts = getLocalProducts();
+        const foundProduct = allProducts.find(p => p.id === id) || allProducts[0];
+        setProduct({ ...foundProduct, deposit_amount: foundProduct.price_per_day * 2, condition: foundProduct.condition || 'Excellent' });
+        
+        const localUsers = getLocalUsers();
+        let ownerData = null;
+        for (const email of Object.keys(localUsers)) {
+          if (localUsers[email].id === foundProduct.owner_id) {
+            ownerData = localUsers[email];
+            break;
+          }
+        }
+        if (!ownerData && foundProduct.owner_id === MOCK_USER.id) {
+          ownerData = MOCK_USER;
+        }
+
+        setOwner(ownerData ? {
+          name: ownerData.name,
+          avatar_url: ownerData.avatar_url,
+          created_at: ownerData.created_at,
+          rating_average: ownerData.rating_average || 4.8,
+          rating_count: ownerData.rating_count || 12
+        } : {
+          name: 'Jane Doe',
+          avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JaneDoe',
+          created_at: '2024-01-01',
+          rating_average: 4.9,
+          rating_count: 5
+        });
       } finally {
         setLoading(false);
       }
     };
     fetchProductData();
-  }, [id]);
+  }, [id, isMock]);
 
   const calculateDays = () => {
     if (!startDate || !endDate) return 0;

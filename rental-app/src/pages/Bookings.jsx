@@ -9,9 +9,11 @@ import EmptyState from '../components/EmptyState';
 import { API_URL } from '../config/api';
 import { MOCK_BOOKINGS } from '../data/mockData';
 
+import { getLocalBookings, saveLocalBookings } from '../utils/localDb';
+
 const Bookings = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,7 +23,6 @@ const Bookings = () => {
   const [selectedReviewBooking, setSelectedReviewBooking] = useState(null);
   
   // High-level View Mode ('renter' or 'owner')
-  // Default to what their role is, or 'renter' if they are 'both'
   const [viewMode, setViewMode] = useState(user?.role === 'owner' ? 'owner' : 'renter');
   
   // Tabs for Renter View
@@ -31,6 +32,14 @@ const Bookings = () => {
     try {
       setLoading(true);
       setError(null);
+
+      if (isMock) {
+        const localBookings = getLocalBookings();
+        const myBookings = localBookings.filter(b => b.renter_id === user?.id || b.owner_id === user?.id);
+        setBookings(myBookings);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session?.access_token) throw new Error('no session');
@@ -42,16 +51,21 @@ const Bookings = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to fetch bookings');
       
-      setBookings(data.length > 0 ? data : MOCK_BOOKINGS);
+      if (data.length > 0) {
+        setBookings(data);
+      } else {
+        const isDemoUser = user?.email === 'demo@rentnear.app';
+        setBookings(isDemoUser ? MOCK_BOOKINGS : []);
+      }
     } catch (err) {
-      // Fallback to mock bookings
-      setBookings(MOCK_BOOKINGS);
+      const isDemoUser = user?.email === 'demo@rentnear.app';
+      setBookings(isDemoUser ? MOCK_BOOKINGS : []);
       setError(err.message);
       console.warn('Using mock bookings:', err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, isMock]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -61,10 +75,17 @@ const Bookings = () => {
 
   const updateBookingStatus = async (bookingId, newStatus, reason = '') => {
     try {
+      if (isMock) {
+        const localBookings = getLocalBookings();
+        const updated = localBookings.map(b => b.id === bookingId ? { ...b, status: newStatus } : b);
+        saveLocalBookings(updated);
+        const myBookings = updated.filter(b => b.renter_id === user?.id || b.owner_id === user?.id);
+        setBookings(myBookings);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       
-      // If rejecting, we might want to append the reason to a message or a dedicated reason column.
-      // For now, we'll just update the status, and log the reason (since we don't have a rejection_reason column yet)
       if (reason) {
          console.log(`Rejecting because: ${reason}`);
       }
@@ -83,7 +104,6 @@ const Bookings = () => {
         throw new Error(errorData.message);
       }
 
-      // Refresh the UI to reflect changes
       fetchBookings();
     } catch (err) {
       alert(err.message);

@@ -5,6 +5,7 @@ import useAuthStore from '../store/authStore';
 import Button from '../components/Button';
 import { Edit, Trash2, Power, AlertCircle, Package } from 'lucide-react';
 import { MOCK_MY_LISTINGS } from '../data/mockData';
+import { getLocalProducts, saveLocalProducts } from '../utils/localDb';
 import { motion } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
@@ -23,7 +24,7 @@ const staggerContainer = {
 };
 
 const MyListings = () => {
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   const navigate = useNavigate();
   
   const [products, setProducts] = useState([]);
@@ -38,6 +39,14 @@ const MyListings = () => {
       try {
         setLoading(true);
         setError(null);
+
+        if (isMock) {
+          const allProducts = getLocalProducts();
+          const myProducts = allProducts.filter(p => p.owner_id === user.id);
+          setProducts(myProducts);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('products')
           .select('*')
@@ -49,12 +58,12 @@ const MyListings = () => {
         if (data && data.length > 0) {
           setProducts(data);
         } else {
-          // Fallback to mock listings
-          setProducts(MOCK_MY_LISTINGS);
+          const isDemoUser = user?.email === 'demo@rentnear.app';
+          setProducts(isDemoUser ? MOCK_MY_LISTINGS : []);
         }
       } catch (err) {
-        // Fallback to mock listings
-        setProducts(MOCK_MY_LISTINGS);
+        const isDemoUser = user?.email === 'demo@rentnear.app';
+        setProducts(isDemoUser ? MOCK_MY_LISTINGS : []);
         setError(err.message);
         console.warn('Using mock listings:', err.message);
       } finally {
@@ -64,20 +73,24 @@ const MyListings = () => {
 
     if (user) fetchMyListings();
     else {
-      Promise.resolve().then(() => {
-        setProducts(MOCK_MY_LISTINGS);
-        setLoading(false);
-      });
+      setProducts([]);
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, isMock]);
 
   // Handle Availability Toggle (Optimistic UI Update)
   const toggleAvailability = async (productId, currentStatus) => {
-    // 1. Optimistic Update (Change the UI immediately before the server responds)
     const newStatus = !currentStatus;
     setProducts(currentProducts => 
       currentProducts.map(p => p.id === productId ? { ...p, is_available: newStatus } : p)
     );
+
+    if (isMock) {
+      const allProducts = getLocalProducts();
+      const updated = allProducts.map(p => p.id === productId ? { ...p, is_available: newStatus } : p);
+      saveLocalProducts(updated);
+      return;
+    }
 
     // 2. Perform the actual backend/database update
     const { error } = await supabase
@@ -104,6 +117,13 @@ const MyListings = () => {
     setProductToDelete(null);
     setProducts(current => current.filter(p => p.id !== idToRemove));
 
+    if (isMock) {
+      const allProducts = getLocalProducts();
+      const updated = allProducts.filter(p => p.id !== idToRemove);
+      saveLocalProducts(updated);
+      return;
+    }
+
     const { error } = await supabase
       .from('products')
       .delete()
@@ -112,7 +132,6 @@ const MyListings = () => {
 
     if (error) {
       alert("Failed to delete product.");
-      // In a robust app, we'd fetch the products again to restore state
     }
   };
 
