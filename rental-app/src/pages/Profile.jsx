@@ -356,7 +356,7 @@ const Profile = () => {
       
       {/* Real-time Push Notification Simulation Overlay */}
       {notification && (
-        <div className="fixed top-24 right-4 z-50 max-w-sm w-full bg-navy text-white rounded-2xl shadow-[0_15px_40px_-5px_rgba(0,0,0,0.5)] border border-white/10 p-5 overflow-hidden animate-slide-in-right">
+        <div className="fixed top-24 right-4 z-[9999] max-w-sm w-full bg-navy text-white rounded-2xl shadow-[0_15px_40px_-5px_rgba(0,0,0,0.5)] border border-white/10 p-5 overflow-hidden animate-slide-in-right">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary-light flex-shrink-0">
               {notification.type === 'email' ? <Mail size={20} /> : <Smartphone size={20} />}

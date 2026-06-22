@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, UploadCloud, FileImage, CheckCircle, AlertCircle, 
-  Smartphone, Key, Check, Lock, ChevronRight, FileText 
+  Smartphone, Key, Check, Lock, ChevronRight, FileText, X 
 } from 'lucide-react';
 import Button from '../components/Button';
 import AnimatedPage from '../components/AnimatedPage';
@@ -106,7 +106,7 @@ const KYCForm = () => {
                   }
                 } else {
                   await supabase.from('users').update({ kyc_status: 'unverified' }).eq('id', user.id);
-                  await initialize();
+                  useAuthStore.setState({ user: { ...user, kyc_status: 'unverified', kyc_verified: false } });
                 }
                 setVerifyMethod('instant');
               } catch (e) {
@@ -173,7 +173,7 @@ const KYCForm = () => {
       } else {
         const { error } = await supabase.from('users').update(updateData).eq('id', user.id);
         if (error) throw error;
-        await initialize();
+        useAuthStore.setState({ user: { ...user, ...updateData } });
       }
 
       showToast('Aadhaar verification successful!', 'success');
@@ -253,7 +253,7 @@ const KYCForm = () => {
           .eq('id', user.id);
 
         if (userError) throw userError;
-        await initialize();
+        useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
       }
 
       showToast('Documents submitted successfully!', 'success');
@@ -269,7 +269,7 @@ const KYCForm = () => {
       
       {/* SMS notification simulator banner */}
       {notification && (
-        <div className="fixed top-24 right-4 z-50 max-w-sm w-full bg-navy text-white rounded-2xl shadow-xl border border-white/10 p-4 animate-slide-in-right">
+        <div className="fixed top-24 right-4 z-[9999] max-w-sm w-full bg-navy text-white rounded-2xl shadow-xl border border-white/10 p-4 animate-slide-in-right">
           <div className="flex gap-3">
             <Smartphone size={20} className="text-primary-light flex-shrink-0 mt-0.5" />
             <div>
