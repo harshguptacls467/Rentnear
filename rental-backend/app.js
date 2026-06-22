@@ -8,6 +8,7 @@ const bookingRoutes = require('./routes/bookings');
 const adminRoutes = require('./routes/admin');
 const productRoutes = require('./routes/products');
 const reviewRoutes = require('./routes/reviews');
+const kycRoutes = require('./routes/kyc');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/bookings', strictLimiter, bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/kyc', kycRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

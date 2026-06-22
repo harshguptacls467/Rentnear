@@ -39,7 +39,7 @@ const FileUploadSlot = ({ label, file, onChange }) => (
 );
 
 const KYCForm = () => {
-  const { user, isMock, initialize } = useAuthStore();
+  const { user, session, isMock, initialize } = useAuthStore();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -53,6 +53,9 @@ const KYCForm = () => {
   const [inputOtp, setInputOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [clientId, setClientId] = useState('');
+  const [isSimulatedAadhar, setIsSimulatedAadhar] = useState(false);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
 
   // Manual Document Upload state
   const [idType, setIdType] = useState('Aadhaar');
@@ -126,54 +129,83 @@ const KYCForm = () => {
   }
 
   // Instant verification handlers
-  const handleRequestAadharOtp = () => {
+  const handleRequestAadharOtp = async () => {
     const cleanAadhar = aadharNumber.replace(/\s+/g, '');
     if (cleanAadhar.length !== 12) {
       showToast('Please enter a valid 12-digit Aadhaar number.', 'error');
       return;
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
-    setOtpSent(true);
-    
-    // Simulate push alert SMS
-    setNotification({
-      title: '💬 UIDAI OTP Alert',
-      message: `Your OTP for Aadhaar verification is ${code}. Valid for 10 min.`
-    });
-    
-    showToast('Simulated Aadhaar verification OTP sent!', 'info');
+    setIsRequestingOtp(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/generate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({ aadharNumber: cleanAadhar })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to request Aadhaar OTP.');
+
+      setClientId(data.client_id);
+      setIsSimulatedAadhar(data.isSimulated || false);
+
+      if (data.isSimulated) {
+        setGeneratedOtp(data.simulatedOtp);
+        setNotification({
+          type: 'sms',
+          title: '💬 UIDAI OTP Alert (Simulated)',
+          message: `OTP for Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)} is ${data.simulatedOtp}.`
+        });
+        showToast('Simulated Aadhaar OTP sent!', 'info');
+      } else {
+        setNotification({
+          type: 'sms',
+          title: '💬 UIDAI OTP Alert',
+          message: `A secure OTP has been sent to the mobile number registered with Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)}.`
+        });
+        showToast('Aadhaar verification OTP sent to your mobile!', 'success');
+      }
+      setOtpSent(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsRequestingOtp(false);
+    }
   };
 
   const handleVerifyAadharOtp = async (e) => {
     e.preventDefault();
-    if (inputOtp !== generatedOtp) {
-      showToast('Invalid OTP. Please enter the code sent to your mobile.', 'error');
-      return;
-    }
-
     setIsVerifying(true);
     try {
-      const maskedAadhar = `XXXX XXXX ${aadharNumber.replace(/\s+/g, '').slice(-4)}`;
-      const updateData = {
-        kyc_status: 'verified',
-        kyc_verified: true,
-        aadhar_number: maskedAadhar
-      };
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          otp: inputOtp,
+          isSimulated: isSimulatedAadhar,
+          simulatedOtp: generatedOtp
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Aadhaar verification failed.');
 
       if (isMock) {
         const localUsers = getLocalUsers();
         if (localUsers[user.email]) {
-          const updated = { ...localUsers[user.email], ...updateData };
+          const updated = { ...localUsers[user.email], ...data.user };
           localUsers[user.email] = updated;
           saveLocalUsers(localUsers);
           useAuthStore.setState({ user: updated });
         }
       } else {
-        const { error } = await supabase.from('users').update(updateData).eq('id', user.id);
-        if (error) throw error;
-        useAuthStore.setState({ user: { ...user, ...updateData } });
+        useAuthStore.setState({ user: { ...user, ...data.user } });
       }
 
       showToast('Aadhaar verification successful!', 'success');
@@ -358,10 +390,10 @@ const KYCForm = () => {
 
                 <Button 
                   onClick={handleRequestAadharOtp}
-                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12}
+                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12 || isRequestingOtp}
                   className="w-full py-4 text-base rounded-2xl"
                 >
-                  Verify via Aadhaar OTP
+                  {isRequestingOtp ? 'Requesting OTP...' : 'Verify via Aadhaar OTP'}
                 </Button>
               </div>
             ) : (

@@ -31,7 +31,7 @@ const parsePhone = (fullPhone) => {
 };
 
 const Profile = () => {
-  const { user, isMock, initialize } = useAuthStore();
+  const { user, session, isMock, initialize } = useAuthStore();
   
   const [profile, setProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -69,6 +69,10 @@ const Profile = () => {
   const [aadharInputOtp, setAadharInputOtp] = useState('');
   const [aadharVerifying, setAadharVerifying] = useState(false);
   const [aadharStep, setAadharStep] = useState('input'); // 'input', 'otp', 'success'
+  const [clientId, setClientId] = useState('');
+  const [isSimulatedAadhar, setIsSimulatedAadhar] = useState(false);
+  const [isRequestingEmail, setIsRequestingEmail] = useState(false);
+  const [isRequestingAadhar, setIsRequestingAadhar] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -208,25 +212,62 @@ const Profile = () => {
     }
   };
 
-  // Simulated Email OTP trigger
-  const sendEmailOtp = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setEmailOtp(code);
-    triggerNotification(
-      'email',
-      '📩 New Email Notification',
-      `Your RentNear Email Verification Code is: ${code}`
-    );
+  // Simulated/Real Email OTP trigger
+  const sendEmailOtp = async () => {
+    setIsRequestingEmail(true);
+    setError(null);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/email/generate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({ email: profile.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send verification code.');
+
+      setEmailOtp(data.emailOtp);
+
+      if (data.isSimulated) {
+        triggerNotification(
+          'email',
+          '📩 Simulated Email Notification',
+          `Your RentNear Email Verification Code is: ${data.emailOtp}.`
+        );
+      } else {
+        triggerNotification(
+          'email',
+          '📩 Verification Email Sent',
+          `An email with your verification code has been sent to ${profile.email}. Please check your inbox.`
+        );
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to send OTP.');
+    } finally {
+      setIsRequestingEmail(false);
+    }
   };
 
   const verifyEmail = async () => {
-    if (emailInputOtp !== emailOtp) {
-      setError("Invalid verification code. Please check and try again.");
-      return;
-    }
-
     setEmailVerifying(true);
+    setError(null);
     try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/email/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({
+          otp: emailInputOtp,
+          generatedOtp: emailOtp
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Email verification failed.');
+
       if (isMock) {
         const localUsers = getLocalUsers();
         if (localUsers[user.email]) {
@@ -236,8 +277,6 @@ const Profile = () => {
           setProfile(localUsers[user.email]);
         }
       } else {
-        const { error: updateError } = await supabase.from('users').update({ email_verified: true }).eq('id', user.id);
-        if (updateError) throw updateError;
         setProfile({ ...profile, email_verified: true });
         useAuthStore.setState({ user: { ...user, email_verified: true } });
       }
@@ -246,68 +285,98 @@ const Profile = () => {
       setEmailOtp('');
       triggerNotification('success', '✅ Email Verified', 'Your email address has been successfully verified.');
     } catch (err) {
-      setError("Verification failed: " + err.message);
+      setError(err.message || 'Verification failed.');
     } finally {
       setEmailVerifying(false);
     }
   };
 
-  // Simulated Aadhaar OTP trigger
-  const sendAadharOtp = () => {
+  // Simulated/Real Aadhaar OTP trigger
+  const sendAadharOtp = async () => {
     const cleanAadhar = aadharNumber.replace(/\s+/g, '');
     if (cleanAadhar.length !== 12) {
       setError("Please enter a valid 12-digit Aadhaar number.");
       return;
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setAadharOtp(code);
-    setAadharStep('otp');
+    setIsRequestingAadhar(true);
     setError(null);
-    triggerNotification(
-      'sms',
-      '💬 UIDAI SMS Alert',
-      `OTP for Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)} is ${code}. Valid for 10 minutes.`
-    );
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/generate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({ aadharNumber: cleanAadhar })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to request Aadhaar OTP.');
+
+      setClientId(data.client_id);
+      setIsSimulatedAadhar(data.isSimulated || false);
+
+      if (data.isSimulated) {
+        setAadharOtp(data.simulatedOtp);
+        triggerNotification(
+          'sms',
+          '💬 UIDAI OTP Alert (Simulated)',
+          `OTP for Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)} is ${data.simulatedOtp}.`
+        );
+      } else {
+        triggerNotification(
+          'sms',
+          '💬 UIDAI OTP Alert',
+          `OTP has been sent to the mobile number registered with Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)}.`
+        );
+      }
+      setAadharStep('otp');
+    } catch (err) {
+      setError(err.message || 'Failed to request Aadhaar OTP.');
+    } finally {
+      setIsRequestingAadhar(false);
+    }
   };
 
   const verifyAadharOtp = async () => {
-    if (aadharInputOtp !== aadharOtp) {
-      setError("Invalid OTP code. Please enter the code sent to your registered mobile.");
-      return;
-    }
-
     setAadharVerifying(true);
+    setError(null);
     try {
-      const maskedAadhar = `XXXX XXXX ${aadharNumber.replace(/\s+/g, '').slice(-4)}`;
-      
-      const updateData = {
-        kyc_status: 'verified',
-        kyc_verified: true,
-        aadhar_number: maskedAadhar
-      };
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          otp: aadharInputOtp,
+          isSimulated: isSimulatedAadhar,
+          simulatedOtp: aadharOtp
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Aadhaar verification failed.');
 
       if (isMock) {
         const localUsers = getLocalUsers();
         if (localUsers[user.email]) {
-          const updated = { ...localUsers[user.email], ...updateData };
+          const updated = { ...localUsers[user.email], ...data.user };
           localUsers[user.email] = updated;
           saveLocalUsers(localUsers);
           useAuthStore.setState({ user: updated });
           setProfile(updated);
         }
       } else {
-        const { error: updateError } = await supabase.from('users').update(updateData).eq('id', user.id);
-        if (updateError) throw updateError;
-        setProfile({ ...profile, ...updateData });
-        useAuthStore.setState({ user: { ...user, ...updateData } });
+        setProfile({ ...profile, ...data.user });
+        useAuthStore.setState({ user: { ...user, ...data.user } });
       }
       setAadharStep('success');
       setAadharInputOtp('');
       setAadharOtp('');
       triggerNotification('success', '🏆 KYC Verification Complete', 'Aadhaar verified successfully! Your account is now fully trusted.');
     } catch (err) {
-      setError("Aadhaar OTP verification failed: " + err.message);
+      setError(err.message || 'Aadhaar OTP verification failed.');
     } finally {
       setAadharVerifying(false);
     }
@@ -762,9 +831,10 @@ const Profile = () => {
                 <button
                   type="button"
                   onClick={sendEmailOtp}
+                  disabled={isRequestingEmail}
                   className="w-full bg-primary text-white font-bold py-3.5 rounded-2xl hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
                 >
-                  Send OTP Code
+                  {isRequestingEmail ? 'Sending...' : 'Send OTP Code'}
                 </button>
               </div>
             ) : (
@@ -796,9 +866,10 @@ const Profile = () => {
                   <button
                     type="button"
                     onClick={sendEmailOtp}
+                    disabled={isRequestingEmail}
                     className="px-4 py-3.5 bg-gray-50 text-gray-700 font-bold border border-gray-200 rounded-2xl hover:bg-gray-100 transition-all text-xs"
                   >
-                    Resend Code
+                    {isRequestingEmail ? 'Sending...' : 'Resend Code'}
                   </button>
                 </div>
               </div>
@@ -864,10 +935,10 @@ const Profile = () => {
                 <button
                   type="button"
                   onClick={sendAadharOtp}
-                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12}
+                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12 || isRequestingAadhar}
                   className="w-full bg-primary text-white font-bold py-3.5 rounded-2xl hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
                 >
-                  Request Aadhaar OTP
+                  {isRequestingAadhar ? 'Requesting OTP...' : 'Request Aadhaar OTP'}
                 </button>
               </div>
             )}
@@ -901,9 +972,10 @@ const Profile = () => {
                   <button
                     type="button"
                     onClick={sendAadharOtp}
+                    disabled={isRequestingAadhar}
                     className="px-4 py-3.5 bg-gray-50 text-gray-700 font-bold border border-gray-200 rounded-2xl hover:bg-gray-100 transition-all text-xs"
                   >
-                    Resend Code
+                    {isRequestingAadhar ? 'Sending...' : 'Resend Code'}
                   </button>
                 </div>
               </div>
