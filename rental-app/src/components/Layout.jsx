@@ -1,8 +1,37 @@
+import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import AIChatbot from './AIChatbot';
+import { supabase } from '../supabaseClient';
+import { useToast } from '../context/ToastContext';
 
 const Layout = () => {
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    // Subscribe to real-time additions of new products in public.products
+    const channel = supabase
+      .channel('public-products-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'products' },
+        (payload) => {
+          const newProduct = payload.new;
+          if (newProduct && newProduct.title) {
+            showToast(
+              `🎉 New rental listed nearby: "${newProduct.title}" is now available!`,
+              'success'
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [showToast]);
+
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
       <Navbar />

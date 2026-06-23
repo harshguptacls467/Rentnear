@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { sendGlobalPushNotification } = require('../utils/notifications');
 
 const productController = {
   // GET /api/products
@@ -126,6 +127,17 @@ const productController = {
         .single();
 
       if (error) throw error;
+
+      // Send global push notification to all users about new rental item
+      try {
+        await sendGlobalPushNotification(
+          'New Item Available! 🌟',
+          `"${data.title}" is now available for rent nearby on RentNear!`,
+          { productId: data.id }
+        );
+      } catch (pushErr) {
+        console.error('Error sending global listing push:', pushErr);
+      }
 
       res.status(201).json(data);
     } catch (error) {

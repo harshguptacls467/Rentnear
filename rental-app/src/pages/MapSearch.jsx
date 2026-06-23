@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase } from '../supabaseClient';
-import { LocateFixed, Map as MapIcon, Loader2 } from 'lucide-react';
+import useAuthStore from '../store/authStore';
+import { LocateFixed, Map as MapIcon, Loader2, MessageCircle, Phone } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Fix default Leaflet icon issue in React
@@ -50,6 +51,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const MapSearch = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   
   const [userLocation, setUserLocation] = useState(null); // [lat, lng]
   const [locationError, setLocationError] = useState(false);
@@ -67,13 +69,13 @@ const MapSearch = () => {
         },
         (error) => {
           console.error("Error getting location:", error);
-          // Default to New York if they block location
-          setUserLocation([40.7128, -74.0060]); 
+          // Default to New Delhi if they block location
+          setUserLocation([28.6139, 77.2090]);
           setLocationError(true);
         }
       );
     } else {
-      setUserLocation([40.7128, -74.0060]);
+      setUserLocation([28.6139, 77.2090]);
     }
   }, []);
 
@@ -84,14 +86,14 @@ const MapSearch = () => {
     });
   }, [locateUser]);
 
-  // 2. Fetch Products
+  // 2. Fetch Products with owner phone for WhatsApp
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('id, title, price_per_day, category, images, latitude, longitude')
-          .not('latitude', 'is', null) // Only get products with coordinates
+          .select('id, title, price_per_day, category, images, latitude, longitude, owner_id, owner:users!products_owner_id_fkey(name, phone)')
+          .not('latitude', 'is', null)
           .not('longitude', 'is', null);
 
         if (error) throw error;
@@ -119,6 +121,21 @@ const MapSearch = () => {
       setFilteredProducts(filtered);
     });
   }, [userLocation, radius, products]);
+
+  // WhatsApp handler
+  const handleWhatsApp = (product) => {
+    const phone = product.owner?.phone;
+    if (!phone) { alert('This owner has no phone number linked for WhatsApp.'); return; }
+    const clean = phone.replace(/\D/g, '');
+    const msg = `Hi! I'm interested in renting "${product.title}" on RentNear. Is it available?`;
+    window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  // In-app chat handler - navigate to product detail which handles chat creation
+  const handleInAppChat = (product) => {
+    if (!user) { navigate('/login'); return; }
+    navigate(`/products/${product.id}`);
+  };
 
   if (!userLocation) {
     return (
@@ -209,7 +226,7 @@ const MapSearch = () => {
             icon={productIcon}
           >
             <Popup className="custom-popup">
-              <div className="w-48">
+              <div className="w-52">
                 <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-3">
                   <img 
                     src={product.images?.[0] || 'https://via.placeholder.com/400?text=No+Image'} 
@@ -218,14 +235,33 @@ const MapSearch = () => {
                   />
                 </div>
                 <p className="text-[10px] font-bold text-primary uppercase mb-1">{product.category}</p>
-                <h3 className="font-bold text-gray-900 leading-tight mb-2 line-clamp-2">{product.title}</h3>
-                <p className="text-lg font-black text-gray-900 mb-3">${product.price_per_day}<span className="text-xs text-gray-500 font-medium">/day</span></p>
+                <h3 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-2">{product.title}</h3>
+                {product.owner?.name && (
+                  <p className="text-xs text-gray-500 mb-2">by {product.owner.name}</p>
+                )}
+                <p className="text-lg font-black text-gray-900 mb-3">₹{product.price_per_day}<span className="text-xs text-gray-500 font-medium">/day</span></p>
                 <button 
                   onClick={() => navigate(`/products/${product.id}`)}
-                  className="w-full bg-primary text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors"
+                  className="w-full bg-primary text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors mb-2"
                 >
                   View Details
                 </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleInAppChat(product)}
+                    className="flex-1 flex items-center justify-center gap-1 bg-primary/10 text-primary py-2 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
+                  >
+                    <MessageCircle size={13} />
+                    Chat
+                  </button>
+                  <button 
+                    onClick={() => handleWhatsApp(product)}
+                    className="flex-1 flex items-center justify-center gap-1 bg-[#25D366]/10 text-[#25D366] py-2 rounded-lg text-xs font-bold hover:bg-[#25D366]/20 transition-colors"
+                  >
+                    <Phone size={13} />
+                    WhatsApp
+                  </button>
+                </div>
               </div>
             </Popup>
           </Marker>

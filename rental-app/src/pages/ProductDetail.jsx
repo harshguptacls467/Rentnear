@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import Button from '../components/Button';
-import { Shield, Star, Info, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, ShieldCheck, Clock } from 'lucide-react';
+import { Shield, Star, Info, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, ShieldCheck, Clock, MessageCircle, Phone } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { MOCK_PRODUCTS, MOCK_USER } from '../data/mockData';
 import { getLocalProducts, getLocalBookings, saveLocalBookings, getLocalUsers } from '../utils/localDb';
@@ -112,7 +112,7 @@ const ProductDetail = () => {
         if (productError || !productData) throw productError || new Error('not found');
         setProduct(productData);
         const [ownerResponse] = await Promise.all([
-          supabase.from('users').select('name, avatar_url, created_at, rating_average, rating_count').eq('id', productData.owner_id).single(),
+          supabase.from('users').select('name, avatar_url, created_at, rating_average, rating_count, phone').eq('id', productData.owner_id).single(),
         ]);
         if (!ownerResponse.error) setOwner(ownerResponse.data);
       } catch (err) {
@@ -137,13 +137,15 @@ const ProductDetail = () => {
           avatar_url: ownerData.avatar_url,
           created_at: ownerData.created_at,
           rating_average: ownerData.rating_average || 4.8,
-          rating_count: ownerData.rating_count || 12
+          rating_count: ownerData.rating_count || 12,
+          phone: ownerData.phone || '919876543210'
         } : {
           name: 'Jane Doe',
           avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JaneDoe',
           created_at: '2024-01-01',
           rating_average: 4.9,
-          rating_count: 5
+          rating_count: 5,
+          phone: '919876543210'
         });
       } finally {
         setLoading(false);
@@ -162,6 +164,100 @@ const ProductDetail = () => {
   const totalCost = product ? (days * product.price_per_day) : 0;
   const isOwner = user?.id === product?.owner_id;
   const canBook = startDate && endDate && product?.is_available && !isOwner;
+
+  const handleStartInAppChat = async () => {
+    if (!user) { navigate('/login'); return; }
+    try {
+      if (!isMock) {
+        const { data: existing, error } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('product_id', product.id)
+          .eq('renter_id', user.id)
+          .limit(1);
+          
+        if (!error && existing && existing.length > 0) {
+          navigate(`/chat/${existing[0].id}`);
+          return;
+        }
+      } else {
+        const localBookings = getLocalBookings();
+        const found = localBookings.find(b => b.product_id === product.id && b.renter_id === user.id);
+        if (found) {
+          navigate(`/chat/${found.id}`);
+          return;
+        }
+      }
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfter = new Date();
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      const startStr = tomorrow.toISOString().split('T')[0];
+      const endStr = dayAfter.toISOString().split('T')[0];
+      const enquiryMsg = `Hi! I have a question about your listed item: ${product.title}`;
+
+      if (isMock) {
+        const newBookingId = 'mock-booking-id-' + Math.random().toString(36).substring(2, 11);
+        const newBooking = {
+          id: newBookingId,
+          renter_id: user?.id,
+          owner_id: product.owner_id,
+          product_id: product.id,
+          status: 'pending',
+          start_date: startStr,
+          end_date: endStr,
+          total_amount: product.price_per_day,
+          message: enquiryMsg,
+          product: { title: product.title, images: product.images },
+          renter: { name: user?.name, avatar_url: user?.avatar_url }
+        };
+        const localBookings = getLocalBookings();
+        localBookings.push(newBooking);
+        saveLocalBookings(localBookings);
+        navigate(`/chat/${newBookingId}`);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not logged in');
+
+      const response = await fetch(`${API_URL}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ product_id: product.id, start_date: startStr, end_date: endStr, message: enquiryMsg })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const { data: existing, error } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('product_id', product.id)
+          .eq('renter_id', user.id)
+          .limit(1);
+        if (!error && existing && existing.length > 0) {
+          navigate(`/chat/${existing[0].id}`);
+          return;
+        }
+        throw new Error(data.message || 'Failed to start conversation');
+      }
+
+      navigate(`/chat/${data.id}`);
+    } catch (err) {
+      console.error("Error starting chat:", err);
+    }
+  };
+
+  const handleStartWhatsAppChat = () => {
+    if (!owner?.phone) {
+      alert("This owner does not have a registered phone number for WhatsApp.");
+      return;
+    }
+    const cleanPhone = owner.phone.replace(/\D/g, '');
+    const messageText = `Hi ${owner.name}! I am interested in renting your listed item: "${product.title}" on RentNear. Is it available?`;
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
+    window.open(waUrl, '_blank');
+  };
 
   if (loading) return <div className="min-h-screen pt-20 flex justify-center bg-gray-50"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
   if (error || !product) return <div className="min-h-screen pt-20 text-center bg-gray-50"><h2 className="text-2xl font-bold text-gray-900">Oops! {error}</h2><Button className="mt-4" onClick={() => navigate('/products')}>Back to Browse</Button></div>;
@@ -344,7 +440,6 @@ const ProductDetail = () => {
               )}
             </motion.div>
 
-            {/* Owner Card */}
             {owner && checkoutStage !== 'success' && (
               <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex flex-col items-center text-center">
                 <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 mb-4 border-2 border-primary/20">
@@ -352,11 +447,29 @@ const ProductDetail = () => {
                 </div>
                 <h3 className="text-xl font-extrabold text-gray-900 mb-1">{owner.name}</h3>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Verified Owner <ShieldCheck size={14} className="inline text-green-500 mb-1"/></p>
-                <div className="flex items-center justify-center gap-4 text-sm text-gray-600 bg-gray-50 w-full py-3 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-center gap-4 text-sm text-gray-600 bg-gray-50 w-full py-3 rounded-xl border border-gray-100 mb-4">
                   <span className="flex items-center gap-1 font-bold"><Star size={16} className="text-yellow-500 fill-current" /> {owner.rating_average || 4.8}</span>
                   <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                   <span className="font-medium">{owner.rating_count || 12} rentals</span>
                 </div>
+                {!isOwner && (
+                  <div className="flex gap-3 w-full">
+                    <button
+                      onClick={handleStartInAppChat}
+                      className="flex-1 flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-sm py-3 rounded-xl transition-colors"
+                    >
+                      <MessageCircle size={16} />
+                      Chat
+                    </button>
+                    <button
+                      onClick={handleStartWhatsAppChat}
+                      className="flex-1 flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold text-sm py-3 rounded-xl transition-colors"
+                    >
+                      <Phone size={16} />
+                      WhatsApp
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             
