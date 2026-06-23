@@ -13,6 +13,9 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+// Trust Render/Vercel's reverse proxy — required for accurate IP-based rate limiting
+app.set('trust proxy', 1);
+
 const paymentController = require('./controllers/paymentController');
 
 // ── 1. Security Headers (helmet) ─────────────────────────────────────────────
@@ -20,9 +23,23 @@ const paymentController = require('./controllers/paymentController');
 app.use(helmet());
 
 // ── 2. CORS — Restricted to frontend origin only ─────────────────────────────
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+// FRONTEND_URL should be set to your Vercel/production URL in Render env vars
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177',
+].filter(Boolean);
+
 app.use(cors({
-  origin: allowedOrigin,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
