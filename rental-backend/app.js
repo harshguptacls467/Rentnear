@@ -23,9 +23,12 @@ const paymentController = require('./controllers/paymentController');
 app.use(helmet());
 
 // ── 2. CORS — Restricted to frontend origin only ─────────────────────────────
-// FRONTEND_URL should be set to your Vercel/production URL in Render env vars
+// FRONTEND_URL must be set in Render env vars (e.g. https://rentnear.vercel.app)
+// Trim trailing slashes to prevent common misconfiguration
+const rawFrontendUrl = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  rawFrontendUrl || 'http://localhost:5173',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
@@ -33,11 +36,15 @@ const allowedOrigins = [
   'http://localhost:5177',
 ].filter(Boolean);
 
+// Log allowed origins on startup — visible in Render logs
+console.log('[CORS] Allowed origins:', allowedOrigins);
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    // Allow requests with no origin (Postman, server-to-server, curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`[CORS] Blocked origin: ${origin}`);
     callback(new Error(`CORS: Origin ${origin} not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
