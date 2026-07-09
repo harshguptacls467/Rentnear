@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import useRealtimeStore from '../store/realtimeStore';
 import { Menu, X, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from './NotificationBell';
 
 const Navbar = () => {
   const { session, user, logout } = useAuthStore();
+  const unreadMessageCount = useRealtimeStore(s => s.unreadMessageCount);
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -62,7 +64,14 @@ const Navbar = () => {
               <Link to="/map" className="text-gray-300 hover:text-white font-medium transition-colors border border-gray-600 px-3 py-1 rounded-full text-xs">Map View</Link>
               <Link to="/list-product" className="text-gray-300 hover:text-white font-medium transition-colors">List Item</Link>
               <Link to="/my-listings" className="text-gray-300 hover:text-white font-medium transition-colors">My Listings</Link>
-              <Link to="/bookings" className="text-gray-300 hover:text-white font-medium transition-colors">Bookings</Link>
+              <Link to="/bookings" className="relative text-gray-300 hover:text-white font-medium transition-colors">
+                Bookings
+                {unreadMessageCount > 0 && (
+                  <span className="absolute -top-1.5 -right-3 flex items-center justify-center w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full">
+                    {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                  </span>
+                )}
+              </Link>
               
               <NotificationBell />
               

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import Button from '../components/Button';
+import TextArea from '../components/TextArea';
+
 import { 
   Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, 
   ShieldCheck, AlertCircle, Quote, MapPin, CreditCard, Shield, Lock, 
@@ -61,18 +63,7 @@ const Profile = () => {
   const [emailOtp, setEmailOtp] = useState('');
   const [emailInputOtp, setEmailInputOtp] = useState('');
   const [emailVerifying, setEmailVerifying] = useState(false);
-
-  // Aadhaar verification states
-  const [showAadharModal, setShowAadharModal] = useState(false);
-  const [aadharNumber, setAadharNumber] = useState('');
-  const [aadharOtp, setAadharOtp] = useState('');
-  const [aadharInputOtp, setAadharInputOtp] = useState('');
-  const [aadharVerifying, setAadharVerifying] = useState(false);
-  const [aadharStep, setAadharStep] = useState('input'); // 'input', 'otp', 'success'
-  const [clientId, setClientId] = useState('');
-  const [isSimulatedAadhar, setIsSimulatedAadhar] = useState(false);
   const [isRequestingEmail, setIsRequestingEmail] = useState(false);
-  const [isRequestingAadhar, setIsRequestingAadhar] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -291,97 +282,6 @@ const Profile = () => {
     }
   };
 
-  // Simulated/Real Aadhaar OTP trigger
-  const sendAadharOtp = async () => {
-    const cleanAadhar = aadharNumber.replace(/\s+/g, '');
-    if (cleanAadhar.length !== 12) {
-      setError("Please enter a valid 12-digit Aadhaar number.");
-      return;
-    }
-
-    setIsRequestingAadhar(true);
-    setError(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/generate-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
-        },
-        body: JSON.stringify({ aadharNumber: cleanAadhar })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to request Aadhaar OTP.');
-
-      setClientId(data.client_id);
-      setIsSimulatedAadhar(data.isSimulated || false);
-
-      if (data.isSimulated) {
-        setAadharOtp(data.simulatedOtp);
-        triggerNotification(
-          'sms',
-          '💬 UIDAI OTP Alert (Simulated)',
-          `OTP for Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)} is ${data.simulatedOtp}.`
-        );
-      } else {
-        triggerNotification(
-          'sms',
-          '💬 UIDAI OTP Alert',
-          `OTP has been sent to the mobile number registered with Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)}.`
-        );
-      }
-      setAadharStep('otp');
-    } catch (err) {
-      setError(err.message || 'Failed to request Aadhaar OTP.');
-    } finally {
-      setIsRequestingAadhar(false);
-    }
-  };
-
-  const verifyAadharOtp = async () => {
-    setAadharVerifying(true);
-    setError(null);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
-        },
-        body: JSON.stringify({
-          client_id: clientId,
-          otp: aadharInputOtp,
-          isSimulated: isSimulatedAadhar,
-          simulatedOtp: aadharOtp
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Aadhaar verification failed.');
-
-      if (isMock) {
-        const localUsers = getLocalUsers();
-        if (localUsers[user.email]) {
-          const updated = { ...localUsers[user.email], ...data.user };
-          localUsers[user.email] = updated;
-          saveLocalUsers(localUsers);
-          useAuthStore.setState({ user: updated });
-          setProfile(updated);
-        }
-      } else {
-        setProfile({ ...profile, ...data.user });
-        useAuthStore.setState({ user: { ...user, ...data.user } });
-      }
-      setAadharStep('success');
-      setAadharInputOtp('');
-      setAadharOtp('');
-      triggerNotification('success', '🏆 KYC Verification Complete', 'Aadhaar verified successfully! Your account is now fully trusted.');
-    } catch (err) {
-      setError(err.message || 'Aadhaar OTP verification failed.');
-    } finally {
-      setAadharVerifying(false);
-    }
-  };
-
   const handleAvatarUpload = async (event) => {
     try {
       setUploading(true); setError(null);
@@ -585,12 +485,14 @@ const Profile = () => {
 
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">About / Bio</label>
-                      <textarea 
-                        rows={3} 
-                        value={editForm.bio} 
+                      <TextArea
+                        id="bio"
+                        rows={3}
+                        value={editForm.bio}
                         onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
                         placeholder="Tell your neighbors about yourself..."
-                        className="w-full border-gray-200 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary resize-none"
+                        maxLength={300}
+                        className=""
                       />
                     </div>
 
@@ -609,15 +511,6 @@ const Profile = () => {
                       <div>
                         <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-2">{profile.name}</h1>
                         <div className="flex flex-wrap items-center gap-3">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                            profile.kyc_verified 
-                              ? 'bg-green-50 text-green-700 border border-green-200' 
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            <Shield size={12} />
-                            {profile.kyc_verified ? 'Aadhaar Verified' : 'KYC Unverified'}
-                          </span>
-
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                             profile.email_verified 
                               ? 'bg-blue-50 text-blue-700 border border-blue-200' 
@@ -663,13 +556,6 @@ const Profile = () => {
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Smartphone size={14}/> Emergency Contact</h4>
                         <p className="text-gray-900 font-medium">{profile.emergency_contact || 'Not set'}</p>
                       </div>
-
-                      {profile.aadhar_number && (
-                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Shield size={14}/> Aadhaar Number</h4>
-                          <p className="text-gray-900 font-medium">{profile.aadhar_number}</p>
-                        </div>
-                      )}
 
                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2"><UserIcon size={14}/> Account Role</h4>
@@ -719,14 +605,14 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    {/* Aadhaar Verification Row */}
+                    {/* KYC Verification Row */}
                     <div className="bg-white p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <div className={`p-2.5 rounded-xl flex-shrink-0 ${profile.kyc_verified ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
                           <Shield size={20} />
                         </div>
                         <div>
-                          <h4 className="font-bold text-gray-900 text-sm md:text-base">Aadhaar Identity Verification</h4>
+                          <h4 className="font-bold text-gray-900 text-sm md:text-base">Identity Verification (KYC)</h4>
                           <p className="text-xs text-gray-500 mt-0.5">Required to list tools and camera items.</p>
                         </div>
                       </div>
@@ -734,14 +620,18 @@ const Profile = () => {
                       <div>
                         {profile.kyc_verified ? (
                           <span className="inline-flex items-center gap-1 text-green-600 text-xs font-bold bg-green-50 px-3.5 py-1.5 rounded-full border border-green-200">
-                            <CheckCircle2 size={14} /> Aadhaar Verified
+                            <CheckCircle2 size={14} /> KYC Verified
+                          </span>
+                        ) : profile.kyc_status === 'pending' ? (
+                          <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-bold bg-amber-50 px-3.5 py-1.5 rounded-full border border-amber-200">
+                            <AlertCircle size={14} /> Pending Review
                           </span>
                         ) : (
                           <button 
-                            onClick={() => { setShowAadharModal(true); setAadharStep('input'); setAadharNumber(''); setError(null); }}
+                            onClick={() => navigate('/kyc')}
                             className="bg-primary text-white font-bold text-xs px-4 py-2 rounded-xl hover:bg-primary-dark transition-all flex items-center gap-1 shadow-md shadow-primary/20"
                           >
-                            Verify KYC (OTP) <ChevronRight size={14} />
+                            Verify KYC <ChevronRight size={14} />
                           </button>
                         )}
                       </div>
@@ -872,131 +762,6 @@ const Profile = () => {
                     {isRequestingEmail ? 'Sending...' : 'Resend Code'}
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          AADHAAR IDENTITY VERIFICATION OTP MODAL
-          ========================================================================= */}
-      {showAadharModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-gray-100 animate-zoom-in">
-            <div className="flex justify-between items-start mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-3 rounded-2xl text-primary">
-                  <Shield size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 font-sans">Aadhaar KYC Verification</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Instant verification via UIDAI OTP simulation</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAadharModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl mb-4 border border-red-100 flex items-start gap-2">
-                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {aadharStep === 'input' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">12-Digit Aadhaar Number</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      maxLength={14}
-                      value={aadharNumber}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/\D/g, '');
-                        // Format with spaces as: XXXX XXXX XXXX
-                        const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
-                        setAadharNumber(formatted);
-                      }}
-                      className="w-full pl-11 border border-gray-200 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary text-center font-bold tracking-widest text-lg"
-                      placeholder="1234 5678 9012"
-                    />
-                  </div>
-                </div>
-
-                <p className="text-xs text-gray-500 leading-normal">
-                  Your details will be verified securely via UIDAI. A simulated 6-digit OTP code will be sent to your registered mobile number ending with <strong>{phoneNum ? phoneNum.slice(-4) : 'your phone number'}</strong>.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={sendAadharOtp}
-                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12 || isRequestingAadhar}
-                  className="w-full bg-primary text-white font-bold py-3.5 rounded-2xl hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
-                >
-                  {isRequestingAadhar ? 'Requesting OTP...' : 'Request Aadhaar OTP'}
-                </button>
-              </div>
-            )}
-
-            {aadharStep === 'otp' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Enter 6-Digit SMS OTP</label>
-                  <div className="relative">
-                    <Key className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={aadharInputOtp}
-                      onChange={(e) => setAadharInputOtp(e.target.value.replace(/\D/g, ''))}
-                      className="w-full pl-11 border border-gray-200 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary text-center font-bold tracking-widest text-lg"
-                      placeholder="XXXXXX"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={verifyAadharOtp}
-                    disabled={aadharVerifying || aadharInputOtp.length !== 6}
-                    className="flex-1 bg-primary text-white font-bold py-3.5 rounded-2xl hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    {aadharVerifying ? 'Verifying...' : 'Verify OTP'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={sendAadharOtp}
-                    disabled={isRequestingAadhar}
-                    className="px-4 py-3.5 bg-gray-50 text-gray-700 font-bold border border-gray-200 rounded-2xl hover:bg-gray-100 transition-all text-xs"
-                  >
-                    {isRequestingAadhar ? 'Sending...' : 'Resend Code'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {aadharStep === 'success' && (
-              <div className="text-center py-6 space-y-4">
-                <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto border border-green-200">
-                  <CheckCircle2 size={36} />
-                </div>
-                <h4 className="text-xl font-bold text-gray-900">Aadhaar Verified</h4>
-                <p className="text-sm text-gray-500 leading-relaxed px-4">
-                  Congratulations! Your Aadhaar identity details have been successfully verified. You are now fully eligible to list products.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowAadharModal(false)}
-                  className="w-full bg-navy text-white font-bold py-3 rounded-2xl hover:bg-navy-light transition-all"
-                >
-                  Done
-                </button>
               </div>
             )}
           </div>

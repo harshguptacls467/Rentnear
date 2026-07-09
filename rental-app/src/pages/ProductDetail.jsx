@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import Button from '../components/Button';
-import { Shield, Star, Info, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, ShieldCheck, Clock, MessageCircle, Phone } from 'lucide-react';
+import { Shield, Star, Info, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, ShieldCheck, Clock, MessageCircle, Phone, Radio } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { MOCK_PRODUCTS, MOCK_USER } from '../data/mockData';
 import { getLocalProducts, getLocalBookings, saveLocalBookings, getLocalUsers } from '../utils/localDb';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
+import useRealtimeStore from '../store/realtimeStore';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -154,6 +155,34 @@ const ProductDetail = () => {
     fetchProductData();
   }, [id, isMock]);
 
+  // Real-time availability subscription for THIS specific product
+  useEffect(() => {
+    if (isMock || !id) return;
+
+    const channel = supabase
+      .channel(`product-detail-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'products',
+          filter: `id=eq.${id}`
+        },
+        (payload) => {
+          // Patch only changed fields — preserve any local state
+          setProduct(prev => prev ? { ...prev, ...payload.new } : payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, isMock]);
+
+  const isOnlineProduct = useRealtimeStore(s => s.isNewProduct(id));
+
   const calculateDays = () => {
     if (!startDate || !endDate) return 0;
     const diffDays = Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
@@ -264,8 +293,19 @@ const ProductDetail = () => {
 
   const images = product.images?.length > 0 ? product.images : ['https://via.placeholder.com/800x600?text=No+Image'];
 
+  // Was this product just booked by someone? Show live availability banner
+  const justBecameUnavailable = !product.is_available;
+
   return (
     <AnimatedPage className="min-h-screen bg-gray-50 pb-24">
+      
+      {/* Live unavailability alert — shown when product gets booked while viewing */}
+      {justBecameUnavailable && !isOwner && (
+        <div className="bg-red-500 text-white text-center py-3 px-4 text-sm font-bold flex items-center justify-center gap-2 animate-fade-in-up">
+          <Radio size={14} className="animate-pulse" />
+          ⚠️ This item was just booked by someone else. It is no longer available.
+        </div>
+      )}
       
       {/* Title Header full width */}
       <div className="bg-white border-b border-gray-100 py-6 md:py-8 mb-8 shadow-sm">

@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, UploadCloud, FileImage, CheckCircle, AlertCircle, 
-  Smartphone, Key, Check, Lock, ChevronRight, FileText, X 
+  FileText, X 
 } from 'lucide-react';
 import Button from '../components/Button';
 import AnimatedPage from '../components/AnimatedPage';
@@ -39,32 +39,18 @@ const FileUploadSlot = ({ label, file, onChange }) => (
 );
 
 const KYCForm = () => {
-  const { user, session, isMock, initialize } = useAuthStore();
+  const { user, session, isMock } = useAuthStore();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  // Tabs: 'instant' (Aadhaar OTP), 'manual' (Document Upload)
-  const [verifyMethod, setVerifyMethod] = useState('instant');
-  
-  // Instant verification state
-  const [aadharNumber, setAadharNumber] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [inputOtp, setInputOtp] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [notification, setNotification] = useState(null);
-  const [clientId, setClientId] = useState('');
-  const [isSimulatedAadhar, setIsSimulatedAadhar] = useState(false);
-  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
-
-  // Manual Document Upload state
-  const [idType, setIdType] = useState('Aadhaar');
+  // Document Upload state
+  const [idType, setIdType] = useState('Passport');
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If user is already verified or pending, don't show the form
+  // If user is already verified
   if (user?.kyc_status === 'verified' || user?.kyc_verified) {
     return (
       <AnimatedPage className="max-w-md mx-auto p-4 py-16 text-center">
@@ -74,7 +60,7 @@ const KYCForm = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Identity Verified</h2>
-            <p className="text-gray-500 mt-2">Your identity has been fully verified via Aadhaar. You can now list and rent premium products.</p>
+            <p className="text-gray-500 mt-2">Your identity has been successfully verified. You can now list and rent products.</p>
           </div>
           <div className="flex flex-col gap-2 pt-4">
             <Button onClick={() => navigate('/list-product')} className="w-full">List a Product</Button>
@@ -94,32 +80,8 @@ const KYCForm = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Verification Pending</h2>
-            <p className="text-gray-500 mt-2">We are currently reviewing your documents. This usually takes 1-2 business days. Or use the Instant Aadhaar verification below to skip the wait!</p>
+            <p className="text-gray-500 mt-2">We are currently reviewing your documents. This usually takes 1-2 business days.</p>
           </div>
-          <button 
-            onClick={async () => {
-              // Reset status locally so they can try the instant Aadhaar verification!
-              try {
-                if (isMock) {
-                  const localUsers = getLocalUsers();
-                  if (localUsers[user.email]) {
-                    localUsers[user.email].kyc_status = 'unverified';
-                    saveLocalUsers(localUsers);
-                    useAuthStore.setState({ user: localUsers[user.email] });
-                  }
-                } else {
-                  await supabase.from('users').update({ kyc_status: 'unverified' }).eq('id', user.id);
-                  useAuthStore.setState({ user: { ...user, kyc_status: 'unverified', kyc_verified: false } });
-                }
-                setVerifyMethod('instant');
-              } catch (e) {
-                console.warn(e);
-              }
-            }}
-            className="text-xs text-primary font-bold hover:underline"
-          >
-            Reset status and try Instant Aadhaar OTP instead
-          </button>
           <div className="flex flex-col gap-2 pt-4">
             <Button onClick={() => navigate('/home')} className="w-full">Go to Home</Button>
           </div>
@@ -128,97 +90,6 @@ const KYCForm = () => {
     );
   }
 
-  // Instant verification handlers
-  const handleRequestAadharOtp = async () => {
-    const cleanAadhar = aadharNumber.replace(/\s+/g, '');
-    if (cleanAadhar.length !== 12) {
-      showToast('Please enter a valid 12-digit Aadhaar number.', 'error');
-      return;
-    }
-
-    setIsRequestingOtp(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/generate-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
-        },
-        body: JSON.stringify({ aadharNumber: cleanAadhar })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to request Aadhaar OTP.');
-
-      setClientId(data.client_id);
-      setIsSimulatedAadhar(data.isSimulated || false);
-
-      if (data.isSimulated) {
-        setGeneratedOtp(data.simulatedOtp);
-        setNotification({
-          type: 'sms',
-          title: '💬 UIDAI OTP Alert (Simulated)',
-          message: `OTP for Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)} is ${data.simulatedOtp}.`
-        });
-        showToast('Simulated Aadhaar OTP sent!', 'info');
-      } else {
-        setNotification({
-          type: 'sms',
-          title: '💬 UIDAI OTP Alert',
-          message: `A secure OTP has been sent to the mobile number registered with Aadhaar XX-XXXX-XXXX-${cleanAadhar.slice(-4)}.`
-        });
-        showToast('Aadhaar verification OTP sent to your mobile!', 'success');
-      }
-      setOtpSent(true);
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setIsRequestingOtp(false);
-    }
-  };
-
-  const handleVerifyAadharOtp = async (e) => {
-    e.preventDefault();
-    setIsVerifying(true);
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/kyc/aadhaar/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || 'mock-token-demo'}`
-        },
-        body: JSON.stringify({
-          client_id: clientId,
-          otp: inputOtp,
-          isSimulated: isSimulatedAadhar,
-          simulatedOtp: generatedOtp
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Aadhaar verification failed.');
-
-      if (isMock) {
-        const localUsers = getLocalUsers();
-        if (localUsers[user.email]) {
-          const updated = { ...localUsers[user.email], ...data.user };
-          localUsers[user.email] = updated;
-          saveLocalUsers(localUsers);
-          useAuthStore.setState({ user: updated });
-        }
-      } else {
-        useAuthStore.setState({ user: { ...user, ...data.user } });
-      }
-
-      showToast('Aadhaar verification successful!', 'success');
-      navigate('/list-product');
-    } catch (err) {
-      showToast(err.message || 'Verification failed.', 'error');
-    } finally {
-      setIsVerifying(false);
-      setNotification(null);
-    }
-  };
-
-  // Manual document upload handlers
   const handleFileChange = (e, setter) => {
     const file = e.target.files[0];
     if (file) {
@@ -233,11 +104,9 @@ const KYCForm = () => {
   const uploadToSupabase = async (file, path) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${path}-${Date.now()}.${fileExt}`;
-
     const { data, error } = await supabase.storage
       .from('kyc-documents')
       .upload(fileName, file, { upsert: true });
-
     if (error) throw error;
     return data.path;
   };
@@ -252,7 +121,6 @@ const KYCForm = () => {
     setIsSubmitting(true);
     try {
       if (isMock) {
-        // Mock success simulation
         const updateData = { kyc_status: 'pending' };
         const localUsers = getLocalUsers();
         if (localUsers[user.email]) {
@@ -288,7 +156,8 @@ const KYCForm = () => {
         useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
       }
 
-      showToast('Documents submitted successfully!', 'success');
+      showToast('Documents submitted successfully! We will review within 1-2 business days.', 'success');
+      navigate('/home');
     } catch (error) {
       showToast(error.message || 'Failed to submit documents', 'error');
     } finally {
@@ -297,27 +166,7 @@ const KYCForm = () => {
   };
 
   return (
-    <AnimatedPage className="max-w-2xl mx-auto p-4 py-8 relative">
-      
-      {/* SMS notification simulator banner */}
-      {notification && (
-        <div className="fixed top-24 right-4 z-[9999] max-w-sm w-full bg-navy text-white rounded-2xl shadow-xl border border-white/10 p-4 animate-slide-in-right">
-          <div className="flex gap-3">
-            <Smartphone size={20} className="text-primary-light flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-xs text-primary-light uppercase tracking-wider">{notification.title}</span>
-                <span className="text-[10px] text-gray-400">Just now</span>
-              </div>
-              <p className="text-sm font-semibold text-gray-200 mt-1 leading-snug">{notification.message}</p>
-            </div>
-            <button onClick={() => setNotification(null)} className="text-gray-400 hover:text-white flex-shrink-0 ml-auto self-start">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
+    <AnimatedPage className="max-w-2xl mx-auto p-4 py-8">
       <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 mb-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="bg-primary/10 p-3 rounded-xl text-primary">
@@ -326,147 +175,58 @@ const KYCForm = () => {
           <h1 className="text-2xl font-extrabold text-gray-900">Identity Verification (KYC)</h1>
         </div>
         <p className="text-gray-600 mb-8 leading-relaxed">
-          RentNear enforces verified identities to prevent theft and fraud. Lenders must verify identity before listing gear or accepting bookings.
+          RentNear enforces verified identities to prevent theft and fraud. Please upload a clear photo of your government ID and a selfie holding it.
         </p>
-
-        {/* Tab Selection */}
-        <div className="flex bg-gray-50 p-1.5 rounded-2xl mb-8 border border-gray-100">
-          <button 
-            type="button"
-            onClick={() => setVerifyMethod('instant')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${verifyMethod === 'instant' ? 'bg-white text-navy shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-          >
-            <Smartphone size={16} /> Instant Aadhaar (OTP)
-          </button>
-          <button 
-            type="button"
-            onClick={() => setVerifyMethod('manual')}
-            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${verifyMethod === 'manual' ? 'bg-white text-navy shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-          >
-            <FileText size={16} /> Document Upload
-          </button>
-        </div>
 
         {user?.kyc_status === 'rejected' && (
           <div className="bg-red-50 text-red-700 p-4 rounded-xl mb-6 flex items-start gap-3">
             <AlertCircle className="mt-0.5 flex-shrink-0" size={18} />
             <div>
               <p className="font-bold">Your previous submission was rejected.</p>
-              <p className="text-sm">Please retry using the OTP verification method or upload clean, well-lit images.</p>
+              <p className="text-sm">Please upload clean, well-lit images of your ID and selfie.</p>
             </div>
           </div>
         )}
 
-        {/* METHOD 1: INSTANT AADHAAR OTP */}
-        {verifyMethod === 'instant' && (
-          <div className="space-y-6">
-            {!otpSent ? (
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">12-Digit Aadhaar Number</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      maxLength={14}
-                      value={aadharNumber}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/\D/g, '');
-                        const formatted = raw.match(/.{1,4}/g)?.join(' ') || raw;
-                        setAadharNumber(formatted);
-                      }}
-                      className="w-full pl-11 border border-gray-200 rounded-xl py-3.5 px-4 focus:ring-primary focus:border-primary text-center font-bold tracking-widest text-lg"
-                      placeholder="1234 5678 9012"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
-                  <Shield className="text-primary flex-shrink-0 mt-0.5" size={18} />
-                  <p className="text-xs text-blue-700 leading-relaxed font-medium">
-                    This is a secure connection directly linked to UIDAI database. A simulated 6-digit OTP code will be shown at the top of your screen as a push message.
-                  </p>
-                </div>
-
-                <Button 
-                  onClick={handleRequestAadharOtp}
-                  disabled={aadharNumber.replace(/\s+/g, '').length !== 12 || isRequestingOtp}
-                  className="w-full py-4 text-base rounded-2xl"
-                >
-                  {isRequestingOtp ? 'Requesting OTP...' : 'Verify via Aadhaar OTP'}
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleVerifyAadharOtp} className="space-y-5">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Enter 6-Digit SMS OTP</label>
-                  <div className="relative">
-                    <Key className="absolute left-3.5 top-3.5 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={inputOtp}
-                      onChange={(e) => setInputOtp(e.target.value.replace(/\D/g, ''))}
-                      className="w-full pl-11 border border-gray-200 rounded-xl py-3.5 px-4 focus:ring-primary focus:border-primary text-center font-bold tracking-widest text-lg"
-                      placeholder="XXXXXX"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button 
-                    type="submit" 
-                    disabled={isVerifying || inputOtp.length !== 6}
-                    className="flex-1 py-4 text-base rounded-2xl"
-                  >
-                    {isVerifying ? 'Confirming...' : 'Verify OTP'}
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={handleRequestAadharOtp}
-                    className="px-5 py-4 bg-gray-50 text-gray-700 border border-gray-200 rounded-2xl hover:bg-gray-100 transition-all text-sm font-bold"
-                  >
-                    Resend Code
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* METHOD 2: MANUAL DOCUMENT UPLOAD */}
-        {verifyMethod === 'manual' && (
-          <form onSubmit={handleManualSubmit} className="space-y-6">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
-              <select 
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
-                value={idType}
-                onChange={(e) => setIdType(e.target.value)}
-              >
-                <option value="Aadhaar">Aadhaar Card</option>
-                <option value="Passport">Passport</option>
-                <option value="Driving License">Driving License</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUploadSlot label="Front of ID" file={frontImage} onChange={(e) => handleFileChange(e, setFrontImage)} />
-              <FileUploadSlot label="Back of ID" file={backImage} onChange={(e) => handleFileChange(e, setBackImage)} />
-            </div>
-            
-            <FileUploadSlot label="Selfie holding ID" file={selfieImage} onChange={(e) => handleFileChange(e, setSelfieImage)} />
-
-            <Button 
-              type="submit" 
-              className="w-full py-4 text-base rounded-2xl"
-              loading={isSubmitting}
-              disabled={!frontImage || !backImage || !selfieImage}
+        <form onSubmit={handleManualSubmit} className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
+            <select 
+              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              value={idType}
+              onChange={(e) => setIdType(e.target.value)}
             >
-              Submit Documents Securely
-            </Button>
-          </form>
-        )}
+              <option value="Passport">Passport</option>
+              <option value="Driving License">Driving License</option>
+              <option value="Voter ID">Voter ID</option>
+              <option value="PAN Card">PAN Card</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FileUploadSlot label="Front of ID" file={frontImage} onChange={(e) => handleFileChange(e, setFrontImage)} />
+            <FileUploadSlot label="Back of ID" file={backImage} onChange={(e) => handleFileChange(e, setBackImage)} />
+          </div>
+          
+          <FileUploadSlot label="Selfie holding ID" file={selfieImage} onChange={(e) => handleFileChange(e, setSelfieImage)} />
+
+          {/* Info box */}
+          <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
+            <FileText className="text-primary flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-xs text-blue-700 leading-relaxed font-medium">
+              Your documents are encrypted and stored securely. They are only used for identity verification and are never shared with third parties.
+            </p>
+          </div>
+
+          <Button 
+            type="submit" 
+            className="w-full py-4 text-base rounded-2xl"
+            loading={isSubmitting}
+            disabled={!frontImage || !backImage || !selfieImage}
+          >
+            Submit Documents Securely
+          </Button>
+        </form>
       </div>
     </AnimatedPage>
   );

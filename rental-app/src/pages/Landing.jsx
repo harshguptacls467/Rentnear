@@ -437,7 +437,7 @@ const Landing = () => {
             />
             <FAQItem 
               question="What is the KYC verification process?" 
-              answer="Safety is our top priority. Before anyone can rent an item, they must pass a Know Your Customer (KYC) check. This involves submitting a valid government ID (like an Aadhaar or PAN card) which is verified by our automated system to ensure real identities." 
+              answer="Safety is our top priority. Before anyone can rent an item, they must pass a Know Your Customer (KYC) check. This involves submitting a valid government ID (like a Passport, Driving License, or PAN card) which is verified by our automated system to ensure real identities." 
             />
             <FAQItem 
               question="Can I cancel a booking?" 

@@ -2,7 +2,28 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
-import { ArrowLeft, Send, Package } from 'lucide-react';
+import useRealtimeStore from '../store/realtimeStore';
+import useRealtimeChat from '../hooks/useRealtimeChat';
+import usePresence from '../hooks/usePresence';
+import { ArrowLeft, Send, Package, Circle } from 'lucide-react';
+
+// Animated typing dots component
+const TypingIndicator = ({ name }) => (
+  <div className="flex justify-start">
+    <div className="bg-white border border-gray-200 text-gray-500 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm flex items-center gap-2">
+      <span className="font-medium text-gray-700">{name || 'Someone'}</span> is typing
+      <span className="flex items-center gap-0.5 ml-1">
+        {[0, 1, 2].map(i => (
+          <span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
+            style={{ animationDelay: `${i * 150}ms`, animationDuration: '1s' }}
+          />
+        ))}
+      </span>
+    </div>
+  </div>
+);
 
 const ChatWindow = () => {
   const { bookingId } = useParams();
@@ -15,6 +36,17 @@ const ChatWindow = () => {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
+  // Reset unread count when this chat is opened
+  const resetUnread = useRealtimeStore(s => s.resetUnread);
+
+  // Real-time chat hook — handles message streaming, typing, read receipts
+  const { typingUser, sendTypingIndicator, markMessagesRead } = useRealtimeChat(
+    bookingId, user, setMessages, false // never mock for real users
+  );
+
+  // Presence — check if other person is online
+  const { isUserOnline } = usePresence(user, `chat-presence-${bookingId}`);
+
   // Scroll to bottom helper
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -22,15 +54,18 @@ const ChatWindow = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, typingUser]);
+
+  // Reset unread badge when entering chat
+  useEffect(() => {
+    resetUnread();
+  }, [resetUnread]);
 
   useEffect(() => {
     if (!user) return;
 
-    // 1. Fetch Booking and Initial Messages
     const fetchChatData = async () => {
       try {
-        // Fetch Booking
         const { data: bookingData, error: bookingError } = await supabase
           .from('bookings')
           .select(`
@@ -45,7 +80,6 @@ const ChatWindow = () => {
         if (bookingError) throw bookingError;
         setBooking(bookingData);
 
-        // Fetch Messages
         const { data: messagesData, error: messagesError } = await supabase
           .from('messages')
           .select('*')
@@ -55,6 +89,12 @@ const ChatWindow = () => {
         if (messagesError) throw messagesError;
         setMessages(messagesData || []);
 
+        // Mark existing unread messages as read
+        const unreadIds = (messagesData || [])
+          .filter(m => m.sender_id !== user.id && !m.read_at)
+          .map(m => m.id);
+        if (unreadIds.length > 0) markMessagesRead(unreadIds);
+
       } catch (err) {
         console.error("Error fetching chat:", err);
       } finally {
@@ -63,34 +103,6 @@ const ChatWindow = () => {
     };
 
     fetchChatData();
-
-    // 2. Set up Realtime Subscription
-    // We subscribe to INSERTs on the messages table where booking_id matches
-    const channel = supabase
-      .channel(`chat-${bookingId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `booking_id=eq.${bookingId}`
-        },
-        (payload) => {
-          // payload.new contains the newly inserted message row
-          setMessages((prev) => [...prev, payload.new]);
-        }
-      )
-      .subscribe();
-
-    // 3. CLEANUP FUNCTION (Crucial for preventing Memory Leaks)
-    // When the user leaves this page, React will run this return function
-    // to destroy the subscription. If we don't do this, the network connection
-    // stays open forever and multiple ghost connections build up!
-    return () => {
-      supabase.removeChannel(channel);
-    };
-
   }, [bookingId, user]);
 
   const handleSendMessage = async (e) => {
@@ -98,7 +110,10 @@ const ChatWindow = () => {
     if (!newMessage.trim()) return;
 
     const content = newMessage.trim();
-    setNewMessage(''); // optimistic UI clear
+    setNewMessage('');
+
+    // Clear typing indicator
+    sendTypingIndicator(false);
 
     try {
       const { error } = await supabase
@@ -110,12 +125,19 @@ const ChatWindow = () => {
         }]);
 
       if (error) throw error;
-      // Note: We don't need to update the state here! 
-      // The Supabase Realtime subscription will catch our own INSERT 
-      // and append it to the screen automatically.
+      // Realtime subscription (in useRealtimeChat) will echo this back
     } catch (err) {
       console.error("Failed to send message:", err);
-      alert("Failed to send message. Please try again.");
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    // Debounced typing indicator
+    if (e.target.value.trim()) {
+      sendTypingIndicator(true);
+    } else {
+      sendTypingIndicator(false);
     }
   };
 
@@ -133,6 +155,7 @@ const ChatWindow = () => {
 
   const isOwner = booking.owner.id === user.id;
   const otherPerson = isOwner ? booking.renter : booking.owner;
+  const otherPersonOnline = isUserOnline(otherPerson.id);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-gray-50">
@@ -147,18 +170,33 @@ const ChatWindow = () => {
         </button>
         
         <div className="flex items-center gap-3">
-          {otherPerson.avatar_url ? (
-            <img src={otherPerson.avatar_url} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-          ) : (
-            <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold border border-primary/20">
-              {otherPerson.name.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <div className="relative">
+            {otherPerson.avatar_url ? (
+              <img src={otherPerson.avatar_url} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+            ) : (
+              <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold border border-primary/20">
+                {otherPerson.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {/* Online indicator dot */}
+            <Circle
+              size={10}
+              className={`absolute bottom-0 right-0 rounded-full border-2 border-white fill-current ${
+                otherPersonOnline ? 'text-green-500' : 'text-gray-300'
+              }`}
+            />
+          </div>
           
           <div>
             <h2 className="font-bold text-gray-900 leading-tight">{otherPerson.name}</h2>
-            <p className="text-xs text-gray-500 flex items-center gap-1">
-              <Package size={12} /> {booking.product?.title}
+            <p className="text-xs flex items-center gap-1">
+              {otherPersonOnline ? (
+                <span className="text-green-500 font-medium">Online now</span>
+              ) : (
+                <span className="text-gray-400 flex items-center gap-1">
+                  <Package size={12} /> {booking.product?.title}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -179,9 +217,8 @@ const ChatWindow = () => {
 
         {messages.map((msg, idx) => {
           const isMe = msg.sender_id === user.id;
-          
-          // Format time
           const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const isRead = msg.read_at && !isMe;
 
           return (
             <div key={msg.id || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -193,13 +230,27 @@ const ChatWindow = () => {
                 }`}
               >
                 <p className="text-sm">{msg.content}</p>
-                <p className={`text-[10px] text-right mt-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
-                  {time}
-                </p>
+                <div className={`flex items-center justify-end gap-1 mt-1`}>
+                  <p className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
+                    {time}
+                  </p>
+                  {/* Read receipt double-tick for sent messages */}
+                  {isMe && msg.read_at && (
+                    <span className="text-[10px] text-white/70">✓✓</span>
+                  )}
+                  {isMe && !msg.read_at && (
+                    <span className="text-[10px] text-white/50">✓</span>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
+        
+        {/* Typing indicator */}
+        {typingUser && typingUser !== user.id && (
+          <TypingIndicator name={otherPerson?.name} />
+        )}
         
         {/* Invisible div to scroll to */}
         <div ref={messagesEndRef} />
@@ -211,7 +262,7 @@ const ChatWindow = () => {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Type a message..."
             className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-full px-6 py-3 text-sm outline-none transition-all"
           />

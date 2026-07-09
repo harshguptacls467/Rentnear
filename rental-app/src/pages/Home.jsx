@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
+import useRealtimeStore from '../store/realtimeStore';
+import useRealtimeProducts from '../hooks/useRealtimeProducts';
 import { Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, MapPin, Sparkles, User as UserIcon, ChevronRight, TrendingUp, ShieldCheck, Zap, Lightbulb } from 'lucide-react';
 import { MOCK_USER, MOCK_PRODUCTS } from '../data/mockData';
 import { getLocalProducts } from '../utils/localDb';
@@ -125,52 +127,65 @@ const QuickActionCard = ({ title, desc, icon: Icon, to, gradient }) => (
   </motion.div>
 );
 
-const ProductCard = ({ product }) => (
-  <motion.div variants={fadeUp} className="h-full">
-    <TiltCard scaleOnHover={1.03}>
-      <Link to={`/products/${product.id}`} className={`group relative bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 block h-full flex flex-col`}>
-        
-        <div className="h-48 md:h-56 relative overflow-hidden bg-gray-100">
-          {product.images && product.images.length > 0 ? (
-            <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300">
-              <PackageOpen size={48} />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+const ProductCard = ({ product }) => {
+  const isNew = useRealtimeStore(state => state.isNewProduct(product.id));
+  return (
+    <motion.div variants={fadeUp} className="h-full">
+      <TiltCard scaleOnHover={1.03}>
+        <Link to={`/products/${product.id}`} className={`group relative bg-white rounded-[2rem] border overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 block h-full flex flex-col ${isNew ? 'border-primary/40 ring-2 ring-primary/10' : 'border-gray-100'}`}>
           
-          <div className="absolute top-4 left-4">
-            {product.is_available !== false ? (
-              <span className="bg-white/90 backdrop-blur-md text-primary text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
-                <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-primary animate-pulse"></span> Available
-              </span>
+          <div className="h-48 md:h-56 relative overflow-hidden bg-gray-100">
+            {product.images && product.images.length > 0 ? (
+              <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" />
             ) : (
-              <span className="bg-white/90 backdrop-blur-md text-red-500 text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-                Rented
-              </span>
+              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                <PackageOpen size={48} />
+              </div>
             )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+            
+            {/* "New" badge for recently listed items */}
+            {isNew && (
+              <div className="absolute top-4 left-4">
+                <span className="bg-primary text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white"></span> NEW
+                </span>
+              </div>
+            )}
+            {!isNew && (
+              <div className="absolute top-4 left-4">
+                {product.is_available !== false ? (
+                  <span className="bg-white/90 backdrop-blur-md text-primary text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-primary animate-pulse"></span> Available
+                  </span>
+                ) : (
+                  <span className="bg-white/90 backdrop-blur-md text-red-500 text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
+                    Rented
+                  </span>
+                )}
+              </div>
+            )}
+            
+            <div className="absolute top-4 right-4 bg-navy/90 backdrop-blur-md px-3 md:px-4 py-1.5 md:py-2 rounded-2xl text-white shadow-lg border border-white/10">
+              <span className="text-base md:text-lg font-bold">${product.price_per_day}</span>
+              <span className="text-[10px] md:text-xs text-gray-400 font-normal"> /day</span>
+            </div>
+
+            <div className="absolute bottom-4 left-4 right-4 flex items-center text-white/90 text-xs md:text-sm font-medium">
+              <MapPin size={14} className="mr-1.5 md:w-4 md:h-4" />
+              <span className="truncate drop-shadow-md">{product.location || 'Local Area'}</span>
+            </div>
           </div>
           
-          <div className="absolute top-4 right-4 bg-navy/90 backdrop-blur-md px-3 md:px-4 py-1.5 md:py-2 rounded-2xl text-white shadow-lg border border-white/10">
-            <span className="text-base md:text-lg font-bold">${product.price_per_day}</span>
-            <span className="text-[10px] md:text-xs text-gray-400 font-normal"> /day</span>
+          <div className="p-4 md:p-6 flex-1 flex flex-col">
+            <h4 className="font-bold text-gray-900 text-lg md:text-xl mb-1 md:mb-2 truncate group-hover:text-primary transition-colors">{product.title}</h4>
+            <p className="text-xs md:text-sm text-gray-500 line-clamp-2 leading-relaxed flex-1">{product.description || 'No description provided'}</p>
           </div>
-
-          <div className="absolute bottom-4 left-4 right-4 flex items-center text-white/90 text-xs md:text-sm font-medium">
-            <MapPin size={14} className="mr-1.5 md:w-4 md:h-4" />
-            <span className="truncate drop-shadow-md">{product.location || 'Local Area'}</span>
-          </div>
-        </div>
-        
-        <div className="p-4 md:p-6 flex-1 flex flex-col">
-          <h4 className="font-bold text-gray-900 text-lg md:text-xl mb-1 md:mb-2 truncate group-hover:text-primary transition-colors">{product.title}</h4>
-          <p className="text-xs md:text-sm text-gray-500 line-clamp-2 leading-relaxed flex-1">{product.description || 'No description provided'}</p>
-        </div>
-      </Link>
-    </TiltCard>
-  </motion.div>
-);
+        </Link>
+      </TiltCard>
+    </motion.div>
+  );
+};
 
 
 // ==========================================
@@ -183,6 +198,9 @@ const Home = () => {
   const [recentProducts, setRecentProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('renter');
+
+  // Live product feed — auto-prepends new listings as they are created
+  useRealtimeProducts(setRecentProducts, isMock);
 
   useEffect(() => {
     const fetchDashboardData = async () => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Search, MapPin, Inbox, ShieldCheck, Leaf, Sparkles } from 'lucide-react';
+import { Search, MapPin, Inbox, ShieldCheck, Leaf, Sparkles, Radio } from 'lucide-react';
 import Input from '../components/Input';
 import Select from '../components/Select';
 import Skeleton from '../components/Skeleton';
@@ -9,6 +9,8 @@ import EmptyState from '../components/EmptyState';
 import { MOCK_PRODUCTS } from '../data/mockData';
 import { getLocalProducts } from '../utils/localDb';
 import useAuthStore from '../store/authStore';
+import useRealtimeStore from '../store/realtimeStore';
+import useRealtimeProducts from '../hooks/useRealtimeProducts';
 import { motion } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
@@ -88,6 +90,17 @@ const Products = () => {
     fetchProducts();
   }, [debouncedQuery, category, sortBy, isMock]);
 
+  // Live product subscription — filters applied client-side
+  useRealtimeProducts(
+    setProducts,
+    isMock,
+    { category, searchQuery: debouncedQuery },
+    sortBy
+  );
+
+  const productsFeedStatus = useRealtimeStore(s => s.productsFeedStatus);
+  const isNewProduct = useRealtimeStore(s => s.isNewProduct);
+
 
   return (
     <AnimatedPage className="min-h-screen bg-gray-50 pb-20">
@@ -101,6 +114,11 @@ const Products = () => {
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-6">
             <Sparkles size={16} className="text-primary-light" />
             <span className="text-xs font-bold text-white uppercase tracking-widest">Neighborhood Directory</span>
+            {productsFeedStatus === 'connected' && (
+              <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 border-l border-white/20 pl-2">
+                <Radio size={9} className="animate-pulse" /> LIVE
+              </span>
+            )}
           </motion.div>
           
           <motion.h1 initial="hidden" animate="visible" variants={fadeUp} className="text-4xl md:text-6xl font-black text-white tracking-tight mb-4 leading-tight">
@@ -189,12 +207,20 @@ const Products = () => {
           <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {products.map(product => {
               const image = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+              const productIsNew = isNewProduct(product.id);
               return (
                 <motion.div variants={fadeUp} key={product.id} className="h-full">
                   <TiltCard scaleOnHover={1.03}>
-                    <Link to={`/products/${product.id}`} className="group bg-white rounded-[2rem] p-4 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_40px_rgba(0,0,0,0.08)] hover:border-primary/20 transition-all duration-500 flex flex-col h-full">
+                    <Link to={`/products/${product.id}`} className={`group bg-white rounded-[2rem] p-4 border shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_40px_rgba(0,0,0,0.08)] transition-all duration-500 flex flex-col h-full ${
+                      productIsNew ? 'border-primary/40 ring-2 ring-primary/10' : 'border-gray-100 hover:border-primary/20'
+                    }`}>
                       <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-4 relative">
                         <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                        {productIsNew && (
+                          <div className="absolute top-3 left-3 bg-primary text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span> NEW
+                          </div>
+                        )}
                         {!product.is_available && (
                           <div className="absolute top-3 right-3 bg-red-500/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider shadow-lg">
                             Rented

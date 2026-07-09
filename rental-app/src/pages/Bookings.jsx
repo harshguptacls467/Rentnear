@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
-import { Calendar, Package, AlertCircle, CheckCircle2, XCircle, SearchX, MessageSquare, Star, ShieldAlert } from 'lucide-react';
+import { Calendar, Package, AlertCircle, CheckCircle2, XCircle, SearchX, MessageSquare, Star, ShieldAlert, Radio } from 'lucide-react';
 import ReviewForm from '../components/ReviewForm';
 import EmptyState from '../components/EmptyState';
 import { API_URL } from '../config/api';
 import { MOCK_BOOKINGS } from '../data/mockData';
+import useRealtimeBookings from '../hooks/useRealtimeBookings';
 
 import { getLocalBookings, saveLocalBookings } from '../utils/localDb';
 
@@ -72,6 +73,9 @@ const Bookings = () => {
       fetchBookings();
     });
   }, [fetchBookings]);
+
+  // Real-time booking updates — patches state on status change
+  useRealtimeBookings(setBookings, user, isMock);
 
   const updateBookingStatus = async (bookingId, newStatus, reason = '') => {
     try {
@@ -177,7 +181,12 @@ const Bookings = () => {
         {/* Header & Role Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900">Manage Bookings</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-extrabold text-gray-900">Manage Bookings</h1>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1 rounded-full">
+                <Radio size={10} className="animate-pulse" /> LIVE
+              </span>
+            </div>
             <p className="text-gray-500 mt-1">Keep track of what you're renting and listing.</p>
           </div>
           

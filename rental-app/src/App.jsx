@@ -2,6 +2,7 @@ import { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import useAuthStore from './store/authStore'
+import usePresence from './hooks/usePresence'
 
 // Components
 import Layout from './components/Layout'
@@ -98,6 +99,9 @@ const AnimatedRoutes = () => {
 
 function App() {
   const { initialize, user } = useAuthStore();
+
+  // Broadcast global presence — other users can see when you're online
+  usePresence(user, 'rentnear-global-presence');
 
   useEffect(() => {
     const cleanup = initialize();

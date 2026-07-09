@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import useAuthStore from '../store/authStore';
-import { Shield } from 'lucide-react';
+import { Shield, Radio } from 'lucide-react';
 import { adminService } from '../api/adminService';
+import useRealtimeAdmin from '../hooks/useRealtimeAdmin';
 
 import AdminOverview from '../components/admin/AdminOverview';
 import AdminUsers from '../components/admin/AdminUsers';
@@ -57,6 +58,10 @@ const Admin = () => {
       });
     }
   }, [session, fetchDashboardData]);
+
+  // Live admin dashboard stats
+  const { user } = useAuthStore();
+  useRealtimeAdmin(setStats, setUsers, setProducts, user?.is_admin ?? false);
 
   const handleBanUser = async (userId, currentStatus) => {
     try {
@@ -133,10 +138,13 @@ const Admin = () => {
           <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
             <Shield size={40} className="text-primary-light" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-extrabold mb-1">Admin Command Center</h1>
             <p className="text-gray-300">System management, moderation, and dispute resolution.</p>
           </div>
+          <span className="flex items-center gap-2 text-xs font-black text-green-400 bg-green-400/10 border border-green-400/30 px-4 py-2 rounded-full">
+            <Radio size={12} className="animate-pulse" /> LIVE
+          </span>
         </div>
 
         {/* Tabs */}

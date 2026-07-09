@@ -1,5 +1,6 @@
-import { CheckCircle, Ban } from 'lucide-react';
+import { CheckCircle, Ban, Users } from 'lucide-react';
 import Button from '../Button';
+
 
 const AdminUsers = ({ users, onBanUser }) => {
   return (
@@ -17,36 +18,47 @@ const AdminUsers = ({ users, onBanUser }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map(u => (
-              <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="p-6 font-bold text-gray-900">
-                  {u.name} {u.kyc_verified && <CheckCircle size={14} className="inline text-green-500 ml-1" />}
-                </td>
-                <td className="p-6 text-gray-500 text-sm">{u.email}</td>
-                <td className="p-6">
-                  <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-bold uppercase tracking-wider">
-                    {u.role}
-                  </span>
-                </td>
-                <td className="p-6 text-gray-500 text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
-                <td className="p-6">
-                  {u.is_banned ? (
-                    <span className="text-red-600 font-bold text-sm flex items-center gap-1"><Ban size={14} /> Banned</span>
-                  ) : (
-                    <span className="text-green-600 font-bold text-sm flex items-center gap-1"><CheckCircle size={14} /> Active</span>
-                  )}
-                </td>
-                <td className="p-6 text-right">
-                  <Button 
-                    variant="secondary" 
-                    className={`text-xs py-1.5 px-3 ${u.is_banned ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}`}
-                    onClick={() => onBanUser(u.id, u.is_banned)}
-                  >
-                    {u.is_banned ? 'Unban User' : 'Ban User'}
-                  </Button>
+            {users.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="p-12 text-center">
+                  <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <Users size={36} className="opacity-40" />
+                    <p className="font-semibold text-sm">No users found.</p>
+                  </div>
                 </td>
               </tr>
-            ))}
+            ) : (
+              users.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="p-6 font-bold text-gray-900">
+                    {u.name} {u.kyc_verified && <CheckCircle size={14} className="inline text-green-500 ml-1" />}
+                  </td>
+                  <td className="p-6 text-gray-500 text-sm">{u.email}</td>
+                  <td className="p-6">
+                    <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-bold uppercase tracking-wider">
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="p-6 text-gray-500 text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td className="p-6">
+                    {u.is_banned ? (
+                      <span className="text-red-600 font-bold text-sm flex items-center gap-1"><Ban size={14} /> Banned</span>
+                    ) : (
+                      <span className="text-green-600 font-bold text-sm flex items-center gap-1"><CheckCircle size={14} /> Active</span>
+                    )}
+                  </td>
+                  <td className="p-6 text-right">
+                    <Button 
+                      variant="secondary" 
+                      className={`text-xs py-1.5 px-3 ${u.is_banned ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}`}
+                      onClick={() => onBanUser(u.id, u.is_banned)}
+                    >
+                      {u.is_banned ? 'Unban User' : 'Ban User'}
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
