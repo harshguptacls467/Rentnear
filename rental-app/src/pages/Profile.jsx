@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
+import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import TextArea from '../components/TextArea';
 
@@ -34,6 +35,7 @@ const parsePhone = (fullPhone) => {
 
 const Profile = () => {
   const { user, session, isMock, initialize } = useAuthStore();
+  const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -64,6 +66,7 @@ const Profile = () => {
   const [emailInputOtp, setEmailInputOtp] = useState('');
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [isRequestingEmail, setIsRequestingEmail] = useState(false);
+  const [isSimulatedOtp, setIsSimulatedOtp] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -220,13 +223,10 @@ const Profile = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to send verification code.');
 
       setEmailOtp(data.emailOtp);
+      setIsSimulatedOtp(!!data.isSimulated);
 
       if (data.isSimulated) {
-        triggerNotification(
-          'email',
-          '📩 Simulated Email Notification',
-          `Your RentNear Email Verification Code is: ${data.emailOtp}.`
-        );
+        // OTP shown directly in modal — no need for toast
       } else {
         triggerNotification(
           'email',
@@ -716,7 +716,7 @@ const Profile = () => {
             {!emailOtp ? (
               <div className="space-y-4">
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  To confirm ownership of this email address, click the button below. We will simulate sending a 6-digit OTP code to your inbox.
+                  To confirm ownership of this email address, click the button below. A 6-digit OTP code will be sent to your inbox.
                 </p>
                 <button
                   type="button"
@@ -729,6 +729,14 @@ const Profile = () => {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Show OTP directly in modal when simulated (no Resend API) */}
+                {isSimulatedOtp && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+                    <p className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-2">📩 Your OTP Code (Dev Mode)</p>
+                    <p className="text-3xl font-black tracking-widest text-amber-700">{emailOtp}</p>
+                    <p className="text-xs text-amber-500 mt-1">Email not configured — use this code directly</p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Enter 6-Digit OTP</label>
                   <div className="relative">
