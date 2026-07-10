@@ -37,6 +37,7 @@ const DisputeForm = lazy(() => import('./pages/DisputeForm'));
 const DisputeDetail = lazy(() => import('./pages/DisputeDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Support = lazy(() => import('./pages/Support'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 
 // Full-screen loading fallback for Suspense
 const PageLoader = () => (
@@ -61,6 +62,7 @@ const AnimatedRoutes = () => {
           <Route index element={<Landing />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="auth/callback" element={<AuthCallback />} />
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="map" element={<MapSearch />} />
