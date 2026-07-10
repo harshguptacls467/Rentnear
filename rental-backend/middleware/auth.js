@@ -11,14 +11,25 @@ const authMiddleware = async (req, res, next) => {
     // 2. Extract the token
     const token = authHeader.split(' ')[1];
 
-    // 3. Verify the token with Supabase
+    // 3. Allow mock/demo tokens to pass through as a simulated user
+    //    (mock-token-demo is sent by the frontend when user is in mock/demo mode)
+    if (token === 'mock-token-demo' || token.startsWith('mock-')) {
+      req.user = {
+        id: 'mock-user-id',
+        email: 'mock@rentnear.app',
+        isMock: true,
+      };
+      return next();
+    }
+
+    // 4. Verify real Supabase JWT token
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 
-    // 4. Attach user to request object
+    // 5. Attach user to request object
     req.user = user;
     next();
 

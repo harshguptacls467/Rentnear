@@ -196,6 +196,14 @@ const verifyEmailOtp = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid verification code.' });
     }
 
+    // Skip DB update for mock/demo users
+    if (req.user?.isMock) {
+      return res.json({
+        success: true,
+        message: 'Email address verified successfully! (simulated)'
+      });
+    }
+
     const { error: dbError } = await supabase
       .from('users')
       .update({ email_verified: true })
