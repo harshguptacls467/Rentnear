@@ -24,7 +24,13 @@ const AdminLogin = () => {
 
   // If already logged in as approved admin → redirect to admin panel
   useEffect(() => {
-    if (session && user?.is_admin && user?.admin_status === 'approved') {
+    const userEmail = (user?.email || '').toLowerCase();
+    const isSuperAdminEmail =
+      userEmail === 'harshguptacls467@gmail.com' ||
+      userEmail === 'harshguptcls467@gmail.com' ||
+      userEmail === 'demo@rentnear.app';
+
+    if (session && ((user?.is_admin && user?.admin_status === 'approved') || isSuperAdminEmail)) {
       navigate('/admin', { replace: true });
     }
   }, [session, user, navigate]);
@@ -47,8 +53,13 @@ const AdminLogin = () => {
       const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
 
       if (isSupabaseValid) {
-        // Real Supabase login
-        const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+        // Real Supabase login with 10s timeout to prevent hanging
+        const loginPromise = supabase.auth.signInWithPassword({ email, password });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Authentication request timed out. Please try again.')), 10000)
+        );
+
+        const { data: authData, error } = await Promise.race([loginPromise, timeoutPromise]);
         if (error) throw new Error(error.message);
 
         const isSuperAdminEmail =
