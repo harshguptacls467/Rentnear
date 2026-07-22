@@ -48,87 +48,94 @@ const Register = () => {
     setErrorMsg('');
     setSuccessMsg('');
 
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+    const name = formData.name.trim();
+
+    if (!name) {
+      setErrorMsg('Full Name is required.');
+      setLoading(false);
+      return;
+    }
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setErrorMsg('Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters.');
+      setLoading(false);
+      return;
+    }
+
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
-    // ── Try real Supabase signup first ────────────────────────────────────────
     try {
-      const { data: authData, error: authError } = await withTimeout(
-        supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-        })
-      );
+      const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
 
-      if (authError) throw new Error(authError.message);
+      if (isSupabaseValid) {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
 
-      console.log('Register: signUp resolved. authData:', authData);
-      const user = authData?.user;
-      if (!user) throw new Error('Account creation failed.');
+        if (authError) throw new Error(authError.message);
 
-      // Save profile (don't let this block the user — use short timeout)
-      try {
-        await withTimeout(
-          supabase.from('users').upsert([
-            {
-              id: user.id,
-              name: formData.name,
-              email: formData.email,
-              phone: fullPhone,
-              role: formData.role,
-            },
-          ], { onConflict: 'id' }),
-          5000
-        );
-      } catch (dbErr) {
-        console.warn('Profile save skipped:', dbErr.message);
-      }
+        const user = authData?.user;
+        if (!user) throw new Error('Account creation failed.');
 
-      // ── Case 1: Session already available (email confirmation OFF) ──────────
-      if (authData.session) {
-        console.log('Register Case 1: Active session found. Navigating to /home.');
-        navigate('/home');
-        return;
-      }
+        // Save profile in users table
+        const { error: profileError } = await supabase.from('users').upsert([
+          {
+            id: user.id,
+            name,
+            email,
+            phone: fullPhone,
+            role: formData.role,
+            kyc_status: 'unverified',
+            kyc_verified: false,
+          },
+        ], { onConflict: 'id' });
 
-      // ── Case 2: No session yet — try auto sign-in immediately ───────────────
-      try {
-        console.log('Register Case 2: No active session, attempting signInWithPassword...');
-        const { data: signInData, error: signInError } = await withTimeout(
-          supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          }),
-          8000
-        );
+        if (profileError) {
+          console.warn('Profile db insert warning:', profileError.message);
+        }
 
-        if (!signInError && signInData?.session) {
-          console.log('Register Case 2 success: Signed in. Navigating to /home.');
+        if (authData.session) {
+          showToast(`Welcome to RentNear, ${name}!`, 'success');
           navigate('/home');
           return;
         }
-        console.log('Register Case 2 failed: signInError or no session:', signInError);
-      } catch (signInErr) {
-        console.log('Register Case 2 catch: signInWithPassword threw error:', signInErr);
+
+        // Try immediate sign in
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (!signInError && signInData?.session) {
+          showToast(`Welcome to RentNear, ${name}!`, 'success');
+          navigate('/home');
+          return;
+        }
+
+        setSuccessMsg('Account created successfully! Please check your email to verify your account or log in.');
+        showToast('Account created successfully!', 'success');
+      } else {
+        mockLogin(email, {
+          name,
+          phone: fullPhone,
+          role: formData.role,
+        });
+        showToast(`Welcome to RentNear, ${name}!`, 'success');
+        navigate('/home');
       }
-
-      // ── Case 3: Email confirmation required or sign-in failed. Log in directly via mockLogin!
-      console.log('Register Case 3: Calling mockLogin and navigating to /home.');
-      mockLogin(formData.email.trim().toLowerCase(), {
-        name: formData.name,
-        phone: fullPhone,
-        role: formData.role
-      });
-      navigate('/home');
-
     } catch (error) {
-      // ── Fallback: Mock Registration (network/timeout/invalid key/other errors) ──────────
-      console.log('Register Catch fallback: signUp failed, logging in via mockLogin. error:', error);
-      mockLogin(formData.email.trim().toLowerCase(), {
-        name: formData.name,
-        phone: fullPhone,
-        role: formData.role
-      });
-      navigate('/home');
+      console.error('Registration error:', error);
+      setErrorMsg(error.message || 'Registration failed. Please try again.');
+      showToast(error.message || 'Registration failed.', 'error');
     } finally {
       setLoading(false);
     }

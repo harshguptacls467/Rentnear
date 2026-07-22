@@ -50,6 +50,24 @@ const KYCForm = () => {
   const [selfieImage, setSelfieImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [lastSubmission, setLastSubmission] = useState(null);
+
+  useEffect(() => {
+    if ((user?.kyc_status === 'rejected' || user?.kyc_status === 'resubmission_required') && user?.id) {
+      supabase
+        .from('kyc_submissions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+        .then(({ data }) => {
+          if (data) setLastSubmission(data);
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
   // If user is already verified
   if (user?.kyc_status === 'verified' || user?.kyc_verified) {
     return (
@@ -187,12 +205,27 @@ const KYCForm = () => {
           RentNear enforces verified identities to prevent theft and fraud. Please upload a clear photo of your government ID and a selfie holding it.
         </p>
 
+        {user?.kyc_status === 'resubmission_required' && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl mb-6 flex items-start gap-3">
+            <AlertCircle className="mt-0.5 flex-shrink-0 text-amber-600" size={20} />
+            <div>
+              <p className="font-bold">Action Required: Re-upload Document</p>
+              <p className="text-sm mt-0.5">
+                The admin requested document re-upload: <span className="font-semibold">{lastSubmission?.admin_notes || 'Please upload clearer document images.'}</span>
+              </p>
+            </div>
+          </div>
+        )}
+
         {user?.kyc_status === 'rejected' && (
-          <div className="bg-red-50 text-red-700 p-4 rounded-xl mb-6 flex items-start gap-3">
-            <AlertCircle className="mt-0.5 flex-shrink-0" size={18} />
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl mb-6 flex items-start gap-3">
+            <AlertCircle className="mt-0.5 flex-shrink-0 text-red-600" size={20} />
             <div>
               <p className="font-bold">Your previous submission was rejected.</p>
-              <p className="text-sm">Please upload clean, well-lit images of your ID and selfie.</p>
+              <p className="text-sm mt-0.5">
+                Reason: <span className="font-semibold">{lastSubmission?.admin_notes || 'Images were blurry or unreadable.'}</span>
+              </p>
+              <p className="text-xs text-red-600 mt-1">Please re-upload clear, unedited photos of your ID and selfie below.</p>
             </div>
           </div>
         )}
