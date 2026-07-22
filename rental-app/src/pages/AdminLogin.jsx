@@ -53,8 +53,21 @@ const AdminLogin = () => {
 
         const isSuperAdminEmail = email === 'harshguptacls467@gmail.com' || email === 'demo@rentnear.app';
 
+        // Fetch public user record to verify admin status
+        let userData = null;
+        try {
+          const { data } = await supabase
+            .from('users')
+            .select('is_admin, admin_status, kyc_verified, name')
+            .eq('id', authData.user.id)
+            .single();
+          userData = data;
+        } catch (dbErr) {
+          console.warn('DB lookup warning during admin login:', dbErr);
+        }
+
         if (!isSuperAdminEmail) {
-          if (userError || !userData) {
+          if (!userData) {
             await supabase.auth.signOut();
             throw new Error('Failed to verify admin status. User record not found.');
           }
@@ -94,7 +107,7 @@ const AdminLogin = () => {
           initialized: true,
         });
 
-        showToast(`Welcome back, ${adminUserData.name || 'Admin'}!`, 'success');
+        showToast(`Welcome back, ${adminUserData.name || userData?.name || 'Admin'}!`, 'success');
         navigate('/admin');
       } else {
         // Mock login — check localStorage for admin users
