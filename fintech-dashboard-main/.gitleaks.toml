@@ -1,0 +1,122 @@
+title = "FinTech Dashboard Gitleaks Config"
+
+# Используем встроенные правила Gitleaks
+[extend]
+useDefault = true
+
+# === Секреты проекта FinTech Dashboard ===
+
+[[rules]]
+description = "OpenRouter API Key (sk-or-v1-...)"
+id = "openrouter-api-key"
+regex = '''sk-or-v1-[0-9a-f]{32,}'''
+tags = ["secret", "openrouter", "api"]
+
+[[rules]]
+description = "NextAuth Secret"
+id = "nextauth-secret"
+regex = '''NEXTAUTH_SECRET\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "nextauth"]
+
+[[rules]]
+description = "GitHub OAuth Client Secret"
+id = "github-client-secret"
+regex = '''GITHUB_CLIENT_SECRET\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "github", "oauth"]
+
+[[rules]]
+description = "GitHub OAuth Client ID"
+id = "github-client-id"
+regex = '''GITHUB_CLIENT_ID\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "github", "oauth"]
+
+[[rules]]
+description = "Google OAuth Client Secret"
+id = "google-client-secret"
+regex = '''GOOGLE_CLIENT_SECRET\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "google", "oauth"]
+
+[[rules]]
+description = "Google OAuth Client ID"
+id = "google-client-id"
+regex = '''GOOGLE_CLIENT_ID\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "google", "oauth"]
+
+[[rules]]
+description = "Database URL with password (PostgreSQL)"
+id = "database-url-password"
+regex = '''postgresql://\w+:\w+@[\w.]+:\d+/\w+'''
+tags = ["secret", "database", "postgresql"]
+
+[[rules]]
+description = "Ollama API URL"
+id = "ollama-api-url"
+regex = '''OLLAMA_API_URL\s*=\s*['"]?http://\S+['"]?'''
+tags = ["secret", "ollama"]
+
+[[rules]]
+description = "OpenRouter Model"
+id = "openrouter-model"
+regex = '''OPENROUTER_MODEL\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "openrouter"]
+
+[rules.allowlist]
+regexes = [
+    '''inclusionai/ling-2\.6-1t:free''',
+    '''OPENROUTER_VISION_MODEL''',
+]
+
+[[rules]]
+description = "NEXTAUTH_URL"
+id = "nextauth-url"
+regex = '''NEXTAUTH_URL\s*=\s*['"]?https?://\S+['"]?'''
+tags = ["secret", "nextauth"]
+
+[[rules]]
+description = "Private Key (PGP, EC, OPENSSH)"
+id = "private-key"
+regex = '''-----BEGIN\s+(PGP PRIVATE KEY BLOCK|EC PRIVATE KEY|OPENSSH PRIVATE KEY|RSA PRIVATE KEY|DSA PRIVATE KEY|PRIVATE KEY)-----'''
+tags = ["secret", "key"]
+
+[[rules]]
+description = "Generic API Key in .env"
+id = "generic-api-key"
+regex = '''(API_KEY|SECRET_KEY|TOKEN|PASSWORD)\s*=\s*['"]?.+['"]?'''
+tags = ["secret", "api"]
+
+[[rules]]
+description = "Docker Compose POSTGRES_PASSWORD"
+id = "docker-postgres-password"
+regex = '''POSTGRES_PASSWORD\s*[:=]\s*['"]?\w+['"]?'''
+tags = ["secret", "database", "docker"]
+
+[[rules]]
+description = "Hardcoded password in code"
+id = "hardcoded-password"
+regex = '''['"](?:password|passwd|pwd)['"]\s*[:=]\s*['"][^'"]+['"]'''
+tags = ["secret", "password"]
+
+# === Исключения (allowlist) ===
+
+[allowlist]
+description = "Исключения — ложные срабатывания"
+paths = [
+    # README содержит примеры с плейсхолдерами — это нормально
+    '''README\.md''',
+    # node_modules — сторонние библиотеки
+    '''node_modules''',
+    # .git — служебная директория
+    '''\.git''',
+    # .next — скомпилированная сборка Next.js (содержит копии исходников)
+    '''\.next''',
+    # .env* — уже исключены .gitignore, но Gitleaks видит их на диске
+    '''\.env''',
+    '''\.env\.local''',
+    # docker-compose.yml — локальная разработка, пароль для dev-среды
+    '''docker-compose\.yml''',
+    # debug route — читает process.env, но не содержит реальных секретов
+    '''app/api/debug/route\.ts''',
+    # chat/insights routes — используют OPENROUTER_MODEL как название переменной, а не секрет
+    '''app/api/chat/route\.ts''',
+    '''app/api/insights/route\.ts''',
+]

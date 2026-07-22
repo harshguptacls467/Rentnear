@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fintech-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: fintech
+      POSTGRES_PASSWORD: FinTech2024
+      POSTGRES_DB: fintech_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fintech -d fintech_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: fintech-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://fintech:FinTech2024@db:5432/fintech_db?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      NEXTAUTH_SECRET: "super-secret-key-change-in-production-min-32-chars"
+      NEXTAUTH_URL: "http://localhost:3000"
+      OLLAMA_API_URL: "http://host.docker.internal:11434"
+      OPENROUTER_API_KEY: ""
+      OPENROUTER_MODEL: "inclusionai/ling-2.6-1t:free"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: fintech-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

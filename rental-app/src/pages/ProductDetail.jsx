@@ -24,7 +24,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState(null);
   const [owner, setOwner] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error] = useState('');
+  const [error, setError] = useState('');
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [startDate, setStartDate] = useState('');
@@ -117,37 +117,48 @@ const ProductDetail = () => {
         ]);
         if (!ownerResponse.error) setOwner(ownerResponse.data);
       } catch (err) {
-        const allProducts = getLocalProducts();
+        console.error("Error fetching product details:", err);
+        const allProducts = getLocalProducts() || [];
         const foundProduct = allProducts.find(p => p.id === id) || allProducts[0];
-        setProduct({ ...foundProduct, deposit_amount: foundProduct.price_per_day * 2, condition: foundProduct.condition || 'Excellent' });
         
-        const localUsers = getLocalUsers();
-        let ownerData = null;
-        for (const email of Object.keys(localUsers)) {
-          if (localUsers[email].id === foundProduct.owner_id) {
-            ownerData = localUsers[email];
-            break;
+        if (foundProduct) {
+          setProduct({ 
+            ...foundProduct, 
+            deposit_amount: (foundProduct.price_per_day || 10) * 2, 
+            condition: foundProduct.condition || 'Excellent',
+            images: Array.isArray(foundProduct.images) ? foundProduct.images : (typeof foundProduct.images === 'string' ? [foundProduct.images] : [])
+          });
+          
+          const localUsers = getLocalUsers() || {};
+          let ownerData = null;
+          for (const email of Object.keys(localUsers)) {
+            if (localUsers[email]?.id === foundProduct.owner_id) {
+              ownerData = localUsers[email];
+              break;
+            }
           }
-        }
-        if (!ownerData && foundProduct.owner_id === MOCK_USER.id) {
-          ownerData = MOCK_USER;
-        }
+          if (!ownerData && foundProduct.owner_id === MOCK_USER.id) {
+            ownerData = MOCK_USER;
+          }
 
-        setOwner(ownerData ? {
-          name: ownerData.name,
-          avatar_url: ownerData.avatar_url,
-          created_at: ownerData.created_at,
-          rating_average: ownerData.rating_average || 4.8,
-          rating_count: ownerData.rating_count || 12,
-          phone: ownerData.phone || '919876543210'
-        } : {
-          name: 'Jane Doe',
-          avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JaneDoe',
-          created_at: '2024-01-01',
-          rating_average: 4.9,
-          rating_count: 5,
-          phone: '919876543210'
-        });
+          setOwner(ownerData ? {
+            name: ownerData.name,
+            avatar_url: ownerData.avatar_url,
+            created_at: ownerData.created_at,
+            rating_average: ownerData.rating_average || 4.8,
+            rating_count: ownerData.rating_count || 12,
+            phone: ownerData.phone || '919876543210'
+          } : {
+            name: 'Jane Doe',
+            avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JaneDoe',
+            created_at: '2024-01-01',
+            rating_average: 4.9,
+            rating_count: 5,
+            phone: '919876543210'
+          });
+        } else {
+          setError(err.message || 'Product not found.');
+        }
       } finally {
         setLoading(false);
       }

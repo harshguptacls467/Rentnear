@@ -1,0 +1,68 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "team": "Platform",
+      "start_day": 2,
+      "end_day": 9
+    },
+    {
+      "team": "Infra",
+      "start_day": 1,
+      "end_day": 7
+    },
+    {
+      "team": "Data",
+      "start_day": 4,
+      "end_day": 12
+    }
+  ],
+  "meta": {
+    "title": "Project Duration by Team",
+    "subtitle": null,
+    "query_explanation": "Shows start and end durations for each team."
+  },
+  "chart": {
+    "chart_type": "range_bar",
+    "chartSpec": {
+      "x": [
+        {
+          "field": "team",
+          "label": "Team",
+          "unit": null
+        }
+      ],
+      "y": null,
+      "group": null,
+      "category": null,
+      "value": null,
+      "source": null,
+      "target": null,
+      "start": [
+        {
+          "field": "start_day",
+          "label": "Start Day",
+          "unit": null
+        }
+      ],
+      "end": [
+        {
+          "field": "end_day",
+          "label": "End Day",
+          "unit": null
+        }
+      ],
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": true,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "is_range": true,
+      "line_curve": "smooth",
+      "markers_size": 0,
+      "forecast_points": 0
+    }
+  }
+}

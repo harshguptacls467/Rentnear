@@ -1,0 +1,17 @@
+# package-lock.json
+node_modules/
+dist/
+.vscode
+/src/config/*.env
+logs/*
+#/prisma/migrations
+#/prisma/history
+.env
+tmp/*
+appmap.yml
+#/prisma/schema_prod.prisma
+#/prisma/schema_prod_stage.prisma
+uploads
+public
+# LangGraph API
+.langgraph_api

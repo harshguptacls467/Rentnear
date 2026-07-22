@@ -1,0 +1,240 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --home-bg: #f2f5f9;
+  --home-surface: rgba(255, 255, 255, 0.88);
+  --home-surface-strong: #ffffff;
+  --home-border: #d9e4f1;
+  --home-text: #0e2236;
+  --home-muted: #5f7489;
+  --home-accent: #0f7ef2;
+  --home-accent-dark: #0859c9;
+  --home-success: #0f9a71;
+  --home-shadow: 0 20px 38px -24px rgba(10, 29, 58, 0.45);
+}
+
+.home-container {
+  position: relative;
+  min-height: 100vh;
+  font-family: "Sora", "Segoe UI", sans-serif;
+  color: var(--home-text);
+  background:
+    radial-gradient(circle at 7% 10%, rgba(15, 126, 242, 0.16), transparent 42%),
+    radial-gradient(circle at 92% 86%, rgba(15, 154, 113, 0.14), transparent 40%),
+    linear-gradient(180deg, #f8fbff 0%, var(--home-bg) 55%, #edf2f8 100%);
+}
+
+.home-content-wrap {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 2rem;
+}
+
+.home-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(217, 228, 241, 0.8);
+  backdrop-filter: blur(8px);
+  background: linear-gradient(90deg, rgba(7, 22, 37, 0.93), rgba(10, 38, 61, 0.9));
+}
+
+.home-topbar-inner {
+  max-width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 1rem;
+}
+
+.home-brand {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #eef6ff;
+}
+
+.home-user-email {
+  margin-left: auto;
+  color: #59d8ab;
+  font-size: 0.88rem;
+  word-break: break-all;
+}
+
+.home-logout-btn {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #f1f7ff;
+}
+
+.home-logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.home-card {
+  border: 1px solid var(--home-border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--home-surface);
+  box-shadow: var(--home-shadow);
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
+}
+
+.home-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 44px -30px rgba(10, 29, 58, 0.5);
+}
+
+.session-card-header {
+  background: linear-gradient(110deg, #0f7ef2 0%, #2a96ff 65%, #63bbff 100%);
+  color: #f5fbff;
+  border: 0;
+  padding: 0.95rem 1rem;
+}
+
+.session-card-body {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.session-list {
+  max-height: calc(100vh - 240px);
+}
+
+.session-item {
+  border: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid rgba(217, 228, 241, 0.65);
+  background: transparent;
+  transition: background-color 0.18s ease, border-left-color 0.18s ease;
+}
+
+.session-item:hover {
+  background-color: #f4f9ff;
+  border-left-color: #48a3ff;
+}
+
+.session-item.active {
+  border-left-color: var(--home-accent);
+  background: linear-gradient(90deg, #0f7ef2 0%, #228df7 100%);
+}
+
+.session-item-title {
+  width: 100%;
+  font-size: 0.86rem;
+}
+
+.composer-card {
+  animation: rise-in 0.44s ease;
+}
+
+.composer-body {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 251, 255, 0.93));
+}
+
+.composer-label {
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+}
+
+.composer-input {
+  border: 1px solid #cdddee;
+  border-radius: 10px;
+  color: var(--home-text);
+  background-color: rgba(255, 255, 255, 0.98);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.composer-input:focus {
+  border-color: #4ca5ff;
+  box-shadow: 0 0 0 4px rgba(15, 126, 242, 0.14);
+}
+
+.composer-json {
+  font-family: "IBM Plex Mono", monospace;
+  min-height: 102px;
+  line-height: 1.42;
+}
+
+.composer-alert {
+  border: 1px solid rgba(210, 38, 60, 0.2);
+  background: rgba(255, 238, 240, 0.95);
+}
+
+.generate-btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  letter-spacing: 0.01em;
+  background: linear-gradient(100deg, #0f7ef2 0%, #0ea26f 135%);
+}
+
+.generate-btn:hover:not(:disabled) {
+  background: linear-gradient(100deg, #0a6ede 0%, #0a8f62 135%);
+}
+
+.generate-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.result-card {
+  animation: rise-in 0.5s ease;
+}
+
+.result-card-header {
+  border: 0;
+  padding: 0.95rem 1rem;
+  background: linear-gradient(95deg, #00a6d6 0%, #0f7ef2 65%, #335de7 100%);
+}
+
+.result-subtitle {
+  opacity: 0.9;
+  font-size: 0.82rem;
+}
+
+.result-card-body {
+  padding: 1.2rem 1rem;
+  background: var(--home-surface-strong);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 991.98px) {
+  .home-topbar-inner {
+    padding: 0.7rem 0.8rem;
+  }
+
+  .session-list {
+    max-height: 260px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .home-user-email {
+    display: none;
+  }
+
+  .home-topbar {
+    margin-bottom: 0.9rem;
+  }
+
+  .home-content-wrap {
+    padding-bottom: 1.25rem;
+  }
+
+  .result-card-body,
+  .composer-body {
+    padding: 1rem 0.85rem;
+  }
+}

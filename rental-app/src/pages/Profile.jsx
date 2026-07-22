@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { z } from 'zod';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -8,11 +9,12 @@ import TextArea from '../components/TextArea';
 import { 
   Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, 
   ShieldCheck, AlertCircle, Quote, MapPin, CreditCard, Shield, Lock, 
-  CheckCircle2, Key, Smartphone, ChevronRight 
+  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp
 } from 'lucide-react';
 import { MOCK_USER, MOCK_REVIEWS } from '../data/mockData';
 import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
 import AnimatedPage from '../components/AnimatedPage';
+import ProfileAnalytics from '../components/profile/ProfileAnalytics';
 
 const parsePhone = (fullPhone) => {
   if (!fullPhone) return { countryCode: '+91', phoneNum: '' };
@@ -33,11 +35,28 @@ const parsePhone = (fullPhone) => {
   return { countryCode: '+91', phoneNum: trimmed };
 };
 
+const profileSchema = z.object({
+  upi_id: z.string().trim().refine(val => {
+    if (!val) return true; // Optional field
+    return /^[\w.-]+@[\w.-]+$/.test(val);
+  }, {
+    message: "Invalid UPI ID format. Should be like username@bankname"
+  }),
+  emergency_contact: z.string().trim().refine(val => {
+    if (!val) return true; // Optional field
+    const digits = val.replace(/\D/g, '');
+    return digits.length >= 7;
+  }, {
+    message: "Emergency contact must contain at least 7 digits."
+  })
+});
+
 const Profile = () => {
   const { user, session, isMock, initialize } = useAuthStore();
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({ upi_id: '', emergency_contact: '' });
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -67,6 +86,7 @@ const Profile = () => {
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [isRequestingEmail, setIsRequestingEmail] = useState(false);
   const [isSimulatedOtp, setIsSimulatedOtp] = useState(false);
+  const [profileTab, setProfileTab] = useState('overview');
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -168,6 +188,25 @@ const Profile = () => {
   const handleSaveProfile = async () => {
     try {
       setSaving(true); setError(null);
+      setValidationErrors({ upi_id: '', emergency_contact: '' });
+
+      const validationResult = profileSchema.safeParse({
+        upi_id: editForm.upi_id,
+        emergency_contact: editForm.emergency_contact
+      });
+
+      if (!validationResult.success) {
+        const fieldErrors = { upi_id: '', emergency_contact: '' };
+        validationResult.error.errors.forEach(err => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0]] = err.message;
+          }
+        });
+        setValidationErrors(fieldErrors);
+        setSaving(false);
+        return;
+      }
+
       const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
       
       const updateData = {
@@ -288,6 +327,11 @@ const Profile = () => {
       if (!event.target.files || event.target.files.length === 0) throw new Error('You must select an image to upload.');
       const file = event.target.files[0];
       
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        throw new Error('Only image files (JPEG, PNG, JPG, WEBP) are allowed.');
+      }
+      
       if (isMock) {
         const publicUrl = URL.createObjectURL(file);
         const localUsers = getLocalUsers();
@@ -387,7 +431,35 @@ const Profile = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-8">
+            {!isEditing && (
+              <div className="flex gap-2 border-b border-gray-200 overflow-x-auto no-scrollbar pb-1 mb-6">
+                <button
+                  onClick={() => setProfileTab('overview')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${
+                    profileTab === 'overview'
+                      ? 'text-primary border-primary font-black'
+                      : 'text-gray-400 border-transparent hover:text-gray-700'
+                  }`}
+                >
+                  <UserIcon size={16} />
+                  Overview & Verification
+                </button>
+                <button
+                  onClick={() => setProfileTab('analytics')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${
+                    profileTab === 'analytics'
+                      ? 'text-primary border-primary font-black'
+                      : 'text-gray-400 border-transparent hover:text-gray-700'
+                  }`}
+                >
+                  <TrendingUp size={16} />
+                  Earnings & Analytics
+                </button>
+              </div>
+            )}
+
+            {isEditing || profileTab === 'overview' ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-8">
               
               {/* Left Column: Details & Edit Form */}
               <div className="lg:col-span-2 space-y-8">
@@ -466,9 +538,10 @@ const Profile = () => {
                             value={editForm.upi_id} 
                             onChange={(e) => setEditForm({...editForm, upi_id: e.target.value})} 
                             placeholder="e.g. name@upi"
-                            className="w-full pl-11 border-gray-200 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary" 
+                            className={`w-full pl-11 border rounded-xl py-3 px-4 focus:ring-primary focus:border-primary ${validationErrors.upi_id ? 'border-red-500 ring-1 ring-red-200' : 'border-gray-200'}`} 
                           />
                         </div>
+                        {validationErrors.upi_id && <p className="text-red-500 text-xs mt-1 font-bold">{validationErrors.upi_id}</p>}
                       </div>
 
                       <div>
@@ -478,8 +551,9 @@ const Profile = () => {
                           value={editForm.emergency_contact} 
                           onChange={(e) => setEditForm({...editForm, emergency_contact: e.target.value})} 
                           placeholder="e.g. Family (+91 99999 88888)"
-                          className="w-full border-gray-200 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary" 
+                          className={`w-full border rounded-xl py-3 px-4 focus:ring-primary focus:border-primary ${validationErrors.emergency_contact ? 'border-red-500 ring-1 ring-red-200' : 'border-gray-200'}`} 
                         />
+                        {validationErrors.emergency_contact && <p className="text-red-500 text-xs mt-1 font-bold">{validationErrors.emergency_contact}</p>}
                       </div>
                     </div>
 
@@ -679,8 +753,12 @@ const Profile = () => {
                   )}
                 </div>
               </div>
-
             </div>
+            ) : (
+              <div className="mt-8">
+                <ProfileAnalytics />
+              </div>
+            )}
           </div>
         </div>
       </div>

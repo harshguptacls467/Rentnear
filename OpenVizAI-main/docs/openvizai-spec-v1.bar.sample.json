@@ -1,0 +1,59 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "region": "North",
+      "revenue": 185000
+    },
+    {
+      "region": "South",
+      "revenue": 142000
+    },
+    {
+      "region": "West",
+      "revenue": 163500
+    }
+  ],
+  "meta": {
+    "title": "Revenue by Region",
+    "subtitle": null,
+    "query_explanation": "Compares total revenue across regions."
+  },
+  "chart": {
+    "chart_type": "bar",
+    "chartSpec": {
+      "x": [
+        {
+          "field": "region",
+          "label": "Region",
+          "unit": null
+        }
+      ],
+      "y": [
+        {
+          "field": "revenue",
+          "label": "Revenue",
+          "unit": "USD",
+          "type": "bar"
+        }
+      ],
+      "group": null,
+      "category": null,
+      "value": null,
+      "source": null,
+      "target": null,
+      "start": null,
+      "end": null,
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": false,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "line_curve": "smooth",
+      "markers_size": 0,
+      "forecast_points": 0
+    }
+  }
+}

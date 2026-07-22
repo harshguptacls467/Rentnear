@@ -358,3 +358,133 @@ CREATE POLICY "Authenticated users can upload condition checks" ON storage.objec
 INSERT INTO storage.buckets (id, name, public) VALUES ('disputes', 'disputes', true) ON CONFLICT DO NOTHING;
 CREATE POLICY "Public Access for disputes" ON storage.objects FOR SELECT USING (bucket_id = 'disputes');
 CREATE POLICY "Authenticated users can upload disputes" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'disputes' AND auth.role() = 'authenticated');
+
+-------------------------------------------------------
+-- ADDITIONAL RLS POLICIES & SECURITY HARDENING
+-------------------------------------------------------
+
+-- BOOKINGS POLICIES
+CREATE POLICY "Users can view their own bookings" 
+ON bookings FOR SELECT 
+USING (auth.uid() = renter_id OR auth.uid() = owner_id);
+
+CREATE POLICY "Users can insert their own booking requests" 
+ON bookings FOR INSERT 
+WITH CHECK (auth.uid() = renter_id);
+
+CREATE POLICY "Users can update their own bookings" 
+ON bookings FOR UPDATE 
+USING (auth.uid() = renter_id OR auth.uid() = owner_id)
+WITH CHECK (auth.uid() = renter_id OR auth.uid() = owner_id);
+
+-- PAYMENTS POLICIES
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view payments for their bookings" 
+ON payments FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 FROM bookings 
+    WHERE bookings.id = payments.booking_id 
+    AND (bookings.renter_id = auth.uid() OR bookings.owner_id = auth.uid())
+  )
+);
+
+-- CONDITION CHECKS POLICIES
+ALTER TABLE condition_checks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view condition checks for their bookings" 
+ON condition_checks FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 FROM bookings 
+    WHERE bookings.id = condition_checks.booking_id 
+    AND (bookings.renter_id = auth.uid() OR bookings.owner_id = auth.uid())
+  )
+);
+
+-- HANDOVER OTPS SECURITY
+ALTER TABLE handover_otps ENABLE ROW LEVEL SECURITY;
+
+-- TRIGGER FUNCTIONS SECURITY HARDENING
+ALTER FUNCTION public.update_user_rating() SET search_path = public;
+ALTER FUNCTION public.log_booking_status_change() SET search_path = public;
+
+-- EVENT TRIGGER FUNCTION SECURITY HARDENING
+ALTER FUNCTION public.rls_auto_enable() SET search_path = pg_catalog, public;
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM public, anon, authenticated;
+
+-- ADMIN PORTAL SYSTEM SCHEMA
+CREATE TABLE public.admins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    two_factor_secret VARCHAR(128),
+    two_factor_enabled BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.admin_roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT
+);
+
+CREATE TABLE public.admin_role_mappings (
+    admin_id UUID REFERENCES public.admins(id) ON DELETE CASCADE,
+    role_id INT REFERENCES public.admin_roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (admin_id, role_id)
+);
+
+CREATE TABLE public.permissions (
+    id SERIAL PRIMARY KEY,
+    codename VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT
+);
+
+CREATE TABLE public.role_permissions (
+    role_id INT REFERENCES public.admin_roles(id) ON DELETE CASCADE,
+    permission_id INT REFERENCES public.permissions(id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE public.admin_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID REFERENCES public.admins(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    target_id VARCHAR(255) NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.system_settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_by UUID REFERENCES public.admins(id) ON DELETE SET NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.banners (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    image_url TEXT NOT NULL,
+    link_url TEXT,
+    position INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    start_date TIMESTAMP WITH TIME ZONE,
+    end_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enable RLS and indexes on admin system tables
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX idx_admin_audit_logs_admin_id ON public.admin_audit_logs(admin_id);
+CREATE INDEX idx_admin_audit_logs_action ON public.admin_audit_logs(action);
+CREATE INDEX idx_admins_email ON public.admins(email);
+
+

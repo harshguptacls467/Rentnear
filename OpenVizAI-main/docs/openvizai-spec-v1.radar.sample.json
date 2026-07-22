@@ -1,0 +1,68 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "team": "Alpha",
+      "communication_score": 8.4,
+      "delivery_score": 7.9
+    },
+    {
+      "team": "Beta",
+      "communication_score": 7.2,
+      "delivery_score": 8.6
+    },
+    {
+      "team": "Gamma",
+      "communication_score": 8.8,
+      "delivery_score": 8.1
+    }
+  ],
+  "meta": {
+    "title": "Skill Profile by Team",
+    "subtitle": null,
+    "query_explanation": "Compares multiple skill scores across teams."
+  },
+  "chart": {
+    "chart_type": "radar",
+    "chartSpec": {
+      "x": [
+        {
+          "field": "team",
+          "label": "Team",
+          "unit": null
+        }
+      ],
+      "y": [
+        {
+          "field": "communication_score",
+          "label": "Communication",
+          "unit": "score",
+          "type": "line"
+        },
+        {
+          "field": "delivery_score",
+          "label": "Delivery",
+          "unit": "score",
+          "type": "line"
+        }
+      ],
+      "group": null,
+      "category": null,
+      "value": null,
+      "source": null,
+      "target": null,
+      "start": null,
+      "end": null,
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": false,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "line_curve": "smooth",
+      "markers_size": 3,
+      "forecast_points": 0
+    }
+  }
+}

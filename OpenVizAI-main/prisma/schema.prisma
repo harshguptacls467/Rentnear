@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+    id            String        @id @default(uuid()) @db.Uuid
+    email         String        @unique
+
+    userSessions UserSession[]
+    @@map("user")
+
+}
+
+
+model ChatHistory {
+    id         Int      @id @default(autoincrement())
+    session_id String   @db.Uuid
+    message    Json
+    created_ts DateTime @default(now()) @db.Timestamptz(6)
+
+    userSession UserSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+    @@map("chat_history")
+}
+
+model UserSession {
+    session_id String    @id @default(uuid()) @db.Uuid
+    user_id    String    @db.Uuid
+    title      String
+    created_ts DateTime  @default(now()) @db.Timestamptz(6)
+    updated_ts DateTime  @updatedAt @db.Timestamptz(6)
+
+    employee      User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    chatHistories ChatHistory[]
+
+    @@map("user_session")
+}

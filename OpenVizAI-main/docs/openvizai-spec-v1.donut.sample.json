@@ -1,0 +1,59 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "category": "Salaries",
+      "amount": 54000
+    },
+    {
+      "category": "Cloud",
+      "amount": 21000
+    },
+    {
+      "category": "Tools",
+      "amount": 12000
+    }
+  ],
+  "meta": {
+    "title": "Expense Composition",
+    "subtitle": "Q1 2026",
+    "query_explanation": "Shows composition of expenses by category in donut format."
+  },
+  "chart": {
+    "chart_type": "donut",
+    "chartSpec": {
+      "x": null,
+      "y": null,
+      "group": null,
+      "category": [
+        {
+          "field": "category",
+          "label": "Category",
+          "unit": null
+        }
+      ],
+      "value": [
+        {
+          "field": "amount",
+          "label": "Amount",
+          "unit": "USD"
+        }
+      ],
+      "source": null,
+      "target": null,
+      "start": null,
+      "end": null,
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": false,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "is_donut": true,
+      "line_curve": "smooth",
+      "markers_size": 0,
+      "forecast_points": 0
+    }
+  }
+}

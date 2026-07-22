@@ -16,7 +16,6 @@ const app = express();
 // Trust Render/Vercel's reverse proxy — required for accurate IP-based rate limiting
 app.set('trust proxy', 1);
 
-const paymentController = require('./controllers/paymentController');
 
 // ── 1. Security Headers (helmet) ─────────────────────────────────────────────
 // Sets X-Content-Type-Options, X-Frame-Options, HSTS, CSP etc.

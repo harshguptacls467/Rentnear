@@ -4,7 +4,9 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import L from 'leaflet';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
-import { LocateFixed, Map as MapIcon, Loader2, MessageCircle, Phone } from 'lucide-react';
+import { LocateFixed, Map as MapIcon, Loader2, MessageCircle, Phone, Radio } from 'lucide-react';
+import useRealtimeProducts from '../hooks/useRealtimeProducts';
+import useRealtimeStore from '../store/realtimeStore';
 import 'leaflet/dist/leaflet.css';
 
 // Fix default Leaflet icon issue in React
@@ -51,13 +53,14 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const MapSearch = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   
   const [userLocation, setUserLocation] = useState(null); // [lat, lng]
   const [locationError, setLocationError] = useState(false);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [radius, setRadius] = useState(5); // Default 5km
+  const productsFeedStatus = useRealtimeStore(s => s.productsFeedStatus);
 
   // 1. Get User Location
   const locateUser = useCallback(() => {
@@ -104,6 +107,9 @@ const MapSearch = () => {
     };
     fetchProducts();
   }, []);
+
+  // Live product subscription
+  useRealtimeProducts(setProducts, isMock);
 
   // 3. Filter by Radius whenever location, radius, or products change
   useEffect(() => {
@@ -169,6 +175,11 @@ const MapSearch = () => {
             <option value={99999}>Show Everywhere</option>
           </select>
         </div>
+        {productsFeedStatus === 'connected' && (
+          <span className="flex items-center gap-1 bg-green-50 border border-green-200 text-green-600 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide mr-1">
+            <Radio size={10} className="animate-pulse" /> LIVE
+          </span>
+        )}
         <button 
           onClick={locateUser}
           className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-full transition-colors flex items-center justify-center"

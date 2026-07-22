@@ -1,0 +1,43 @@
+{
+  "name": "OpenVizAI",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "cd apps/server && npm run dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:web\"",
+    "build:core": "cd packages/core && npm run build",
+    "build:react": "cd packages/react && npm run build",
+    "bootstrap": "npm install",
+    "db:migrate": "npx prisma migrate dev --create-only && npx prisma generate",
+    "db:push": "npx prisma db push"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.3.0",
+    "@types/pg": "^8.16.0",
+    "concurrently": "^8.2.0",
+    "prisma": "^7.4.1"
+  },
+  "dependencies": {
+    "@langchain/community": "^1.1.19",
+    "@langchain/google": "^0.1.5",
+    "@langchain/google-genai": "^2.1.24",
+    "@prisma/adapter-pg": "^7.4.1",
+    "@prisma/client": "^7.4.1",
+    "@tanstack/react-query": "^5.90.21",
+    "apexcharts": "^5.6.0",
+    "bootstrap": "^5.3.8",
+    "dotenv": "^16.6.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.18.0",
+    "react-apexcharts": "^2.0.1",
+    "react-router-dom": "^7.13.0",
+    "uuid": "^13.0.0"
+  }
+}

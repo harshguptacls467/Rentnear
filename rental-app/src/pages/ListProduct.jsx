@@ -42,8 +42,58 @@ const ListProduct = () => {
   const [formData, setFormData] = useState({
     title: '', category: '', description: '', photos: [], condition: 'Good',
     price_per_day: '', price_per_hour: '', deposit_amount: '0', is_available: true,
+    location: '', latitude: null, longitude: null,
   });
-  
+
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  // Auto-detect GPS location on load for new listings
+  useEffect(() => {
+    if (!id && navigator.geolocation) {
+      setDetectingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setFormData(prev => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            location: prev.location || `GPS (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`
+          }));
+          setDetectingLocation(false);
+        },
+        (err) => {
+          console.warn("GPS location permission denied or error:", err.message);
+          setDetectingLocation(false);
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    }
+  }, [id]);
+
+  const detectGpsLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData(prev => ({
+          ...prev,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          location: `GPS (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`
+        }));
+        setDetectingLocation(false);
+      },
+      (err) => {
+        setError("Failed to get device location. Please grant location permissions.");
+        setDetectingLocation(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   useEffect(() => {
     const fetchExistingProduct = async () => {
       try {
@@ -56,6 +106,7 @@ const ListProduct = () => {
           title: data.title || '', category: data.category || '', description: data.description || '',
           photos: data.images || [], condition: data.condition || 'Good', price_per_day: data.price_per_day || '',
           price_per_hour: data.price_per_hour || '', deposit_amount: data.deposit_amount || '0', is_available: data.is_available !== false,
+          location: data.location || '', latitude: data.latitude || null, longitude: data.longitude || null,
         });
       } catch (err) {
         if (isMock && id) {
@@ -66,6 +117,7 @@ const ListProduct = () => {
               title: foundProduct.title || '', category: foundProduct.category || '', description: foundProduct.description || '',
               photos: foundProduct.images || [], condition: foundProduct.condition || 'Good', price_per_day: foundProduct.price_per_day || '',
               price_per_hour: foundProduct.price_per_hour || '', deposit_amount: foundProduct.deposit_amount || '0', is_available: foundProduct.is_available !== false,
+              location: foundProduct.location || '', latitude: foundProduct.latitude || null, longitude: foundProduct.longitude || null,
             });
           } else {
             setError('Failed to load product for editing.');
@@ -128,6 +180,10 @@ const ListProduct = () => {
           is_available: formData.is_available,
           images: uploadedImageUrls,
           owner_id: user.id,
+          location: formData.location || 'New Delhi',
+          latitude: formData.latitude || 28.6139,
+          longitude: formData.longitude || 77.2090,
+          status: 'approved',
           created_at: new Date().toISOString(),
         };
 
@@ -153,9 +209,20 @@ const ListProduct = () => {
         uploadedImageUrls.push(publicUrl);
       }
       const productPayload = {
-        title: formData.title, category: formData.category, description: formData.description, condition: formData.condition,
-        price_per_day: parseFloat(formData.price_per_day), price_per_hour: formData.price_per_hour ? parseFloat(formData.price_per_hour) : null,
-        deposit_amount: parseFloat(formData.deposit_amount), is_available: formData.is_available, images: uploadedImageUrls, owner_id: user.id
+        title: formData.title,
+        category: formData.category,
+        description: formData.description,
+        condition: formData.condition,
+        price_per_day: parseFloat(formData.price_per_day),
+        price_per_hour: formData.price_per_hour ? parseFloat(formData.price_per_hour) : null,
+        deposit_amount: parseFloat(formData.deposit_amount),
+        is_available: formData.is_available,
+        images: uploadedImageUrls,
+        owner_id: user.id,
+        location: formData.location || 'New Delhi',
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        status: 'approved',
       };
       let dbError;
       if (id) {

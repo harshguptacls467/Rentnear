@@ -1,0 +1,59 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "month": "2026-01-01",
+      "revenue": 120000
+    },
+    {
+      "month": "2026-02-01",
+      "revenue": 132000
+    },
+    {
+      "month": "2026-03-01",
+      "revenue": 128500
+    }
+  ],
+  "meta": {
+    "title": "Monthly Revenue Trend",
+    "subtitle": "Jan - Mar 2026",
+    "query_explanation": "Tracks monthly revenue over time."
+  },
+  "chart": {
+    "chart_type": "line",
+    "chartSpec": {
+      "x": [
+        {
+          "field": "month",
+          "label": "Month",
+          "unit": "datetime"
+        }
+      ],
+      "y": [
+        {
+          "field": "revenue",
+          "label": "Revenue",
+          "unit": "USD",
+          "type": "line"
+        }
+      ],
+      "group": null,
+      "category": null,
+      "value": null,
+      "source": null,
+      "target": null,
+      "start": null,
+      "end": null,
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": false,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "line_curve": "smooth",
+      "markers_size": 0,
+      "forecast_points": 0
+    }
+  }
+}

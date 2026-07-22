@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "es2021",
+
+    /* Modules */
+    "module": "commonjs",
+    "baseUrl": ".",
+    "paths": {
+      "@logger/*": ["src/logger/*"],
+      "@config/*": ["src/config/*"],
+      "@interfaces/*": ["src/interfaces/*"],
+      "@middlewares/*": ["src/middlewares/*"],
+      "@controllers/*": ["src/controllers/*"],
+      "@models/*": ["src/models/*"],
+      "@routes/*": ["src/routes/*"],
+      "@services/*": ["src/services/*"],
+      "@utils/*": ["src/utils/*"],
+      "@constants/*": ["src/constants/*"],
+      "@db": ["../../db.ts"],
+      "core/*": ["src/core/*"]
+    },
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "sourceMap": true /* Create source map files for emitted JavaScript files. */,
+    "rootDir": "." /* Specify the root directory of input files. */,
+    "outDir": "dist" /* Specify an output folder for all emitted files. */,
+    "noImplicitAny": true /* Enable error reporting for expressions and declarations with an implied 'any' type. */,
+    "resolveJsonModule": true /* Enable importing .json files. */,
+    "emitDecoratorMetadata": true /* Emit design-type metadata for decorated declarations in source files. */,
+    "experimentalDecorators": true /* Enable experimental support for legacy experimental decorators. */,
+    "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
+    /* Type Checking */
+    "skipLibCheck": true
+  },
+  "lib": ["es2021"],
+  "include": ["src", "test", "prisma", "../../db.ts"],
+  "exclude": ["node_modules"]
+}

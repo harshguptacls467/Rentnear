@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RentNear - Update Supabase Auth Redirect URLs</title>
+  <style>
+    :root {
+      --color-bg: #0b0f19;
+      --color-card: rgba(22, 28, 45, 0.6);
+      --color-border: rgba(255, 255, 255, 0.08);
+      --color-primary: #10b981;
+      --color-primary-hover: #059669;
+      --color-text: #f3f4f6;
+      --color-text-muted: #9ca3af;
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 580px;
+      background: var(--color-card);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--color-border);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+      background: linear-gradient(to right, #10b981, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .subtitle a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .subtitle a:hover {
+      text-decoration: underline;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      color: var(--color-text-muted);
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      background: var(--color-primary);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 32px;
+    }
+
+    .btn:hover {
+      background: var(--color-primary-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .feedback {
+      margin-top: 24px;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      display: none;
+    }
+
+    .feedback.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+
+    .feedback.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Supabase URL Configurator</h1>
+  <p class="subtitle">
+    Use this utility to update your project's Auth redirect URLs. Obtain your token from the 
+    <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener noreferrer">Supabase Access Tokens Page</a>.
+  </p>
+
+  <form id="configForm">
+    <div class="form-group">
+      <label for="token">Personal Access Token</label>
+      <input 
+        type="password" 
+        id="token" 
+        name="token"
+        placeholder="sbp_xxxxxxxxxxxxxxxxxxxx" 
+        title="Enter your Supabase Personal Access Token"
+        required 
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="projectRef">Project Reference ID</label>
+      <input 
+        type="text" 
+        id="projectRef" 
+        name="projectRef"
+        placeholder="e.g. abcdefghijklmnopqrst" 
+        title="Enter your Supabase Project Reference ID"
+        required 
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="redirectUrl">Redirect URL to Add</label>
+      <input 
+        type="text" 
+        id="redirectUrl" 
+        name="redirectUrl"
+        placeholder="https://rentnear.app/auth/callback" 
+        title="Enter the redirect URL to register with Supabase Auth"
+        value="https://rentnear.app/auth/callback"
+        required 
+      />
+    </div>
+
+    <button type="submit" id="submitBtn" class="btn">Update Redirect URLs</button>
+  </form>
+
+  <div id="statusBox" class="feedback"></div>
+</div>
+
+<script>
+  document.getElementById('configForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = document.getElementById('token').value.trim();
+    const projectRef = document.getElementById('projectRef').value.trim();
+    const redirectUrl = document.getElementById('redirectUrl').value.trim();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const statusBox = document.getElementById('statusBox');
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating...';
+    statusBox.className = 'feedback';
+    statusBox.style.display = 'none';
+
+    try {
+      // 1. Fetch current auth config
+      const getConfigUrl = `https://api.supabase.com/v1/projects/${projectRef}/config/auth`;
+      const getResponse = await fetch(getConfigUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!getResponse.ok) {
+        const errData = await getResponse.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to fetch existing configuration (Status ${getResponse.status})`);
+      }
+
+      const config = await getResponse.json();
+      
+      // 2. Append new redirect URL if not already present
+      let currentUrls = config.uri_allow_list || [];
+      if (!currentUrls.includes(redirectUrl)) {
+        currentUrls.push(redirectUrl);
+      }
+
+      // 3. Patch auth config
+      const patchResponse = await fetch(getConfigUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          uri_allow_list: currentUrls
+        })
+      });
+
+      if (!patchResponse.ok) {
+        const errData = await patchResponse.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to update configuration (Status ${patchResponse.status})`);
+      }
+
+      statusBox.className = 'feedback success';
+      statusBox.textContent = 'Successfully registered redirect URL: ' + redirectUrl;
+    } catch (err) {
+      statusBox.className = 'feedback error';
+      statusBox.textContent = err.message || 'An error occurred during update.';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Update Redirect URLs';
+    }
+  });
+</script>
+
+</body>
+</html>

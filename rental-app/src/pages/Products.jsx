@@ -99,7 +99,28 @@ const Products = () => {
   );
 
   const productsFeedStatus = useRealtimeStore(s => s.productsFeedStatus);
-  const isNewProduct = useRealtimeStore(s => s.isNewProduct);
+  const newProductIds = useRealtimeStore(s => s.newProductIds);
+
+  const getProductImage = (product) => {
+    if (!product) return 'https://via.placeholder.com/400x300?text=No+Image';
+    if (Array.isArray(product.images)) {
+      return product.images[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+    }
+    if (typeof product.images === 'string') {
+      try {
+        const parsed = JSON.parse(product.images);
+        if (Array.isArray(parsed)) return parsed[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+      } catch (e) {
+        if (product.images.startsWith('http')) return product.images;
+        if (product.images.includes(',')) {
+          return product.images.split(',')[0].trim();
+        }
+        return product.images;
+      }
+    }
+    return 'https://via.placeholder.com/400x300?text=No+Image';
+  };
+
 
 
   return (
@@ -206,8 +227,8 @@ const Products = () => {
         ) : (
           <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {products.map(product => {
-              const image = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
-              const productIsNew = isNewProduct(product.id);
+              const image = getProductImage(product);
+              const productIsNew = newProductIds.has(product.id);
               return (
                 <motion.div variants={fadeUp} key={product.id} className="h-full">
                   <TiltCard scaleOnHover={1.03}>

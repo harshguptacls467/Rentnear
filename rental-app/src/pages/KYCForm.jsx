@@ -93,8 +93,17 @@ const KYCForm = () => {
   const handleFileChange = (e, setter) => {
     const file = e.target.files[0];
     if (file) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        showToast('Only image files (JPEG, PNG, JPG, WEBP) are allowed.', 'error');
+        e.target.value = '';
+        setter(null);
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) { 
         showToast('File size must be under 5MB', 'error');
+        e.target.value = '';
+        setter(null);
         return;
       }
       setter(file);

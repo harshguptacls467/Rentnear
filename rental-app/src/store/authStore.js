@@ -8,16 +8,24 @@ const MOCK_SESSION_KEY = 'rentnear_mock_session';
 const getOrCreateMockUser = (email, extraData = {}) => {
   const localUsers = getLocalUsers();
   if (localUsers[email]) {
+    if (email === 'demo@rentnear.app' || email === 'harshguptacls467@gmail.com') {
+      localUsers[email].is_admin = true;
+      localUsers[email].admin_status = 'approved';
+    }
     if (Object.keys(extraData).length > 0) {
       localUsers[email] = { ...localUsers[email], ...extraData };
-      saveLocalUsers(localUsers);
     }
+    saveLocalUsers(localUsers);
     return localUsers[email];
   }
   
-  if (email === 'demo@rentnear.app') {
+  if (email === 'demo@rentnear.app' || email === 'harshguptacls467@gmail.com') {
     localUsers[email] = {
       ...MOCK_USER,
+      email: email,
+      name: email === 'demo@rentnear.app' ? 'Super Admin' : 'Harsh Gupta',
+      is_admin: true,
+      admin_status: 'approved',
       kyc_verified: true,
       kyc_status: 'verified',
       email_verified: true,
@@ -32,6 +40,23 @@ const getOrCreateMockUser = (email, extraData = {}) => {
   }
 
   const name = extraData.name || email.split('@')[0].split(/[._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  
+  // Count how many admins exist in localUsers
+  const existingAdmins = Object.values(localUsers).filter(u => u.is_admin === true);
+  
+  let finalIsAdmin = false;
+  let finalAdminStatus = 'none';
+
+  if (extraData.isAdminRegister) {
+    if (existingAdmins.length === 0) {
+      finalIsAdmin = true;
+      finalAdminStatus = 'approved';
+    } else {
+      finalIsAdmin = false;
+      finalAdminStatus = 'pending';
+    }
+  }
+
   const newUser = {
     id: 'mock-user-id-' + Math.random().toString(36).substring(2, 11),
     email: email,
@@ -49,7 +74,9 @@ const getOrCreateMockUser = (email, extraData = {}) => {
     upi_id: '',
     bio: 'Hi neighbors! I believe in the power of sharing rather than hoarding.',
     emergency_contact: '',
-    aadhar_number: ''
+    aadhar_number: '',
+    is_admin: finalIsAdmin,
+    admin_status: finalAdminStatus
   };
   
   localUsers[email] = newUser;

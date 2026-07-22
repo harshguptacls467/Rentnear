@@ -68,7 +68,7 @@ const AdminKYC = ({ kycSubmissions, onResolveKyc }) => {
               value={adminNotes[kyc.id] || ''}
               onChange={(e) => handleNoteChange(kyc.id, e.target.value)}
             />
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button 
                 onClick={() => handleSubmit(kyc.id, 'approved')}
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -81,6 +81,13 @@ const AdminKYC = ({ kycSubmissions, onResolveKyc }) => {
                 className="text-red-600 border-red-200 hover:bg-red-50"
               >
                 Reject
+              </Button>
+              <Button 
+                onClick={() => handleSubmit(kyc.id, 'resubmission_required')}
+                variant="secondary"
+                className="text-amber-700 border-amber-200 hover:bg-amber-50"
+              >
+                Request Re-upload
               </Button>
             </div>
           </div>

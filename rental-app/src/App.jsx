@@ -11,6 +11,7 @@ import Skeleton from './components/Skeleton'
 import { ToastProvider } from './context/ToastContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { initOneSignal, setOneSignalUser } from './services/OneSignal'
+import GlobalErrorListener from './components/GlobalErrorListener'
 
 // Pages (Lazy Loaded)
 const Landing = lazy(() => import('./pages/Landing'));
@@ -25,6 +26,7 @@ const Chat = lazy(() => import('./pages/Chat'));
 const Profile = lazy(() => import('./pages/Profile'));
 const KYCForm = lazy(() => import('./pages/KYCForm'));
 const Admin = lazy(() => import('./pages/Admin'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const MyListings = lazy(() => import('./pages/MyListings'));
 const MapSearch = lazy(() => import('./pages/MapSearch'));
 const Handover = lazy(() => import('./pages/Handover'));
@@ -67,6 +69,7 @@ const AnimatedRoutes = () => {
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="map" element={<MapSearch />} />
           <Route path="support" element={<Support />} />
+          <Route path="admin-login" element={<AdminLogin />} />
           
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
@@ -92,6 +95,7 @@ const AnimatedRoutes = () => {
           {/* Admin Routes */}
           <Route element={<ProtectedRoute adminOnly={true} />}>
             <Route path="admin" element={<Admin />} />
+            <Route path="dashboard" element={<Admin />} />
           </Route>
         </Route>
       </Routes>
@@ -126,6 +130,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
+        <GlobalErrorListener />
         <BrowserRouter>
           <Suspense fallback={<PageLoader />}>
             <AnimatedRoutes />

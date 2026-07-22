@@ -1,49 +1,84 @@
 import { MOCK_PRODUCTS, MOCK_BOOKINGS, MOCK_REVIEWS } from '../data/mockData';
 
+const memoryStorage = {};
+
+const safeGetItem = (key) => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return memoryStorage[key] || null;
+  }
+};
+
+const safeSetItem = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    memoryStorage[key] = value;
+  }
+};
+
 export const getLocalProducts = () => {
-  const data = localStorage.getItem('rentnear_local_products');
+  const data = safeGetItem('rentnear_local_products');
   if (!data) {
-    localStorage.setItem('rentnear_local_products', JSON.stringify(MOCK_PRODUCTS));
+    safeSetItem('rentnear_local_products', JSON.stringify(MOCK_PRODUCTS));
     return MOCK_PRODUCTS;
   }
-  return JSON.parse(data);
+  try {
+    return JSON.parse(data);
+  } catch {
+    return MOCK_PRODUCTS;
+  }
 };
 
 export const saveLocalProducts = (products) => {
-  localStorage.setItem('rentnear_local_products', JSON.stringify(products));
+  safeSetItem('rentnear_local_products', JSON.stringify(products));
 };
 
 export const getLocalBookings = () => {
-  const data = localStorage.getItem('rentnear_local_bookings');
+  const data = safeGetItem('rentnear_local_bookings');
   if (!data) {
-    localStorage.setItem('rentnear_local_bookings', JSON.stringify(MOCK_BOOKINGS));
+    safeSetItem('rentnear_local_bookings', JSON.stringify(MOCK_BOOKINGS));
     return MOCK_BOOKINGS;
   }
-  return JSON.parse(data);
+  try {
+    return JSON.parse(data);
+  } catch {
+    return MOCK_BOOKINGS;
+  }
 };
 
 export const saveLocalBookings = (bookings) => {
-  localStorage.setItem('rentnear_local_bookings', JSON.stringify(bookings));
+  safeSetItem('rentnear_local_bookings', JSON.stringify(bookings));
 };
 
 export const getLocalUsers = () => {
-  const data = localStorage.getItem('rentnear_local_users');
-  return data ? JSON.parse(data) : {};
+  const data = safeGetItem('rentnear_local_users');
+  if (!data) return {};
+  try {
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
 };
 
 export const saveLocalUsers = (users) => {
-  localStorage.setItem('rentnear_local_users', JSON.stringify(users));
+  safeSetItem('rentnear_local_users', JSON.stringify(users));
 };
 
 export const getLocalReviews = () => {
-  const data = localStorage.getItem('rentnear_local_reviews');
+  const data = safeGetItem('rentnear_local_reviews');
   if (!data) {
-    localStorage.setItem('rentnear_local_reviews', JSON.stringify(MOCK_REVIEWS));
+    safeSetItem('rentnear_local_reviews', JSON.stringify(MOCK_REVIEWS));
     return MOCK_REVIEWS;
   }
-  return JSON.parse(data);
+  try {
+    return JSON.parse(data);
+  } catch {
+    return MOCK_REVIEWS;
+  }
 };
 
 export const saveLocalReviews = (reviews) => {
-  localStorage.setItem('rentnear_local_reviews', JSON.stringify(reviews));
+  safeSetItem('rentnear_local_reviews', JSON.stringify(reviews));
 };

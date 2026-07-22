@@ -19,7 +19,7 @@ const Login = () => {
   const [errorMsg, setErrorMsg] = useState('');
   // Message passed from Register page (email confirmation required)
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, mockLogin, mockSocialLogin } = useAuthStore();
+  const { session, mockLogin, mockSocialLogin, logout } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -42,35 +42,65 @@ const Login = () => {
     setLoading(true);
     setErrorMsg('');
 
-    const localUsers = getLocalUsers();
-    const isLocalMockUser = localUsers && localUsers[formData.email.trim().toLowerCase()];
+    // Clear any stale state before logging in
+    await logout();
 
-    // ── Mock / Demo Login ────────────────────────────────────────────────────
-    if (
-      formData.email.trim().toLowerCase() === DEMO_EMAIL ||
-      formData.password === DEMO_PASSWORD ||
-      isLocalMockUser
-    ) {
-      mockLogin(formData.email.trim().toLowerCase());
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
+    // Check if Supabase client is configured
+    const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
+
+    // Check if it's the hardcoded demo credentials
+    const isExplicitDemo = email === DEMO_EMAIL && password === DEMO_PASSWORD;
+
+    if (isExplicitDemo) {
+      mockLogin(email);
       navigate('/home');
       setLoading(false);
       return;
     }
 
+    if (!isSupabaseValid) {
+      // Supabase is not active, look up user in the mock local users database
+      const localUsers = getLocalUsers();
+      const existingUser = localUsers[email];
+      if (existingUser) {
+        mockLogin(email);
+        navigate('/home');
+        setLoading(false);
+        return;
+      } else {
+        // Auto-register/create on-the-fly for any other email to make development/testing frictionless
+        mockLogin(email);
+        navigate('/home');
+        setLoading(false);
+        return;
+      }
+    }
+
     // ── Real Supabase Login ──────────────────────────────────────────────────
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+        email: email,
+        password: password,
       });
 
       if (error) throw new Error(error.message);
 
       navigate('/home');
     } catch (error) {
-      // If it's a network/invalid-key error or other errors, fall back to mock login
-      mockLogin(formData.email.trim().toLowerCase());
-      navigate('/home');
+      console.error('Login error:', error);
+      
+      // If real login fails (e.g. invalid credentials on remote Supabase), check if they have a local mock user profile
+      const localUsers = getLocalUsers();
+      if (localUsers[email]) {
+        console.warn('Real Supabase login failed, falling back to local mock user session.');
+        mockLogin(email);
+        navigate('/home');
+      } else {
+        setErrorMsg(error.message || 'Invalid email or password.');
+      }
     } finally {
       setLoading(false);
     }
@@ -223,6 +253,15 @@ const Login = () => {
               </Button>
             </div>
           </form>
+
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+            <Link
+              to="/admin-login"
+              className="text-xs text-gray-500 hover:text-primary transition-colors font-medium flex items-center justify-center gap-1"
+            >
+              🔒 Platform Administrator Portal
+            </Link>
+          </div>
         </div>
       </div>
     </div>

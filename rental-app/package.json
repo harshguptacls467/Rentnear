@@ -27,6 +27,7 @@
     "react-onesignal": "^3.5.5",
     "react-router-dom": "^7.15.1",
     "three": "^0.184.0",
+    "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

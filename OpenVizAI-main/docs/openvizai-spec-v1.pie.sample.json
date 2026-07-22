@@ -1,0 +1,59 @@
+{
+  "spec": "openvizai/spec/v1",
+  "response_type": "graphical",
+  "exampleData": [
+    {
+      "product": "A",
+      "volume": 420
+    },
+    {
+      "product": "B",
+      "volume": 315
+    },
+    {
+      "product": "C",
+      "volume": 265
+    }
+  ],
+  "meta": {
+    "title": "Market Share by Product",
+    "subtitle": null,
+    "query_explanation": "Shows each product's share of total market volume."
+  },
+  "chart": {
+    "chart_type": "pie",
+    "chartSpec": {
+      "x": null,
+      "y": null,
+      "group": null,
+      "category": [
+        {
+          "field": "product",
+          "label": "Product",
+          "unit": null
+        }
+      ],
+      "value": [
+        {
+          "field": "volume",
+          "label": "Volume",
+          "unit": "units"
+        }
+      ],
+      "source": null,
+      "target": null,
+      "start": null,
+      "end": null,
+      "series": null,
+      "path": null,
+      "is_stacked": false,
+      "is_horizontal": false,
+      "isSemanticColors": false,
+      "colorSemantic": null,
+      "is_donut": false,
+      "line_curve": "smooth",
+      "markers_size": 0,
+      "forecast_points": 0
+    }
+  }
+}

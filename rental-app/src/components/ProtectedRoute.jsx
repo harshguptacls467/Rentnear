@@ -20,13 +20,13 @@ const ProtectedRoute = ({ adminOnly = false }) => {
   // Allow both real Supabase sessions and mock demo sessions
   const isMockSession = session?.access_token === 'mock-token-demo';
   if (!session && !isMockSession) {
-    console.log('ProtectedRoute: No session found, redirecting to /login');
-    return <Navigate to="/login" replace />;
+    console.log('ProtectedRoute: No session found, redirecting to login page');
+    return <Navigate to={adminOnly ? "/admin-login" : "/login"} replace />;
   }
 
   // If the route requires admin privileges, check the user object
-  if (adminOnly && user && user.is_admin !== true) {
-    return <Navigate to="/home" replace />;
+  if (adminOnly && (!user || user.is_admin !== true)) {
+    return <Navigate to="/admin-login" replace />;
   }
 
   // If there IS a session, render the child routes (Outlet)
