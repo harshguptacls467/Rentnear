@@ -51,7 +51,10 @@ const AdminLogin = () => {
         const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
 
-        const isSuperAdminEmail = email === 'harshguptacls467@gmail.com' || email === 'demo@rentnear.app';
+        const isSuperAdminEmail =
+          email === 'harshguptacls467@gmail.com' ||
+          email === 'harshguptcls467@gmail.com' ||
+          email === 'demo@rentnear.app';
 
         // Fetch public user record to verify admin status
         let userData = null;

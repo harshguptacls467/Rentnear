@@ -35,9 +35,11 @@ const ProtectedRoute = ({ adminOnly = false }) => {
 
   // If the route requires admin privileges, check the user object
   if (adminOnly) {
+    const userEmail = (user?.email || '').toLowerCase();
     const isSuperAdminEmail =
-      user?.email?.toLowerCase() === 'harshguptacls467@gmail.com' ||
-      user?.email?.toLowerCase() === 'demo@rentnear.app';
+      userEmail === 'harshguptacls467@gmail.com' ||
+      userEmail === 'harshguptcls467@gmail.com' ||
+      userEmail === 'demo@rentnear.app';
     const hasAdminRights = (user?.is_admin === true && user?.admin_status === 'approved') || isSuperAdminEmail;
 
     if (!hasAdminRights) {

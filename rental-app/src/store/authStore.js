@@ -169,10 +169,12 @@ const useAuthStore = create((set) => ({
         // use default profile
       }
 
-      // Guarantee super admin rights for primary admin email
+      // Guarantee super admin rights for primary admin emails
+      const userEmail = (authUser.email || profile.email || '').toLowerCase();
       if (
-        authUser.email?.toLowerCase() === 'harshguptacls467@gmail.com' ||
-        authUser.email?.toLowerCase() === 'demo@rentnear.app'
+        userEmail === 'harshguptacls467@gmail.com' ||
+        userEmail === 'harshguptcls467@gmail.com' ||
+        userEmail === 'demo@rentnear.app'
       ) {
         profile.is_admin = true;
         profile.admin_status = 'approved';
@@ -212,8 +214,9 @@ const useAuthStore = create((set) => ({
       } else {
         const authUser = newSession?.user;
         if (authUser) {
-          // Auto-save profile for OAuth users (Google/Apple) on first sign-in
-          if (event === 'SIGNED_IN') {
+          // Auto-save profile ONLY for OAuth users (Google/Apple) on first sign-in
+          const provider = authUser.app_metadata?.provider;
+          if (event === 'SIGNED_IN' && provider && provider !== 'email') {
             try {
               const meta = authUser.user_metadata || {};
               await supabase.from('users').upsert([
@@ -224,15 +227,15 @@ const useAuthStore = create((set) => ({
                   avatar_url: meta.avatar_url || meta.picture || '',
                   role: 'both',
                 },
-              ], { onConflict: 'id', ignoreDuplicates: false });
+              ], { onConflict: 'id', ignoreDuplicates: true });
             } catch (err) {
               console.warn('OAuth profile save skipped:', err.message);
             }
           }
           const fullUser = await fetchPublicUser(authUser);
-          set({ session: newSession, user: fullUser });
-        } else {
-          set({ session: newSession, user: null });
+          set({ session: newSession, user: fullUser, initialized: true });
+        } else if (event === 'SIGNED_OUT') {
+          set({ session: null, user: null, initialized: true });
         }
       }
     });
