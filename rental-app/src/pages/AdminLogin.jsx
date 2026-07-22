@@ -82,6 +82,14 @@ const AdminLogin = () => {
         localStorage.removeItem('rentnear_mock_session');
         localStorage.removeItem('rentnear_mock_session_email');
 
+        // Immediately populate AuthStore so ProtectedRoute allows /admin route access
+        useAuthStore.setState({
+          session: authData.session,
+          user: { ...authData.user, ...userData },
+          isMock: false,
+          initialized: true,
+        });
+
         showToast(`Welcome back, ${userData.name || 'Admin'}!`, 'success');
         navigate('/admin');
       } else {

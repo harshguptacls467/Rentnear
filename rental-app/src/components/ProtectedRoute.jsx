@@ -24,8 +24,18 @@ const ProtectedRoute = ({ adminOnly = false }) => {
     return <Navigate to={adminOnly ? "/admin-login" : "/login"} replace />;
   }
 
+  // If session exists but user object is still being fetched from database, show loading spinner
+  if (session && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   // If the route requires admin privileges, check the user object
-  if (adminOnly && (!user || user.is_admin !== true)) {
+  if (adminOnly && (!user || user.is_admin !== true || user.admin_status !== 'approved')) {
+    console.log('ProtectedRoute: Admin access denied, redirecting to /admin-login', user);
     return <Navigate to="/admin-login" replace />;
   }
 
