@@ -53,14 +53,43 @@ const AdminLogin = () => {
       const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
 
       if (isSupabaseValid) {
-        // Real Supabase login with 10s timeout to prevent hanging
-        const loginPromise = supabase.auth.signInWithPassword({ email, password });
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Authentication request timed out. Please try again.')), 10000)
-        );
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-        const { data: authData, error } = await Promise.race([loginPromise, timeoutPromise]);
-        if (error) throw new Error(error.message);
+        let authData = null;
+
+        // Direct HTTP fetch to Supabase Auth API (bypasses SDK locks & queues)
+        try {
+          const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              'apikey': supabaseAnonKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+          const resJson = await res.json();
+          if (res.ok && resJson.access_token) {
+            authData = {
+              session: resJson,
+              user: resJson.user,
+            };
+            await supabase.auth.setSession({
+              access_token: resJson.access_token,
+              refresh_token: resJson.refresh_token,
+            });
+          } else {
+            throw new Error(resJson.error_description || resJson.msg || resJson.message || 'Invalid admin credentials.');
+          }
+        } catch (fetchErr) {
+          if (fetchErr.message.includes('Invalid') || fetchErr.message.includes('credentials')) {
+            throw fetchErr;
+          }
+          // Fallback to SDK client
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw new Error(error.message);
+          authData = data;
+        }
 
         const isSuperAdminEmail =
           email === 'harshguptacls467@gmail.com' ||

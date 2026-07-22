@@ -81,12 +81,27 @@ const Login = () => {
 
     // ── Real Supabase Login ──────────────────────────────────────────────────
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      if (error) throw new Error(error.message);
+      const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const resJson = await res.json();
+
+      if (res.ok && resJson.access_token) {
+        await supabase.auth.setSession({
+          access_token: resJson.access_token,
+          refresh_token: resJson.refresh_token,
+        });
+      } else {
+        throw new Error(resJson.error_description || resJson.msg || resJson.message || 'Invalid email or password.');
+      }
 
       navigate('/home');
     } catch (error) {
