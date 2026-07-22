@@ -155,17 +155,30 @@ const useAuthStore = create((set) => ({
     // Helper to fetch real public profile from DB
     const fetchPublicUser = async (authUser) => {
       if (!authUser) return null;
+      let profile = { ...authUser };
       try {
         const { data, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', authUser.id)
           .single();
-        if (error) return authUser;
-        return { ...authUser, ...data };
+        if (!error && data) {
+          profile = { ...authUser, ...data };
+        }
       } catch {
-        return authUser;
+        // use default profile
       }
+
+      // Guarantee super admin rights for primary admin email
+      if (
+        authUser.email?.toLowerCase() === 'harshguptacls467@gmail.com' ||
+        authUser.email?.toLowerCase() === 'demo@rentnear.app'
+      ) {
+        profile.is_admin = true;
+        profile.admin_status = 'approved';
+      }
+
+      return profile;
     };
 
     // 1. Check existing session
