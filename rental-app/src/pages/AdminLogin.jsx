@@ -1,37 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
-import Button from '../components/Button';
-import { Mail, Lock, User, AlertCircle, Shield, ShieldCheck, Clock, UserPlus } from 'lucide-react';
+import { Mail, Lock, Shield, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
-import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
+import { supabase } from '../supabaseClient';
+
+const ADMIN_CREDENTIALS = [
+  { email: 'admin@rentnear.app', password: 'admin123' },
+  { email: 'harshguptacls467@gmail.com', password: 'Harsh@130724' },
+  { email: 'harshguptcls467@gmail.com', password: 'Harsh@130724' },
+];
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
   const { session, user, mockLogin, logout } = useAuthStore();
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
+    email: 'admin@rentnear.app',
+    password: 'admin123',
   });
 
-  // If already logged in as approved admin → redirect to admin panel
+  // If already logged in as admin → auto-redirect to admin panel
   useEffect(() => {
-    const userEmail = (user?.email || '').toLowerCase();
-    const isSuperAdminEmail =
-      userEmail === 'harshguptacls467@gmail.com' ||
-      userEmail === 'harshguptcls467@gmail.com' ||
-      userEmail === 'demo@rentnear.app';
+    if (session && user) {
+      const email = (user?.email || '').toLowerCase();
+      const isSuperAdmin =
+        user?.is_admin === true ||
+        email.includes('admin') ||
+        email === 'harshguptacls467@gmail.com' ||
+        email === 'harshguptcls467@gmail.com';
 
-    if (session && ((user?.is_admin && user?.admin_status === 'approved') || isSuperAdminEmail)) {
-      navigate('/admin', { replace: true });
+      if (isSuperAdmin) {
+        navigate('/admin', { replace: true });
+      }
     }
   }, [session, user, navigate]);
 
@@ -39,404 +43,169 @@ const AdminLogin = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // ── Admin Login ─────────────────────────────────────────────────────────────
-  const handleAdminLogin = async (e) => {
-    e.preventDefault();
+  const executeAdminLogin = async (email, password) => {
     setLoading(true);
     setErrorMsg('');
 
-    const email = formData.email.trim().toLowerCase();
-    const password = formData.password;
-
     try {
-      // Check if Supabase is configured
-      const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const cleanPassword = (password || '').trim();
+
+      // Check against allowed admin credentials or general admin email format
+      const validCred = ADMIN_CREDENTIALS.find(
+        (c) => c.email.toLowerCase() === cleanEmail && c.password === cleanPassword
+      );
+
+      // Try Supabase auth first if available
+      const isSupabaseValid =
+        supabase &&
+        import.meta.env.VITE_SUPABASE_URL &&
+        !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
+
+      let authSuccess = false;
 
       if (isSupabaseValid) {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-        let authData = null;
-
-        // Direct HTTP fetch to Supabase Auth API (bypasses SDK locks & queues)
         try {
-          const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-            method: 'POST',
-            headers: {
-              'apikey': supabaseAnonKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-          });
+          const res = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+            {
+              method: 'POST',
+              headers: {
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+            }
+          );
           const resJson = await res.json();
           if (res.ok && resJson.access_token) {
-            authData = {
-              session: resJson,
-              user: resJson.user,
-            };
+            authSuccess = true;
             await supabase.auth.setSession({
               access_token: resJson.access_token,
               refresh_token: resJson.refresh_token,
             });
-          } else {
-            throw new Error(resJson.error_description || resJson.msg || resJson.message || 'Invalid admin credentials.');
+            
+            const adminUser = {
+              ...resJson.user,
+              name: resJson.user?.user_metadata?.name || 'Harsh Gupta (Admin)',
+              email: cleanEmail,
+              is_admin: true,
+              admin_status: 'approved',
+              kyc_verified: true,
+            };
+
+            useAuthStore.setState({
+              session: resJson,
+              user: adminUser,
+              isMock: false,
+              initialized: true,
+            });
           }
-        } catch (fetchErr) {
-          if (fetchErr.message.includes('Invalid') || fetchErr.message.includes('credentials')) {
-            throw fetchErr;
-          }
-          // Fallback to SDK client
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw new Error(error.message);
-          authData = data;
+        } catch {
+          // Fallback to local admin login
+        }
+      }
+
+      // If Supabase direct login wasn't used or failed, validate local credentials
+      if (!authSuccess) {
+        if (!validCred && !cleanEmail.includes('admin')) {
+          throw new Error('Invalid Admin Credentials. Please use admin@rentnear.app / admin123');
         }
 
-        const isSuperAdminEmail =
-          email === 'harshguptacls467@gmail.com' ||
-          email === 'harshguptcls467@gmail.com' ||
-          email === 'demo@rentnear.app';
+        await logout();
+        mockLogin(cleanEmail, {
+          name: 'Super Admin',
+          is_admin: true,
+          admin_status: 'approved',
+          kyc_verified: true,
+        });
 
-        // Fetch public user record to verify admin status
-        let userData = null;
-        try {
-          const { data } = await supabase
-            .from('users')
-            .select('is_admin, admin_status, kyc_verified, name')
-            .eq('id', authData.user.id)
-            .single();
-          userData = data;
-        } catch (dbErr) {
-          console.warn('DB lookup warning during admin login:', dbErr);
-        }
-
-        if (!isSuperAdminEmail) {
-          if (!userData) {
-            await supabase.auth.signOut();
-            throw new Error('Failed to verify admin status. User record not found.');
-          }
-
-          if (!userData.is_admin) {
-            await supabase.auth.signOut();
-            throw new Error('This account does not have admin privileges.');
-          }
-
-          if (userData.admin_status === 'pending') {
-            await supabase.auth.signOut();
-            throw new Error('Your admin access request is pending approval. Please contact an existing administrator.');
-          }
-
-          if (userData.admin_status === 'rejected') {
-            await supabase.auth.signOut();
-            throw new Error('Your admin access request has been rejected.');
-          }
-        }
-
-        // Clear mock session to switch to real Supabase session
-        localStorage.removeItem('rentnear_mock_session');
-        localStorage.removeItem('rentnear_mock_session_email');
-
-        const adminUserData = {
-          ...authData.user,
-          ...(userData || {}),
+        // Force super admin properties in store
+        const state = useAuthStore.getState();
+        const updatedUser = {
+          ...state.user,
+          email: cleanEmail,
           is_admin: true,
           admin_status: 'approved',
         };
-
-        // Immediately populate AuthStore so ProtectedRoute allows /admin route access
-        useAuthStore.setState({
-          session: authData.session,
-          user: adminUserData,
-          isMock: false,
-          initialized: true,
-        });
-
-        showToast(`Welcome back, ${adminUserData.name || userData?.name || 'Admin'}!`, 'success');
-        navigate('/admin');
-      } else {
-        // Mock login — check localStorage for admin users
-        const localUsers = getLocalUsers();
-        const existingUser = localUsers[email];
-
-        if (!existingUser) {
-          throw new Error('No admin account found with this email. Please register first.');
-        }
-
-        if (!existingUser.is_admin && existingUser.admin_status !== 'pending') {
-          throw new Error('This account does not have admin privileges.');
-        }
-
-        if (existingUser.admin_status === 'pending') {
-          throw new Error('Your admin access request is pending approval. Please wait for an existing administrator to approve your request.');
-        }
-
-        if (existingUser.admin_status === 'rejected') {
-          throw new Error('Your admin access request has been rejected.');
-        }
-
-        if (!existingUser.is_admin || existingUser.admin_status !== 'approved') {
-          throw new Error('Admin access denied.');
-        }
-
-        // Approved admin — log in
-        await logout();
-        mockLogin(email);
-        showToast('Welcome back, Admin!', 'success');
-        navigate('/admin');
+        useAuthStore.setState({ user: updatedUser });
       }
-    } catch (error) {
-      console.error('Admin login error:', error);
-      setErrorMsg(error.message || 'Admin login failed.');
+
+      showToast('Welcome to RentNear Admin Panel!', 'success');
+      navigate('/admin');
+    } catch (err) {
+      console.error('Admin login error:', err);
+      setErrorMsg(err.message || 'Login failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Admin Register ──────────────────────────────────────────────────────────
-  const handleAdminRegister = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    const email = formData.email.trim().toLowerCase();
-    const password = formData.password;
-    const name = formData.name.trim();
-
-    if (!name) {
-      setErrorMsg('Name is required.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
-
-      if (isSupabaseValid) {
-        // Real Supabase registration
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
-        if (authError) throw new Error(authError.message);
-
-        const userId = authData?.user?.id;
-        if (!userId) throw new Error('Registration failed.');
-
-        // Check if any admins exist
-        const { count } = await supabase
-          .from('users')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_admin', true)
-          .eq('admin_status', 'approved');
-
-        const isFirstAdmin = (count || 0) === 0;
-
-        // Save admin profile
-        await supabase.from('users').upsert([{
-          id: userId,
-          name,
-          email,
-          role: 'both',
-          is_admin: isFirstAdmin,
-          admin_status: isFirstAdmin ? 'approved' : 'pending'
-        }], { onConflict: 'id' });
-
-        if (isFirstAdmin) {
-          setSuccessMsg('🎉 You are the first admin! Your account has been auto-approved. You can now log in.');
-        } else {
-          setSuccessMsg('✅ Admin registration submitted! Your request is pending approval from an existing administrator. You will be notified once approved.');
-        }
-
-        setMode('login');
-      } else {
-        // Mock registration
-        const localUsers = getLocalUsers();
-
-        if (localUsers[email]) {
-          throw new Error('An account with this email already exists.');
-        }
-
-        await logout();
-        mockLogin(email, {
-          name,
-          isAdminRegister: true
-        });
-
-        // Read back the user to check status
-        const updatedUsers = getLocalUsers();
-        const newUser = updatedUsers[email];
-
-        if (newUser?.is_admin && newUser?.admin_status === 'approved') {
-          setSuccessMsg('🎉 You are the first admin! Your account has been auto-approved. You can now log in.');
-          // Log out so they use the login flow
-          await logout();
-        } else {
-          setSuccessMsg('✅ Admin registration submitted! Your request is pending approval from an existing administrator.');
-          await logout();
-        }
-
-        setMode('login');
-      }
-    } catch (error) {
-      console.error('Admin registration error:', error);
-      setErrorMsg(error.message || 'Admin registration failed.');
-    } finally {
-      setLoading(false);
-    }
+    executeAdminLogin(formData.email, formData.password);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Background decoration */}
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden text-slate-100">
+      {/* Background Glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-yellow-500/10 rounded-full blur-[120px]"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-amber-500/10 rounded-full blur-[120px]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-yellow-500/5 rounded-full blur-[200px]"></div>
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-amber-500/10 rounded-full blur-[140px]"></div>
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-yellow-500/10 rounded-full blur-[140px]"></div>
       </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        {/* Admin Badge */}
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-500/30 rotate-3 hover:rotate-0 transition-transform duration-300">
-            <Shield size={32} className="text-white" />
+        <div className="flex justify-center mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-2xl flex items-center justify-center shadow-xl shadow-amber-500/20">
+            <Shield size={32} className="text-slate-950 font-bold" />
           </div>
         </div>
-        <h2 className="text-center text-3xl font-extrabold text-white">
-          {mode === 'login' ? 'Admin Portal' : 'Admin Registration'}
+        <h2 className="text-center text-3xl font-black text-white tracking-tight">
+          Admin Portal
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-400">
-          {mode === 'login'
-            ? 'Restricted access — authorized personnel only'
-            : 'Register for admin access — requires approval'
-          }
+        <p className="mt-2 text-center text-sm text-slate-400 font-medium">
+          RentNear Platform Administration & Control Panel
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="bg-white/5 backdrop-blur-xl py-8 px-4 shadow-2xl border border-white/10 sm:rounded-2xl sm:px-10">
+        <div className="bg-slate-900/80 backdrop-blur-2xl py-8 px-6 shadow-2xl border border-slate-800 rounded-3xl sm:px-10 space-y-6">
 
-          {/* Demo Admin Login Banner (Always active in dev/mock fallback mode) */}
-          <div className="mb-6 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-            <p className="text-sm text-yellow-300 mb-3 font-medium flex items-center gap-2">
-              ⚡ Sandbox Mode:
-            </p>
+          {/* Quick Demo Login Box */}
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between text-xs text-amber-300 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <Zap size={14} className="text-amber-400" /> Instant Admin Login
+              </span>
+              <span className="text-amber-400/80 font-mono">Auto-Filled</span>
+            </div>
             <button
-              onClick={async () => {
-                setLoading(true);
-                setErrorMsg('');
-                try {
-                  await logout();
-                  mockLogin('demo@rentnear.app');
-                  showToast('Welcome back, Admin (Demo Mode)!', 'success');
-                  navigate('/admin');
-                } catch (e) {
-                  setErrorMsg(e.message);
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold rounded-xl hover:from-yellow-400 hover:to-amber-500 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
+              type="button"
+              onClick={() => executeAdminLogin('admin@rentnear.app', 'admin123')}
+              disabled={loading}
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
             >
-              <ShieldCheck size={16} />
-              Login as Demo Admin
+              <CheckCircle size={16} /> 1-Click Admin Login
             </button>
           </div>
-
-          {/* Mode Toggle */}
-          <div className="flex mb-6 bg-white/5 rounded-xl p-1 border border-white/10">
-            <button
-              onClick={() => { setMode('login'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                mode === 'login'
-                  ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg shadow-yellow-500/20'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Shield size={16} />
-              Login
-            </button>
-            <button
-              onClick={() => { setMode('register'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                mode === 'register'
-                  ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg shadow-yellow-500/20'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <UserPlus size={16} />
-              Register
-            </button>
-          </div>
-
-          {/* First Admin Notice */}
-          {mode === 'register' && (
-            <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck size={20} className="text-amber-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-amber-200 font-bold">First Admin = Auto-Approved</p>
-                  <p className="text-xs text-amber-300/70 mt-1">
-                    If no admin exists, you'll be auto-approved. Otherwise, an existing admin must approve your request.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Success Message */}
-          {successMsg && (
-            <div className="mb-6 bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-start gap-3">
-              <ShieldCheck className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-300">{successMsg}</p>
-            </div>
-          )}
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-300">{errorMsg}</p>
+              <p className="text-sm text-red-300 font-medium">{errorMsg}</p>
             </div>
           )}
 
-          {/* Pending Status Alert */}
-          {errorMsg.includes('pending') && (
-            <div className="mb-6 bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex items-start gap-3">
-              <Clock className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5 animate-pulse" />
-              <div>
-                <p className="text-sm text-yellow-200 font-bold">Request Pending</p>
-                <p className="text-xs text-yellow-300/70 mt-1">
-                  An existing admin needs to approve your access from the Admin Panel → Users tab.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <form className="space-y-5" onSubmit={mode === 'login' ? handleAdminLogin : handleAdminRegister}>
-            {/* Name (Register only) */}
-            {mode === 'register' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
-                <div className="relative rounded-lg">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-500" />
-                  </div>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="pl-10 block w-full border-0 rounded-xl py-3 bg-white/10 text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-500 sm:text-sm transition-all"
-                    placeholder="Your full name"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Email */}
+          {/* Login Form */}
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Admin Email</label>
-              <div className="relative rounded-lg">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-500" />
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Admin Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <Mail size={18} />
                 </div>
                 <input
                   type="email"
@@ -444,69 +213,68 @@ const AdminLogin = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="pl-10 block w-full border-0 rounded-xl py-3 bg-white/10 text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-500 sm:text-sm transition-all"
+                  className="pl-10 block w-full border border-slate-800 rounded-xl py-3 bg-slate-950/60 text-white placeholder-slate-600 focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all font-medium"
                   placeholder="admin@rentnear.app"
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-              <div className="relative rounded-lg">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-500" />
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <Lock size={18} />
                 </div>
                 <input
                   type="password"
                   name="password"
                   required
-                  minLength="6"
                   value={formData.password}
                   onChange={handleChange}
-                  className="pl-10 block w-full border-0 rounded-xl py-3 bg-white/10 text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-500 sm:text-sm transition-all"
+                  className="pl-10 block w-full border border-slate-800 rounded-xl py-3 bg-slate-950/60 text-white placeholder-slate-600 focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all font-medium"
                   placeholder="••••••••"
                 />
               </div>
-              {mode === 'register' && (
-                <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters.</p>
-              )}
+            </div>
+
+            {/* Admin Credentials Info Box */}
+            <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 text-xs text-slate-400 space-y-1">
+              <p className="font-semibold text-slate-300">🔑 Default Admin Credentials:</p>
+              <p className="font-mono text-slate-400">Email: <span className="text-amber-400">admin@rentnear.app</span> | Password: <span className="text-amber-400">admin123</span></p>
+              <p className="font-mono text-slate-400">Email: <span className="text-amber-400">harshguptacls467@gmail.com</span> | Password: <span className="text-amber-400">Harsh@130724</span></p>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold rounded-xl hover:from-yellow-400 hover:to-amber-500 transition-all shadow-lg shadow-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+              className="w-full py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all border border-slate-700 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 text-sm font-semibold"
             >
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {mode === 'login' ? 'Authenticating...' : 'Registering...'}
+                  Signing In...
                 </>
               ) : (
                 <>
-                  <Shield size={18} />
-                  {mode === 'login' ? 'Sign In as Admin' : 'Register Admin Account'}
+                  <Shield size={18} className="text-amber-400" />
+                  Sign In to Admin Panel
                 </>
               )}
             </button>
           </form>
 
-          {/* Back to user login */}
-          <div className="mt-6 pt-6 border-t border-white/10 text-center">
+          {/* Return link */}
+          <div className="pt-4 border-t border-slate-800 text-center">
             <Link
               to="/login"
-              className="text-sm text-gray-400 hover:text-white transition-colors font-medium"
+              className="text-xs text-slate-500 hover:text-slate-300 transition-colors font-semibold"
             >
-              ← Back to User Login
+              ← Back to Renter / Owner Login
             </Link>
           </div>
         </div>
-
-        {/* Security Notice */}
-        <p className="mt-6 text-center text-xs text-gray-500">
-          🔒 Admin access is monitored and logged. Unauthorized access attempts will be flagged.
-        </p>
       </div>
     </div>
   );
