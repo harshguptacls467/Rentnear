@@ -162,11 +162,37 @@ const useAuthStore = create((set) => ({
           .select('*')
           .eq('id', authUser.id)
           .single();
+        
         if (!error && data) {
           profile = { ...authUser, ...data };
+        } else {
+          // Profile row does not exist in the public.users table (e.g. registered but couldn't write due to unconfirmed email RLS restriction).
+          // Let's create it automatically now that we are authenticated/authenticating.
+          const newProfile = {
+            id: authUser.id,
+            name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+            email: authUser.email,
+            phone: authUser.phone || '',
+            role: 'both',
+            kyc_status: 'unverified',
+            kyc_verified: false,
+            is_admin: false,
+          };
+          
+          const { data: insertedData, error: insertError } = await supabase
+            .from('users')
+            .upsert([newProfile], { onConflict: 'id' })
+            .select()
+            .single();
+
+          if (!insertError && insertedData) {
+            profile = { ...authUser, ...insertedData };
+          } else {
+            console.warn('Could not auto-create public user profile row:', insertError?.message);
+          }
         }
-      } catch {
-        // use default profile
+      } catch (err) {
+        console.warn('Error fetching or auto-creating public user profile:', err);
       }
 
       // Guarantee super admin rights for primary admin emails
@@ -209,8 +235,11 @@ const useAuthStore = create((set) => ({
       if (hasMockSession()) {
         return;
       }
+      
+      console.log(`[AuthStore] onAuthStateChange event: ${event}, session: ${!!newSession}`);
+
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-        set({ session: null, user: null });
+        set({ session: null, user: null, initialized: true });
       } else {
         const authUser = newSession?.user;
         if (authUser) {
@@ -234,7 +263,7 @@ const useAuthStore = create((set) => ({
           }
           const fullUser = await fetchPublicUser(authUser);
           set({ session: newSession, user: fullUser, initialized: true });
-        } else if (event === 'SIGNED_OUT') {
+        } else {
           set({ session: null, user: null, initialized: true });
         }
       }

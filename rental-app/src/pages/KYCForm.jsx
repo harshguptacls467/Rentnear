@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
@@ -44,7 +44,7 @@ const KYCForm = () => {
   const navigate = useNavigate();
 
   // Document Upload state
-  const [idType, setIdType] = useState('Passport');
+  const [idType, setIdType] = useState('Aadhaar Card');
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
   const [selfieImage, setSelfieImage] = useState(null);
@@ -238,10 +238,11 @@ const KYCForm = () => {
               value={idType}
               onChange={(e) => setIdType(e.target.value)}
             >
-              <option value="Passport">Passport</option>
+              <option value="Aadhaar Card">Aadhaar Card</option>
+              <option value="PAN Card">PAN Card</option>
               <option value="Driving License">Driving License</option>
               <option value="Voter ID">Voter ID</option>
-              <option value="PAN Card">PAN Card</option>
+              <option value="Passport">Passport</option>
             </select>
           </div>
 

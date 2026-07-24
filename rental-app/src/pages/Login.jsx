@@ -81,37 +81,78 @@ const Login = () => {
 
     // ── Real Supabase Login ──────────────────────────────────────────────────
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      const resJson = await res.json();
 
-      if (res.ok && resJson.access_token) {
-        await supabase.auth.setSession({
-          access_token: resJson.access_token,
-          refresh_token: resJson.refresh_token,
-        });
-      } else {
-        throw new Error(resJson.error_description || resJson.msg || resJson.message || 'Invalid email or password.');
+      if (authError) {
+        throw new Error(authError.message);
       }
 
+      if (!authData?.user) {
+        throw new Error('Authentication failed. User session could not be established.');
+      }
+
+      // Query users table for profile details
+      let userData = null;
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .maybeSingle();
+        userData = data;
+
+        if (!userData) {
+          // Profile row does not exist in the public.users table (self-healing).
+          const newProfile = {
+            id: authData.user.id,
+            name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name || email.split('@')[0],
+            email: email,
+            phone: authData.user.phone || '',
+            role: 'both',
+            kyc_status: 'unverified',
+            kyc_verified: false,
+            is_admin: false,
+          };
+          const { data: insertedData, error: insertError } = await supabase
+            .from('users')
+            .upsert([newProfile], { onConflict: 'id' })
+            .select()
+            .single();
+          if (!insertError && insertedData) {
+            userData = insertedData;
+          } else {
+            console.warn('Could not auto-create user profile row on login:', insertError?.message);
+          }
+        }
+      } catch (dbErr) {
+        console.warn('Profile lookup warning:', dbErr);
+      }
+
+      const fullUser = {
+        ...authData.user,
+        ...(userData || {}),
+      };
+
+      useAuthStore.setState({
+        session: authData.session,
+        user: fullUser,
+        isMock: false,
+        initialized: true,
+      });
+
+      showToast(`Welcome back, ${fullUser.name || 'User'}!`, 'success');
       navigate('/home');
     } catch (error) {
       console.error('Login error:', error);
       
-      // If real login fails (e.g. invalid credentials on remote Supabase), check if they have a local mock user profile
       const localUsers = getLocalUsers();
       if (localUsers[email]) {
         console.warn('Real Supabase login failed, falling back to local mock user session.');
         mockLogin(email);
+        showToast('Welcome back!', 'success');
         navigate('/home');
       } else {
         setErrorMsg(error.message || 'Invalid email or password.');

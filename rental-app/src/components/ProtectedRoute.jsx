@@ -18,7 +18,7 @@ const ProtectedRoute = ({ adminOnly = false }) => {
 
   // If checking is done and there is NO active session, redirect to Login
   // Allow both real Supabase sessions and mock demo sessions
-  const isMockSession = session?.access_token === 'mock-token-demo';
+  const isMockSession = session?.access_token === 'mock-token-demo' || session?.access_token === 'always-logged-in-token-demo';
   if (!session && !isMockSession) {
     console.log('ProtectedRoute: No session found, redirecting to login page');
     return <Navigate to={adminOnly ? "/admin-login" : "/login"} replace />;
