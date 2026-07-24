@@ -35,16 +35,12 @@ const ProtectedRoute = ({ adminOnly = false }) => {
 
   // If the route requires admin privileges, check the user object
   if (adminOnly) {
-    const userEmail = (user?.email || '').toLowerCase();
-    const isSuperAdminEmail =
-      userEmail.includes('admin') ||
-      userEmail === 'harshguptacls467@gmail.com' ||
-      userEmail === 'harshguptcls467@gmail.com' ||
-      userEmail === 'demo@rentnear.app';
-    const hasAdminRights = user?.is_admin === true || isSuperAdminEmail;
+    const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const hasAdminRights = user?.is_admin === true && userEmail === adminEmail;
 
     if (!hasAdminRights) {
-      console.log('ProtectedRoute: Admin access denied, redirecting to /admin-login', user);
+      console.log('ProtectedRoute: Admin access denied, redirecting to /admin-login');
       return <Navigate to="/admin-login" replace />;
     }
   }

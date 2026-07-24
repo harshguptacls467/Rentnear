@@ -8,7 +8,16 @@ const adminAuth = async (req, res, next) => {
     }
 
 
-    // Query the users table to check if the user is an admin
+    // Double-layer security check:
+    // 1. Verify that the authenticated email matches the predefined single admin email environment variable
+    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+    const userEmail = (req.user.email || '').toLowerCase().trim();
+
+    if (!adminEmail || userEmail !== adminEmail) {
+      return res.status(403).json({ message: 'Forbidden. Admin access required.' });
+    }
+
+    // 2. Verify that the database user profile record has the is_admin flag set to true
     const { data: userRecord, error } = await supabase
       .from('users')
       .select('is_admin')

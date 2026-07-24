@@ -20,12 +20,9 @@ const AdminLogin = () => {
   // If already logged in as approved admin → auto-redirect to admin panel
   useEffect(() => {
     if (session && user) {
-      const email = (user?.email || '').toLowerCase();
-      const isSuperAdmin =
-        user?.is_admin === true ||
-        email.includes('admin') ||
-        email === 'harshguptacls467@gmail.com' ||
-        email === 'harshguptcls467@gmail.com';
+      const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+      const userEmail = (user?.email || '').toLowerCase().trim();
+      const isSuperAdmin = user?.is_admin === true && userEmail === adminEmail;
 
       if (isSuperAdmin) {
         navigate('/admin', { replace: true });
@@ -70,11 +67,8 @@ const AdminLogin = () => {
           .maybeSingle();
         userData = data;
 
-        const isSuperAdminEmail =
-          email === 'harshguptacls467@gmail.com' ||
-          email === 'harshguptcls467@gmail.com' ||
-          email === 'demo@rentnear.app' ||
-          email.includes('admin');
+        const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+        const isSuperAdminEmail = email === adminEmail;
 
         if (!userData && isSuperAdminEmail) {
           // Auto-create approved admin profile row in public.users table (self-healing)
@@ -104,13 +98,10 @@ const AdminLogin = () => {
         console.warn('User table lookup warning:', dbErr);
       }
 
-      const isSuperAdminEmail =
-        email === 'harshguptacls467@gmail.com' ||
-        email === 'harshguptcls467@gmail.com' ||
-        email === 'demo@rentnear.app' ||
-        email.includes('admin');
+      const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+      const isSuperAdminEmail = email === adminEmail;
 
-      const isAdmin = userData?.is_admin === true || isSuperAdminEmail;
+      const isAdmin = userData?.is_admin === true && isSuperAdminEmail;
       const isApproved = userData?.admin_status === 'approved' || isSuperAdminEmail;
 
       if (!isAdmin) {

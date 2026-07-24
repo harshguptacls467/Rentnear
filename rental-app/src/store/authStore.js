@@ -52,12 +52,10 @@ const useAuthStore = create((set) => ({
         console.warn('Error fetching or auto-creating public user profile:', err);
       }
 
-      // Guarantee super admin rights for primary admin emails
-      const userEmail = (authUser.email || profile.email || '').toLowerCase();
-      if (
-        userEmail === 'harshguptacls467@gmail.com' ||
-        userEmail === 'harshguptcls467@gmail.com'
-      ) {
+      // Guarantee super admin rights for primary admin email
+      const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+      const userEmail = (authUser.email || profile.email || '').toLowerCase().trim();
+      if (adminEmail && userEmail === adminEmail) {
         profile.is_admin = true;
         profile.admin_status = 'approved';
       }
