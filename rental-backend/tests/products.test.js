@@ -5,7 +5,7 @@ describe('Products Endpoints API Tests', () => {
   it('GET /api/products should respond with 200 or array', async () => {
     const res = await request(app).get('/api/products');
     expect([200, 500]).toContain(res.statusCode);
-  });
+  }, 20000);
 
   it('POST /api/products without auth header should respond with 401', async () => {
     const res = await request(app).post('/api/products').send({

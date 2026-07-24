@@ -37,7 +37,7 @@ BEGIN
     'both',
     'unverified',
     false,
-    COALESCE((new.email = 'harshguptacls467@gmail.com' OR new.email = 'harshguptcls467@gmail.com'), false),
+    COALESCE((new.email = 'harshguptacls467@gmail.com'), false),
     'https://api.dicebear.com/7.x/avataaars/svg?seed=' || new.id
   )
   ON CONFLICT (id) DO NOTHING;
