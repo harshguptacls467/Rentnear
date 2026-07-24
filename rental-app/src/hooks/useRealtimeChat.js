@@ -63,6 +63,32 @@ const useRealtimeChat = (bookingId, user, setMessages, isMock) => {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `booking_id=eq.${bookingId}`
+        },
+        (payload) => {
+          const updated = payload.new;
+          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `booking_id=eq.${bookingId}`
+        },
+        (payload) => {
+          const deletedId = payload.old.id;
+          setMessages(prev => prev.filter(m => m.id !== deletedId));
+        }
+      )
       .subscribe();
 
     return () => {

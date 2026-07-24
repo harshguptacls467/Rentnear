@@ -69,6 +69,19 @@ const useRealtimeAdmin = ({
           if (setUsers) setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, ...updatedUser } : u));
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'users' },
+        (payload) => {
+          const deletedId = payload.old.id;
+          if (setUsers) setUsers(prev => prev.filter(u => u.id !== deletedId));
+          if (setStats) {
+            debouncedStatUpdate(() =>
+              setStats(prev => ({ ...prev, totalUsers: Math.max(0, prev.totalUsers - 1) }))
+            );
+          }
+        }
+      )
 
       // ── Products (Listings) ─────────────────────────────────────────────
       .on(
@@ -159,6 +172,20 @@ const useRealtimeAdmin = ({
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'bookings' },
+        (payload) => {
+          const deletedId = payload.old.id;
+          if (setBookings) setBookings(prev => prev.filter(b => b.id !== deletedId));
+          // Optionally adjust stats if needed, e.g., decrement total bookings count
+          if (setStats) {
+            debouncedStatUpdate(() =>
+              setStats(prev => ({ ...prev, bookingsToday: Math.max(0, prev.bookingsToday - 1) }))
+            );
+          }
+        }
+      )
 
       // ── KYC Submissions ─────────────────────────────────────────────────
       .on(
@@ -184,6 +211,15 @@ const useRealtimeAdmin = ({
           if (setKycSubmissions) setKycSubmissions(prev => prev.map(k => k.id === updatedKyc.id ? { ...k, ...updatedKyc } : k));
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'kyc_submissions' },
+        (payload) => {
+          const deletedId = payload.old.id;
+          if (setKycSubmissions) setKycSubmissions(prev => prev.filter(k => k.id !== deletedId));
+          // If you track counts, adjust here (optional)
+        }
+      )
 
       // ── Disputes ────────────────────────────────────────────────────────
       .on(
@@ -207,6 +243,19 @@ const useRealtimeAdmin = ({
         (payload) => {
           const updatedDispute = payload.new;
           if (setDisputes) setDisputes(prev => prev.map(d => d.id === updatedDispute.id ? { ...d, ...updatedDispute } : d));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'disputes' },
+        (payload) => {
+          const deletedId = payload.old.id;
+          if (setDisputes) setDisputes(prev => prev.filter(d => d.id !== deletedId));
+          if (setStats) {
+            debouncedStatUpdate(() =>
+              setStats(prev => ({ ...prev, openDisputes: Math.max(0, prev.openDisputes - 1) }))
+            );
+          }
         }
       )
 

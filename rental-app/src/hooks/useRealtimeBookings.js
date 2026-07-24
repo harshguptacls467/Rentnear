@@ -22,12 +22,14 @@ import useRealtimeStore from '../store/realtimeStore';
 import { useToast } from '../context/ToastContext';
 
 const STATUS_MESSAGES = {
-  approved:  '✅ Booking approved! Proceed to payment.',
-  rejected:  '❌ Booking request was rejected.',
-  cancelled: '🚫 A booking was cancelled.',
-  completed: '🎉 Booking completed! Leave a review.',
-  active:    '📦 Item handed over — rental is now active!',
-  disputed:  '⚠️ A dispute has been opened on your booking.',
+  approved:        '✅ Booking approved! Proceed to payment.',
+  rejected:        '❌ Booking request was rejected.',
+  cancelled:       '🚫 Booking cancelled by user.',
+  completed:       '🎉 Rental completed! Please leave a review.',
+  active:          '📦 Rental started — item is now in use.',
+  disputed:        '⚠️ A dispute has been opened on this booking.',
+  return_requested: '↩️ Return requested by renter.',
+  return_approved:  '✅ Return approved by owner.',
 };
 
 /**
@@ -47,6 +49,8 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
     const channel = supabase
       .channel(`realtime-bookings-${user.id}`)
       // Listen for updates where current user is the RENTER
+
+      // Listen for updates where current user is the OWNER
       .on(
         'postgres_changes',
         {
@@ -66,13 +70,12 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
 
           // Show toast only when status actually changed
           if (updated.status !== prev.status && STATUS_MESSAGES[updated.status]) {
-            showToast(STATUS_MESSAGES[updated.status],
-              updated.status === 'approved' || updated.status === 'completed' ? 'success' : 'error'
-            );
+            const successStatuses = ['approved', 'completed', 'active', 'return_approved'];
+            const toastType = successStatuses.includes(updated.status) ? 'success' : 'error';
+            showToast(STATUS_MESSAGES[updated.status], toastType);
           }
         }
       )
-      // Listen for updates where current user is the OWNER
       .on(
         'postgres_changes',
         {
@@ -90,7 +93,9 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
           );
 
           if (updated.status !== prev_status && STATUS_MESSAGES[updated.status]) {
-            showToast(STATUS_MESSAGES[updated.status], 'info');
+            const successStatuses = ['approved', 'completed', 'active', 'return_approved'];
+            const toastType = successStatuses.includes(updated.status) ? 'success' : 'error';
+            showToast(STATUS_MESSAGES[updated.status], toastType);
           }
         }
       )
@@ -109,6 +114,49 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
           // Prepend the new booking (it won't have joined data, so we use a flag
           // to trigger a background refresh on next focus)
           setBookings(prev => [newBooking, ...prev]);
+        }
+      )
+      // Listen for new booking INSERTS created by the renter
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bookings',
+          filter: `renter_id=eq.${user.id}`
+        },
+        (payload) => {
+          const newBooking = payload.new;
+          showToast('🔔 New booking created!', 'info');
+          setBookings(prev => [newBooking, ...prev]);
+        }
+      )
+      // Listen for DELETE events where current user is the renter
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `renter_id=eq.${user.id}`
+        },
+        (payload) => {
+          const deletedId = payload.old.id;
+          setBookings(prev => prev.filter(b => b.id !== deletedId));
+        }
+      )
+      // Listen for DELETE events where current user is the owner
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `owner_id=eq.${user.id}`
+        },
+        (payload) => {
+          const deletedId = payload.old.id;
+          setBookings(prev => prev.filter(b => b.id !== deletedId));
         }
       )
       .subscribe((status) => {

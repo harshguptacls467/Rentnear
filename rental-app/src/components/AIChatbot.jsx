@@ -167,12 +167,11 @@ const AIChatbot = () => {
     };
 
     window.addEventListener('live_chat_update', handleSync);
-    // Poll every 3 seconds as backup fallback
-    const interval = setInterval(handleSync, 3000);
+    window.addEventListener('storage', handleSync);
 
     return () => {
       window.removeEventListener('live_chat_update', handleSync);
-      clearInterval(interval);
+      window.removeEventListener('storage', handleSync);
     };
   }, [isLiveMode, chatId]);
 

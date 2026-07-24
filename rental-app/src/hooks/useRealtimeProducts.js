@@ -27,7 +27,7 @@ import { useToast } from '../context/ToastContext';
  * @param {string} sortBy - Current sort ('newest' | 'price_asc' | 'price_desc')
  */
 const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest') => {
-  const { addNewProduct, setProductsFeedStatus } = useRealtimeStore();
+
   const { showToast } = useToast();
 
   const filtersRef = useRef(filters);
@@ -67,6 +67,7 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
     // Unique channel name prevents collisions if the same hook
     // is mounted multiple times (e.g. Home + Products both open)
     const channelName = `realtime-products-${Date.now()}`;
+      setProductsChannelName(channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -114,11 +115,33 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'products' },
         (payload) => {
-          const updated = payload.new;
-          setProducts(prev =>
-            prev.map(p => p.id === updated.id ? { ...p, ...updated } : p)
-          );
-        }
+            const updated = payload.new;
+            const currentFilters = filtersRef.current;
+            const matchesFilters = (product) => {
+              const filterCategory = currentFilters?.category || 'All';
+              const filterSearch = currentFilters?.searchQuery || '';
+              const filterOwnerId = currentFilters?.ownerId;
+              const filterStatus = currentFilters?.status;
+              let ok = true;
+              if (filterCategory !== 'All' && product.category !== filterCategory) ok = false;
+              if (filterSearch && !product.title?.toLowerCase().includes(filterSearch.toLowerCase())) ok = false;
+              if (filterOwnerId && product.owner_id !== filterOwnerId) ok = false;
+              if (filterStatus && product.status !== filterStatus) ok = false;
+              if (!filterStatus && (product.status === 'hidden' || product.status === 'rejected')) ok = false;
+              return ok;
+            };
+            setProducts(prev => {
+              const exists = prev.some(p => p.id === updated.id);
+              const matches = matchesFilters(updated);
+              if (!matches) {
+                return prev.filter(p => p.id !== updated.id);
+              }
+              if (exists) {
+                return prev.map(p => p.id === updated.id ? { ...p, ...updated } : p);
+              }
+              return insertSorted(prev, updated);
+            });
+          }
       )
       .on(
         'postgres_changes',
@@ -141,7 +164,7 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
       setProductsFeedStatus('disconnected');
       supabase.removeChannel(channel);
     };
-  }, [isMock, insertSorted, addNewProduct, setProducts, setProductsFeedStatus, showToast]);
+  }, [isMock, insertSorted, addNewProduct, setProducts, setProductsFeedStatus, setProductsChannelName, showToast]);
 };
 
 export default useRealtimeProducts;

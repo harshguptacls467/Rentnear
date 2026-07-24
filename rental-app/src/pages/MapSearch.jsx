@@ -94,10 +94,11 @@ const MapSearch = () => {
     const fetchProducts = async () => {
       try {
         const { data, error } = await supabase
-          .from('products')
-          .select('id, title, price_per_day, category, images, latitude, longitude, owner_id, owner:users!products_owner_id_fkey(name, phone)')
-          .not('latitude', 'is', null)
-          .not('longitude', 'is', null);
+        .from('products')
+        .select('id, title, price_per_day, category, images, latitude, longitude, owner_id, owner:users!products_owner_id_fkey(name, phone)')
+        .eq('status', 'approved')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null);
 
         if (error) throw error;
         setProducts(data || []);

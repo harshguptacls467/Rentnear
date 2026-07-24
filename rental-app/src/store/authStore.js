@@ -20,8 +20,7 @@ const useAuthStore = create((set, get) => ({
       if (!error && data) {
         profile = { ...authUser, ...data };
       } else {
-        // Profile row does not exist in the public.users table.
-        // Let's create it automatically.
+        // Profile row does not exist in the public.users table (trigger fallback).
         const newProfile = {
           id: authUser.id,
           name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
@@ -41,12 +40,10 @@ const useAuthStore = create((set, get) => ({
 
         if (!insertError && insertedData) {
           profile = { ...authUser, ...insertedData };
-        } else {
-          console.warn('Could not auto-create public user profile row:', insertError?.message);
         }
       }
-    } catch (err) {
-      console.warn('Error fetching or auto-creating public user profile:', err);
+    } catch {
+      // Fail silently in production
     }
 
     // Guarantee super admin rights for primary admin email
@@ -60,31 +57,27 @@ const useAuthStore = create((set, get) => ({
     return profile;
   },
 
-  // ── Initialize ──────────────────────────────────────────────────────────────
+  // Initialize Session & Real-time Sync
   initialize: () => {
-    // 1. Check existing session
+    // 1. Check existing session on startup
     supabase.auth
       .getSession()
       .then(async ({ data: { session }, error }) => {
         if (error) {
-          console.warn('Auth session error — continuing as guest:', error.message);
           set({ session: null, user: null, initialized: true });
           return;
         }
         const fullUser = session?.user ? await get().fetchPublicUser(session.user) : null;
         set({ session, user: fullUser, initialized: true });
       })
-      .catch((err) => {
-        console.warn('Critical auth error — continuing as guest:', err);
+      .catch(() => {
         set({ session: null, user: null, initialized: true });
       });
 
-    // 2. Listen for auth state changes (including OAuth redirects)
+    // 2. Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log(`[AuthStore] onAuthStateChange event: ${event}, session: ${!!newSession}`);
-
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         set({ session: null, user: null, initialized: true });
       } else {
@@ -103,12 +96,12 @@ const useAuthStore = create((set, get) => ({
     };
   },
 
-  // ── Logout ──────────────────────────────────────────────────────────────────
+  // Sign out cleanly
   logout: async () => {
     try {
       await supabase.auth.signOut();
     } catch {
-      // ignore errors from invalid Supabase client
+      // Fail silently
     }
     set({ session: null, user: null });
   },

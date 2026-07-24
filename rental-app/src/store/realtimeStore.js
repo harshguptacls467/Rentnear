@@ -85,6 +85,9 @@ const useRealtimeStore = create((set, get) => ({
 
   bookingsFeedStatus: 'disconnected',
   setBookingsFeedStatus: (status) => set({ bookingsFeedStatus: status }),
+
+  productsChannelName: null,
+  setProductsChannelName: (name) => set({ productsChannelName: name }),
 }));
 
 export default useRealtimeStore;

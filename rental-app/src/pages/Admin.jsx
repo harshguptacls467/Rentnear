@@ -116,10 +116,10 @@ const Admin = () => {
     fetchLiveChats();
     const handleSync = () => fetchLiveChats();
     window.addEventListener('live_chat_update', handleSync);
-    const interval = setInterval(fetchLiveChats, 3000);
+    window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('live_chat_update', handleSync);
-      clearInterval(interval);
+      window.removeEventListener('storage', handleSync);
     };
   }, [fetchLiveChats]);
 
