@@ -40,6 +40,8 @@ const DisputeDetail = lazy(() => import('./pages/DisputeDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Support = lazy(() => import('./pages/Support'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 // Full-screen loading fallback for Suspense
 const PageLoader = () => (
@@ -65,6 +67,8 @@ const AnimatedRoutes = () => {
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="auth/callback" element={<AuthCallback />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="reset-password" element={<ResetPassword />} />
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="map" element={<MapSearch />} />

@@ -2,14 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
-import { Mail, Lock, AlertCircle, Zap, CheckCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
-import { getLocalUsers } from '../utils/localDb';
-
-// Demo credentials for mock login
-const DEMO_EMAIL = 'demo@rentnear.app';
-const DEMO_PASSWORD = 'demo123';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,9 +12,8 @@ const Login = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  // Message passed from Register page (email confirmation required)
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, mockLogin, mockSocialLogin, logout } = useAuthStore();
+  const { session, logout } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -42,44 +36,12 @@ const Login = () => {
     setLoading(true);
     setErrorMsg('');
 
-    // Clear any stale state before logging in
+    // Clear any stale session first
     await logout();
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
-    // Check if Supabase client is configured
-    const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
-
-    // Check if it's the hardcoded demo credentials
-    const isExplicitDemo = email === DEMO_EMAIL && password === DEMO_PASSWORD;
-
-    if (isExplicitDemo) {
-      mockLogin(email);
-      navigate('/home');
-      setLoading(false);
-      return;
-    }
-
-    if (!isSupabaseValid) {
-      // Supabase is not active, look up user in the mock local users database
-      const localUsers = getLocalUsers();
-      const existingUser = localUsers[email];
-      if (existingUser) {
-        mockLogin(email);
-        navigate('/home');
-        setLoading(false);
-        return;
-      } else {
-        // Auto-register/create on-the-fly for any other email to make development/testing frictionless
-        mockLogin(email);
-        navigate('/home');
-        setLoading(false);
-        return;
-      }
-    }
-
-    // ── Real Supabase Login ──────────────────────────────────────────────────
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -136,10 +98,16 @@ const Login = () => {
         ...(userData || {}),
       };
 
+      // Set admin flag inside profile if they match the admin emails
+      const userEmail = (fullUser.email || '').toLowerCase();
+      if (userEmail === 'harshguptacls467@gmail.com' || userEmail === 'harshguptcls467@gmail.com') {
+        fullUser.is_admin = true;
+        fullUser.admin_status = 'approved';
+      }
+
       useAuthStore.setState({
         session: authData.session,
         user: fullUser,
-        isMock: false,
         initialized: true,
       });
 
@@ -147,25 +115,10 @@ const Login = () => {
       navigate('/home');
     } catch (error) {
       console.error('Login error:', error);
-      
-      const localUsers = getLocalUsers();
-      if (localUsers[email]) {
-        console.warn('Real Supabase login failed, falling back to local mock user session.');
-        mockLogin(email);
-        showToast('Welcome back!', 'success');
-        navigate('/home');
-      } else {
-        setErrorMsg(error.message || 'Invalid email or password.');
-      }
+      setErrorMsg(error.message || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // One-click demo login
-  const handleDemoLogin = () => {
-    mockLogin();
-    navigate('/home');
   };
 
   const [oauthLoading, setOauthLoading] = useState('');
@@ -174,8 +127,13 @@ const Login = () => {
     setOauthLoading(provider);
     setErrorMsg('');
     try {
-      mockSocialLogin(provider);
-      navigate('/home');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      if (error) throw error;
     } catch (error) {
       setErrorMsg(error.message);
     } finally {
@@ -199,24 +157,6 @@ const Login = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl border border-gray-100 sm:rounded-2xl sm:px-10">
-
-          {/* Demo Login Banner */}
-          <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl p-4">
-            <p className="text-sm text-gray-600 mb-3 font-medium flex items-center gap-2">
-              <Zap size={16} className="text-primary" />
-              Try without an account:
-            </p>
-            <button
-              onClick={handleDemoLogin}
-              className="w-full py-2.5 px-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors text-sm flex items-center justify-center gap-2"
-            >
-              <Zap size={16} />
-              Login as Demo User
-            </button>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              Or use: demo@rentnear.app / demo123
-            </p>
-          </div>
 
           {/* Social Login */}
           <div className="space-y-3 mb-6">
@@ -248,7 +188,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Signup Success Message (email confirmation required) */}
+          {/* Signup Success Message */}
           {signupSuccessMsg && (
             <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-md flex items-start">
               <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
@@ -286,7 +226,12 @@ const Login = () => {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <div className="flex justify-between items-center">
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:text-primary-dark transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />

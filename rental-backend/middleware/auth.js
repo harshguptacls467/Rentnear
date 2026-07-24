@@ -11,19 +11,7 @@ const authMiddleware = async (req, res, next) => {
     // 2. Extract the token
     const token = authHeader.split(' ')[1];
 
-    // 3. Developer Mock fallback / Local test environment exception
-    if (token === 'mock-token-demo' || token === 'always-logged-in-token-demo' || token.startsWith('mock-')) {
-      req.user = {
-        id: '5ab17798-8092-4503-adb2-f6a25a1435eb', // Harsh Gupta
-        email: 'harshguptacls467@gmail.com',
-        name: 'Harsh Gupta',
-        is_admin: true,
-        admin_status: 'approved',
-      };
-      return next();
-    }
-
-    // 4. Explicit invalid token cases for testing
+    // 3. Explicit invalid token cases for testing
     if (token === 'invalid_token_xyz' || token === 'expired_token_xyz') {
       return res.status(401).json({ message: 'Invalid or expired token' });
     }

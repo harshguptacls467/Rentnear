@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
-import { Mail, Lock, User, Phone, AlertCircle, CheckCircle, Zap } from 'lucide-react';
+import { Mail, Lock, User, Phone, AlertCircle, CheckCircle } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 
@@ -12,7 +12,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const { session, mockLogin, mockSocialLogin } = useAuthStore();
+  const { session } = useAuthStore();
 
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNum, setPhoneNum] = useState('');
@@ -32,14 +32,6 @@ const Register = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // ── Timeout wrapper: rejects if Supabase takes too long ─────────────────────
-  const withTimeout = (promise, ms = 10000) => {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('failed to fetch')), ms)
-    );
-    return Promise.race([promise, timeout]);
   };
 
   const handleRegister = async (e) => {
@@ -73,21 +65,25 @@ const Register = () => {
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
     try {
-      const isSupabaseValid = supabase && import.meta.env.VITE_SUPABASE_URL && !import.meta.env.VITE_SUPABASE_URL.includes('placeholder-ref');
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+            full_name: name,
+          }
+        }
+      });
 
-      if (isSupabaseValid) {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+      if (authError) throw new Error(authError.message);
 
-        if (authError) throw new Error(authError.message);
+      const user = authData?.user;
+      if (!user) throw new Error('Account creation failed.');
 
-        const user = authData?.user;
-        if (!user) throw new Error('Account creation failed.');
-
-        // Save profile in users table
-        const { error: profileError } = await supabase.from('users').upsert([
+      // Save profile in users table (Self-healing fallback if database trigger is not configured yet)
+      try {
+        await supabase.from('users').upsert([
           {
             id: user.id,
             name,
@@ -98,40 +94,30 @@ const Register = () => {
             kyc_verified: false,
           },
         ], { onConflict: 'id' });
+      } catch (profileErr) {
+        console.warn('Profile sync insert warning:', profileErr.message);
+      }
 
-        if (profileError) {
-          console.warn('Profile db insert warning:', profileError.message);
-        }
-
-        if (authData.session) {
-          showToast(`Welcome to RentNear, ${name}!`, 'success');
-          navigate('/home');
-          return;
-        }
-
-        // Try immediate sign in
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (!signInError && signInData?.session) {
-          showToast(`Welcome to RentNear, ${name}!`, 'success');
-          navigate('/home');
-          return;
-        }
-
-        setSuccessMsg('Account created successfully! Please check your email to verify your account or log in.');
-        showToast('Account created successfully!', 'success');
-      } else {
-        mockLogin(email, {
-          name,
-          phone: fullPhone,
-          role: formData.role,
-        });
+      if (authData.session) {
         showToast(`Welcome to RentNear, ${name}!`, 'success');
         navigate('/home');
+        return;
       }
+
+      // Try immediate sign in (if email confirmation is not enforced in local/test settings)
+      const { data: signInData } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInData?.session) {
+        showToast(`Welcome to RentNear, ${name}!`, 'success');
+        navigate('/home');
+        return;
+      }
+
+      setSuccessMsg('Account created successfully! Please check your email to verify your account or log in.');
+      showToast('Account created successfully!', 'success');
     } catch (error) {
       console.error('Registration error:', error);
       setErrorMsg(error.message || 'Registration failed. Please try again.');
@@ -141,20 +127,19 @@ const Register = () => {
     }
   };
 
-  // One-click demo login from register page
-  const handleDemoLogin = () => {
-    mockLogin();
-    navigate('/home');
-  };
-
   const [oauthLoading, setOauthLoading] = useState('');
 
   const handleOAuthLogin = async (provider) => {
     setOauthLoading(provider);
     setErrorMsg('');
     try {
-      mockSocialLogin(provider);
-      navigate('/home');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      if (error) throw error;
     } catch (error) {
       setErrorMsg(error.message);
     } finally {
@@ -178,21 +163,6 @@ const Register = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl border border-gray-100 sm:rounded-2xl sm:px-10">
-
-          {/* Demo Banner */}
-          <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl p-4">
-            <p className="text-sm text-gray-600 mb-3 font-medium flex items-center gap-2">
-              <Zap size={16} className="text-primary" />
-              Want to explore first?
-            </p>
-            <button
-              onClick={handleDemoLogin}
-              className="w-full py-2.5 px-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors text-sm flex items-center justify-center gap-2"
-            >
-              <Zap size={16} />
-              Use Demo Account
-            </button>
-          </div>
 
           {/* Social Registration */}
           <div className="space-y-3 mb-6">

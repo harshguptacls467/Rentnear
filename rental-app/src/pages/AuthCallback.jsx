@@ -54,7 +54,8 @@ const AuthCallback = () => {
 
           if (data?.session) {
             setStatus('success');
-            setTimeout(() => navigate('/home'), 1500);
+            const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
+            setTimeout(() => navigate(targetRoute), 1500);
             return;
           }
         }
@@ -73,7 +74,8 @@ const AuthCallback = () => {
 
           if (data?.session) {
             setStatus('success');
-            setTimeout(() => navigate('/home'), 1500);
+            const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
+            setTimeout(() => navigate(targetRoute), 1500);
             return;
           }
         }
@@ -95,7 +97,8 @@ const AuthCallback = () => {
 
           if (data?.session) {
             setStatus('success');
-            setTimeout(() => navigate('/home'), 1500);
+            const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
+            setTimeout(() => navigate(targetRoute), 1500);
             return;
           }
         }

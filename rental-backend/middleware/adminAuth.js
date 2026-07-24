@@ -7,10 +7,6 @@ const adminAuth = async (req, res, next) => {
       return res.status(401).json({ message: 'Unauthorized. User not authenticated.' });
     }
 
-    // Fast-track mock/local testing sessions that are pre-verified
-    if (req.user.is_admin === true) {
-      return next();
-    }
 
     // Query the users table to check if the user is an admin
     const { data: userRecord, error } = await supabase

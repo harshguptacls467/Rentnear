@@ -1,24 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import useAuthStore from '../store/authStore';
 
-// Mock localStorage for Vitest Node environment
-const localStorageMock = (() => {
-  let store = {};
-  return {
-    getItem: (key) => store[key] || null,
-    setItem: (key, value) => { store[key] = value.toString(); },
-    removeItem: (key) => { delete store[key]; },
-    clear: () => { store = {}; }
-  };
-})();
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
-
 describe('Zustand Auth Store Unit Tests', () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    // Reset store state
+    useAuthStore.setState({
+      user: null,
+      session: null,
+      initialized: false,
+    });
   });
 
   it('should initialize with default state', () => {
@@ -28,17 +18,29 @@ describe('Zustand Auth Store Unit Tests', () => {
     expect(state.initialized).toBe(false);
   });
 
-  it('should support mock login and set user details', () => {
-    useAuthStore.getState().mockLogin('testuser@example.com', { name: 'Test User' });
+  it('should allow setting session and user details manually', () => {
+    useAuthStore.setState({
+      session: { access_token: 'valid-token-123', user: { id: 'user-id-abc' } },
+      user: { id: 'user-id-abc', name: 'Real User', email: 'real@rentnear.app' },
+      initialized: true,
+    });
+    
     const state = useAuthStore.getState();
     expect(state.user).not.toBeNull();
-    expect(state.user.email).toBe('testuser@example.com');
-    expect(state.user.name).toBe('Test User');
-    expect(state.isMock).toBe(true);
+    expect(state.user.email).toBe('real@rentnear.app');
+    expect(state.user.name).toBe('Real User');
+    expect(state.session.access_token).toBe('valid-token-123');
   });
 
   it('should logout cleanly', async () => {
+    useAuthStore.setState({
+      session: { access_token: 'valid-token-123', user: { id: 'user-id-abc' } },
+      user: { id: 'user-id-abc', name: 'Real User', email: 'real@rentnear.app' },
+      initialized: true,
+    });
+
     await useAuthStore.getState().logout();
+    
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.session).toBeNull();
