@@ -57,59 +57,21 @@ const AdminLogin = () => {
         throw new Error('Authentication failed. User session could not be established.');
       }
 
-      // 2. Query users table for role details
-      let userData = null;
-      try {
-        const { data } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authData.user.id)
-          .maybeSingle();
-        userData = data;
-
-        const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-        const isSuperAdminEmail = email === adminEmail;
-
-        if (!userData && isSuperAdminEmail) {
-          // Auto-create approved admin profile row in public.users table (self-healing)
-          const newAdminProfile = {
-            id: authData.user.id,
-            name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name || 'Admin User',
-            email: email,
-            phone: authData.user.phone || '',
-            role: 'both',
-            kyc_status: 'verified',
-            kyc_verified: true,
-            is_admin: true,
-            admin_status: 'approved',
-          };
-          const { data: insertedData, error: insertError } = await supabase
-            .from('users')
-            .upsert([newAdminProfile], { onConflict: 'id' })
-            .select()
-            .single();
-          if (!insertError && insertedData) {
-            userData = insertedData;
-          } else {
-            console.warn('Could not auto-create admin profile row:', insertError?.message);
-          }
-        }
-      } catch (dbErr) {
-        console.warn('User table lookup warning:', dbErr);
-      }
+      // 2. Fetch/Upsert user profile via store action
+      const fullUser = await useAuthStore.getState().fetchPublicUser(authData.user);
 
       const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
       const isSuperAdminEmail = email === adminEmail;
 
-      const isAdmin = userData?.is_admin === true && isSuperAdminEmail;
-      const isApproved = userData?.admin_status === 'approved' || isSuperAdminEmail;
+      const isAdmin = fullUser?.is_admin === true && isSuperAdminEmail;
+      const isApproved = fullUser?.admin_status === 'approved' || isSuperAdminEmail;
 
       if (!isAdmin) {
         await supabase.auth.signOut();
         throw new Error('This account does not have admin privileges.');
       }
 
-      if (!isApproved && userData?.admin_status === 'pending') {
+      if (!isApproved && fullUser?.admin_status === 'pending') {
         await supabase.auth.signOut();
         throw new Error('Your admin access request is pending approval from an existing administrator.');
       }
@@ -119,21 +81,14 @@ const AdminLogin = () => {
       localStorage.removeItem('rentnear_mock_session_email');
 
       // 4. Update Auth Store with complete Admin profile
-      const adminUser = {
-        ...authData.user,
-        ...(userData || {}),
-        is_admin: true,
-        admin_status: 'approved',
-      };
-
       useAuthStore.setState({
         session: authData.session,
-        user: adminUser,
+        user: fullUser,
         isMock: false,
         initialized: true,
       });
 
-      showToast(`Welcome back, ${adminUser.name || 'Admin'}!`, 'success');
+      showToast(`Welcome back, ${fullUser.name || 'Admin'}!`, 'success');
       navigate('/admin');
     } catch (err) {
       console.error('Admin login error:', err);

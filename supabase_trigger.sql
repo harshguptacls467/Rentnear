@@ -24,7 +24,8 @@ BEGIN
     kyc_status, 
     kyc_verified, 
     is_admin,
-    avatar_url
+    avatar_url,
+    phone
   )
   VALUES (
     new.id,
@@ -34,11 +35,12 @@ BEGIN
       split_part(new.email, '@', 1)
     ),
     new.email,
-    'both',
+    COALESCE(new.raw_user_meta_data->>'role', 'both')::user_role,
     'unverified',
     false,
     COALESCE((new.email = 'harshguptacls467@gmail.com'), false),
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=' || new.id
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=' || new.id,
+    COALESCE(new.raw_user_meta_data->>'phone', '')
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;

@@ -82,6 +82,8 @@ const Register = () => {
           data: {
             name: name,
             full_name: name,
+            phone: fullPhone,
+            role: formData.role,
           }
         }
       });
@@ -91,24 +93,13 @@ const Register = () => {
       const user = authData?.user;
       if (!user) throw new Error('Account creation failed.');
 
-      // Synchronize public.users table
-      try {
-        await supabase.from('users').upsert([
-          {
-            id: user.id,
-            name,
-            email,
-            phone: fullPhone,
-            role: formData.role,
-            kyc_status: 'unverified',
-            kyc_verified: false,
-          },
-        ], { onConflict: 'id' });
-      } catch (profileErr) {
-        console.warn('Profile sync insert warning on register:', profileErr.message);
-      }
-
       if (authData.session) {
+        const fullUser = await useAuthStore.getState().fetchPublicUser(authData.user);
+        useAuthStore.setState({
+          session: authData.session,
+          user: fullUser,
+          initialized: true,
+        });
         showToast(`Welcome to RentNear, ${name}!`, 'success');
         navigate('/home');
         return;
@@ -121,6 +112,12 @@ const Register = () => {
       });
 
       if (signInData?.session) {
+        const fullUser = await useAuthStore.getState().fetchPublicUser(signInData.user);
+        useAuthStore.setState({
+          session: signInData.session,
+          user: fullUser,
+          initialized: true,
+        });
         showToast(`Welcome to RentNear, ${name}!`, 'success');
         navigate('/home');
         return;

@@ -77,55 +77,8 @@ const Login = () => {
         throw new Error('Authentication failed. User session could not be established.');
       }
 
-      // Query users table for profile details
-      let userData = null;
-      try {
-        const { data } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authData.user.id)
-          .maybeSingle();
-        userData = data;
-
-        if (!userData) {
-          // Profile row does not exist in the public.users table (self-healing).
-          const newProfile = {
-            id: authData.user.id,
-            name: authData.user.user_metadata?.name || authData.user.user_metadata?.full_name || email.split('@')[0],
-            email: email,
-            phone: authData.user.phone || '',
-            role: 'both',
-            kyc_status: 'unverified',
-            kyc_verified: false,
-            is_admin: false,
-          };
-          const { data: insertedData, error: insertError } = await supabase
-            .from('users')
-            .upsert([newProfile], { onConflict: 'id' })
-            .select()
-            .single();
-          if (!insertError && insertedData) {
-            userData = insertedData;
-          } else {
-            console.warn('Could not auto-create user profile row on login:', insertError?.message);
-          }
-        }
-      } catch (dbErr) {
-        console.warn('Profile lookup warning:', dbErr);
-      }
-
-      const fullUser = {
-        ...authData.user,
-        ...(userData || {}),
-      };
-
-      // Set admin flag inside profile if they match the admin emails
-      const userEmail = (fullUser.email || '').toLowerCase();
-      const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-      if (adminEmail && userEmail === adminEmail) {
-        fullUser.is_admin = true;
-        fullUser.admin_status = 'approved';
-      }
+      // Re-use store synchronizer to obtain clean public user profiles
+      const fullUser = await useAuthStore.getState().fetchPublicUser(authData.user);
 
       useAuthStore.setState({
         session: authData.session,
@@ -133,7 +86,7 @@ const Login = () => {
         initialized: true,
       });
 
-      showToast(`Welcome back, ${fullUser.name || 'User'}!`, 'success');
+      showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
       navigate('/home');
     } catch (error) {
       console.error('Login error:', error);
