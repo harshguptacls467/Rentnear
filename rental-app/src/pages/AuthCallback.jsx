@@ -63,7 +63,7 @@ const AuthCallback = () => {
             useAuthStore.setState({ 
               session: session, 
               user: fullUser, 
-              isAuthenticated: true 
+              initialized: true 
             });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
@@ -95,7 +95,7 @@ const AuthCallback = () => {
             useAuthStore.setState({ 
               session: session, 
               user: fullUser, 
-              isAuthenticated: true 
+              initialized: true 
             });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
@@ -130,7 +130,7 @@ const AuthCallback = () => {
             useAuthStore.setState({ 
               session: session, 
               user: fullUser, 
-              isAuthenticated: true 
+              initialized: true 
             });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
