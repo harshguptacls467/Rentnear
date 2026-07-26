@@ -96,6 +96,37 @@ const useAuthStore = create((set, get) => ({
     };
   },
 
+  // ── OTP helpers ──────────────────────────────────────────────────────────
+  // Re-send the signup verification OTP to the given email address.
+  resendSignupOtp: async (email) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  // Verify the 6-digit OTP, then sync the public profile and persist the session.
+  verifySignupOtp: async (email, token) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+    if (error) throw new Error(error.message);
+
+    const authUser = data?.user;
+    if (!authUser) throw new Error('Verification succeeded but no user returned.');
+
+    const fullUser = await get().fetchPublicUser(authUser);
+    useAuthStore.setState({
+      session: data.session,
+      user: fullUser,
+      initialized: true,
+    });
+    return fullUser;
+  },
+
   // Sign out cleanly
   logout: async () => {
     try {

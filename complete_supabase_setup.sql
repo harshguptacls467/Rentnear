@@ -95,9 +95,9 @@ BEGIN
     new.email,
     -- Safe cast validation to prevent invalid enum casts from crashing signup
     CASE 
-      WHEN new.raw_user_meta_data->>'role' = 'renter' THEN 'renter'::user_role
-      WHEN new.raw_user_meta_data->>'role' = 'owner' THEN 'owner'::user_role
-      ELSE 'both'::user_role
+      WHEN new.raw_user_meta_data->>'role' = 'renter' THEN 'renter'::public.user_role
+      WHEN new.raw_user_meta_data->>'role' = 'owner' THEN 'owner'::public.user_role
+      ELSE 'both'::public.user_role
     END,
     'unverified',
     false,
@@ -108,6 +108,9 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Explicitly set search_path to public to prevent type/table resolution errors
+ALTER FUNCTION public.handle_new_user() SET search_path = public;
 
 -- 6. Bind the trigger to auth.users insertion hook
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

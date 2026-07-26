@@ -35,7 +35,7 @@ BEGIN
       split_part(new.email, '@', 1)
     ),
     new.email,
-    COALESCE(new.raw_user_meta_data->>'role', 'both')::user_role,
+    COALESCE(new.raw_user_meta_data->>'role', 'both')::public.user_role,
     'unverified',
     false,
     COALESCE((new.email = 'harshguptacls467@gmail.com'), false),
@@ -46,6 +46,10 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Disable RLS for this trigger function
+ALTER FUNCTION public.handle_new_user() SET search_path = public;
+ALTER FUNCTION public.handle_new_user() SET row_security = off;
 
 -- Drop trigger if it exists
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

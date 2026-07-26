@@ -6,7 +6,8 @@ import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import FloatingInput from '../components/FloatingInput';
-import { motion } from 'framer-motion';
+import OtpVerification from '../components/OtpVerification';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,8 +16,11 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [otpStep, setOtpStep] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, logout } = useAuthStore();
+  const { session, logout, resendSignupOtp, verifySignupOtp } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -72,6 +76,22 @@ const Login = () => {
       });
 
       if (signInError) {
+        // User exists but hasn't verified their email yet — redirect to OTP screen.
+        if (
+          signInError.message?.toLowerCase().includes('email not confirmed') ||
+          signInError.message?.toLowerCase().includes('not confirmed')
+        ) {
+          setPendingEmail(email);
+          setOtpStep(true);
+          showToast('Please verify your email first.', 'info');
+          try {
+            await resendSignupOtp(email);
+          } catch (resendError) {
+            console.error('Auto OTP resend failed:', resendError);
+          }
+          setLoading(false);
+          return;
+        }
         throw new Error(signInError.message);
       }
 
@@ -104,6 +124,25 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── OTP handlers (for login-flow email re-verification) ──────────────────
+  const handleVerifyOtp = async (token) => {
+    setVerifying(true);
+    try {
+      const fullUser = await verifySignupOtp(pendingEmail, token);
+      showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
+      navigate('/home');
+    } catch (err) {
+      throw err;
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    await resendSignupOtp(pendingEmail);
+    showToast('A new verification code has been sent.', 'info');
   };
 
   const [oauthLoading, setOauthLoading] = useState('');
@@ -183,6 +222,18 @@ const Login = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
+            <AnimatePresence mode="wait">
+              {otpStep ? (
+                <OtpVerification
+                  key="otp"
+                  email={pendingEmail}
+                  onVerify={handleVerifyOtp}
+                  onResend={handleResendOtp}
+                  onBack={() => setOtpStep(false)}
+                  loading={verifying}
+                />
+              ) : (
+              <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             
             {/* Header */}
             <div className="text-center mb-6">
@@ -322,7 +373,9 @@ const Login = () => {
                 🔒 Administrator Access Portal
               </Link>
             </div>
-
+              </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </div>
