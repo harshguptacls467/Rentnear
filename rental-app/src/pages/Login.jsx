@@ -18,6 +18,7 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [otpStep, setOtpStep] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingPassword, setPendingPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const signupSuccessMsg = location.state?.successMsg || '';
   const { session, logout, resendSignupOtp, verifySignupOtp } = useAuthStore();
@@ -82,6 +83,7 @@ const Login = () => {
           signInError.message?.toLowerCase().includes('not confirmed')
         ) {
           setPendingEmail(email);
+          setPendingPassword(password);
           setOtpStep(true);
           showToast('Please verify your email first.', 'info');
           try {
@@ -130,7 +132,7 @@ const Login = () => {
   const handleVerifyOtp = async (token) => {
     setVerifying(true);
     try {
-      const fullUser = await verifySignupOtp(pendingEmail, token);
+      const fullUser = await verifySignupOtp(pendingEmail, token, pendingPassword);
       showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
       setVerifying(false);
       navigate('/home', { replace: true });

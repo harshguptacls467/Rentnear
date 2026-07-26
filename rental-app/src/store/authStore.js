@@ -107,18 +107,21 @@ const useAuthStore = create((set, get) => ({
   },
 
   // Verify the 6-digit OTP, then sync the public profile and persist the session.
-  verifySignupOtp: async (email, token) => {
+  verifySignupOtp: async (email, token, password = null) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanToken = (token || '').trim();
+
     let { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
+      email: cleanEmail,
+      token: cleanToken,
       type: 'signup',
     });
 
     // Fallback 1 to type: 'email' if type: 'signup' returns an error
     if (error) {
       const fallback1 = await supabase.auth.verifyOtp({
-        email,
-        token,
+        email: cleanEmail,
+        token: cleanToken,
         type: 'email',
       });
       if (fallback1 && !fallback1.error) {
@@ -130,8 +133,8 @@ const useAuthStore = create((set, get) => ({
     // Fallback 2 to type: 'magiclink' if type: 'email' returns an error
     if (error) {
       const fallback2 = await supabase.auth.verifyOtp({
-        email,
-        token,
+        email: cleanEmail,
+        token: cleanToken,
         type: 'magiclink',
       });
       if (fallback2 && !fallback2.error) {
@@ -142,10 +145,24 @@ const useAuthStore = create((set, get) => ({
 
     if (error) throw new Error(error.message || 'Invalid or expired verification code.');
 
-    const authUser = data?.user;
-    if (!authUser) throw new Error('Verification succeeded but no user returned.');
-
+    let authUser = data?.user;
     let activeSession = data?.session;
+
+    // If verification succeeded but Supabase didn't issue a session, auto-login with password
+    if (!activeSession && password) {
+      try {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (signInData?.session) {
+          activeSession = signInData.session;
+          if (signInData.user) authUser = signInData.user;
+        }
+      } catch {
+        // Signin attempt fallback silent
+      }
+    }
 
     // Explicitly persist session into Supabase Auth Client & localStorage
     if (activeSession) {
@@ -161,7 +178,7 @@ const useAuthStore = create((set, get) => ({
       activeSession = sessionData?.session || null;
     }
 
-    const fullUser = await get().fetchPublicUser(authUser);
+    const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;
 
     useAuthStore.setState({
       session: activeSession,

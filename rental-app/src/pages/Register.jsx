@@ -18,6 +18,7 @@ const Register = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [otpStep, setOtpStep] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingPassword, setPendingPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const { session, resendSignupOtp, verifySignupOtp } = useAuthStore();
 
@@ -122,6 +123,7 @@ const Register = () => {
 
       // Email confirmation is required — show the OTP screen.
       setPendingEmail(email);
+      setPendingPassword(password);
       setOtpStep(true);
       showToast('Check your email for the 6-digit verification code.', 'info');
 
@@ -137,7 +139,7 @@ const Register = () => {
   const handleVerifyOtp = async (token) => {
     setVerifying(true);
     try {
-      const fullUser = await verifySignupOtp(pendingEmail, token);
+      const fullUser = await verifySignupOtp(pendingEmail, token, pendingPassword);
       showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
       setVerifying(false);
       navigate('/home', { replace: true });
