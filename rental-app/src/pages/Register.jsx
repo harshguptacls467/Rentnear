@@ -20,7 +20,7 @@ const Register = () => {
   const [pendingEmail, setPendingEmail] = useState('');
   const [pendingPassword, setPendingPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const { session, resendSignupOtp, verifySignupOtp } = useAuthStore();
+  const { session, signUpUser, resendSignupOtp, verifySignupOtp, fetchPublicUser } = useAuthStore();
 
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNum, setPhoneNum] = useState('');
@@ -88,36 +88,24 @@ const Register = () => {
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
     try {
-      const redirectUri = `${window.location.origin}/auth/callback`;
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const authData = await signUpUser({
         email,
         password,
-        options: {
-          emailRedirectTo: redirectUri,
-          data: {
-            name: name,
-            full_name: name,
-            phone: fullPhone,
-            role: formData.role,
-          }
-        }
+        name,
+        phone: fullPhone,
+        role: formData.role,
       });
 
-      if (authError) throw new Error(authError.message);
-
-      const user = authData?.user;
-      if (!user) throw new Error('Account creation failed.');
-
       // If Supabase already issued a session (email confirmation disabled in project), log in directly.
-      if (authData.session) {
-        const fullUser = await useAuthStore.getState().fetchPublicUser(authData.user);
+      if (authData?.session) {
+        const fullUser = await fetchPublicUser(authData.user);
         useAuthStore.setState({
           session: authData.session,
           user: fullUser,
           initialized: true,
         });
         showToast(`Welcome to RentNear, ${name}!`, 'success');
-        navigate('/home');
+        navigate('/home', { replace: true });
         return;
       }
 

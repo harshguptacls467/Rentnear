@@ -15,10 +15,13 @@ BEGIN
     END IF;
 END $$;
 
--- 2. Recreate handle_new_user function with safe type conversion handling
+-- 2. Recreate handle_new_user function with safe type conversion and orphan cleanup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Delete any orphaned profile row with the same email but different id
+  DELETE FROM public.users WHERE email = new.email AND id != new.id;
+
   INSERT INTO public.users (
     id, 
     name, 
@@ -50,7 +53,11 @@ BEGIN
     'https://api.dicebear.com/7.x/avataaars/svg?seed=' || new.id,
     COALESCE(new.raw_user_meta_data->>'phone', '')
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    email = EXCLUDED.email,
+    phone = EXCLUDED.phone,
+    role = EXCLUDED.role;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

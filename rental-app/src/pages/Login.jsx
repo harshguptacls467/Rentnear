@@ -21,7 +21,7 @@ const Login = () => {
   const [pendingPassword, setPendingPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, logout, resendSignupOtp, verifySignupOtp } = useAuthStore();
+  const { session, loginUser, resendSignupOtp, verifySignupOtp } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -63,64 +63,32 @@ const Login = () => {
     setLoading(true);
     setErrorMsg('');
 
-    // Clear any stale session first
-    await logout();
-
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
     try {
-      // Sign in with email/password
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        // User exists but hasn't verified their email yet — redirect to OTP screen.
-        if (
-          signInError.message?.toLowerCase().includes('email not confirmed') ||
-          signInError.message?.toLowerCase().includes('not confirmed')
-        ) {
-          setPendingEmail(email);
-          setPendingPassword(password);
-          setOtpStep(true);
-          showToast('Please verify your email first.', 'info');
-          try {
-            await resendSignupOtp(email);
-          } catch (resendError) {
-            console.error('Auto OTP resend failed:', resendError);
-          }
-          setLoading(false);
-          return;
-        }
-        throw new Error(signInError.message);
-      }
-
-      // Retrieve the latest session
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        throw new Error(sessionError.message);
-      }
-
-      const authUser = signInData.user;
-      if (!authUser) {
-        throw new Error('Authentication succeeded but no user object returned.');
-      }
-
-      // Fetch (or auto‑create) the public user profile
-      const fullUser = await useAuthStore.getState().fetchPublicUser(authUser);
-
-      // Update the auth store with the fresh session and user profile
-      useAuthStore.setState({
-        session: sessionData.session,
-        user: fullUser,
-        initialized: true,
-      });
-
+      // Login user via store (Email + Password only — NO OTP for verified users!)
+      const fullUser = await loginUser({ email, password });
       showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
       navigate('/home', { replace: true });
     } catch (error) {
+      // If user is unverified, show OTP screen as fallback
+      if (
+        error.message?.toLowerCase().includes('email not confirmed') ||
+        error.message?.toLowerCase().includes('not confirmed')
+      ) {
+        setPendingEmail(email);
+        setPendingPassword(password);
+        setOtpStep(true);
+        showToast('Please verify your email first.', 'info');
+        try {
+          await resendSignupOtp(email);
+        } catch (resendError) {
+          console.error('Auto OTP resend failed:', resendError);
+        }
+        setLoading(false);
+        return;
+      }
       setErrorMsg(error.message || 'Invalid email or password.');
       showToast(error.message || 'Login failed.', 'error');
     } finally {

@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { supabase } from '../supabaseClient';
 
-const useAuthStore = create((set, get) => ({
+export const useAuthStore = create((set, get) => ({
   user: null,
   session: null,
   initialized: false,
 
-  // Reusable profile synchronizer and auto-creator
+  // ── Profile Sync & Fallback Generator ─────────────────────────────────────
   fetchPublicUser: async (authUser) => {
     if (!authUser) return null;
     let profile = { ...authUser };
@@ -20,7 +20,7 @@ const useAuthStore = create((set, get) => ({
       if (!error && data) {
         profile = { ...authUser, ...data };
       } else {
-        // Profile row does not exist in the public.users table (trigger fallback).
+        // Fallback: If DB trigger hasn't created the user row, upsert directly from client
         const newProfile = {
           id: authUser.id,
           name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
@@ -57,67 +57,65 @@ const useAuthStore = create((set, get) => ({
     return profile;
   },
 
-  // Initialize Session & Real-time Sync
+  // ── App Startup Initialization ────────────────────────────────────────────
   initialize: () => {
-    // 1. Check existing session on startup
     supabase.auth
       .getSession()
       .then(async ({ data: { session }, error }) => {
-        if (error) {
+        if (error || !session) {
           set({ session: null, user: null, initialized: true });
           return;
         }
-        const fullUser = session?.user ? await get().fetchPublicUser(session.user) : null;
+        const fullUser = await get().fetchPublicUser(session.user);
         set({ session, user: fullUser, initialized: true });
       })
       .catch(() => {
         set({ session: null, user: null, initialized: true });
       });
 
-    // 2. Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+    // Listen for auth state changes (login, logout, token refresh)
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        const fullUser = session?.user ? await get().fetchPublicUser(session.user) : null;
+        set({ session, user: fullUser, initialized: true });
+      } else if (event === 'SIGNED_OUT') {
         set({ session: null, user: null, initialized: true });
-      } else {
-        const authUser = newSession?.user;
-        if (authUser) {
-          const fullUser = await get().fetchPublicUser(authUser);
-          set({ session: newSession, user: fullUser, initialized: true });
-        } else {
-          set({ session: null, user: null, initialized: true });
-        }
       }
     });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
   },
 
-  // ── OTP helpers ──────────────────────────────────────────────────────────
-  // Re-send the signup verification OTP to the given email address.
-  resendSignupOtp: async (email) => {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
+  // ── Signup Action ─────────────────────────────────────────────────────────
+  signUpUser: async ({ email, password, name, phone, role }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name,
+          full_name: name,
+          phone,
+          role: role || 'both',
+        },
+      },
     });
     if (error) throw new Error(error.message);
+    return data;
   },
 
-  // Verify the 6-digit OTP, then sync the public profile and persist the session.
+  // ── OTP Verification Action ───────────────────────────────────────────────
   verifySignupOtp: async (email, token, password = null) => {
     const cleanEmail = (email || '').trim().toLowerCase();
     const cleanToken = (token || '').trim();
 
+    // 1. Try verification with type: 'signup'
     let { data, error } = await supabase.auth.verifyOtp({
       email: cleanEmail,
       token: cleanToken,
       type: 'signup',
     });
 
-    // Fallback 1 to type: 'email' if type: 'signup' returns an error
+    // 2. Fallback to type: 'email' if signup type token was not issued
     if (error) {
       const fallback1 = await supabase.auth.verifyOtp({
         email: cleanEmail,
@@ -130,7 +128,7 @@ const useAuthStore = create((set, get) => ({
       }
     }
 
-    // Fallback 2 to type: 'magiclink' if type: 'email' returns an error
+    // 3. Fallback to type: 'magiclink' if magiclink type token was issued
     if (error) {
       const fallback2 = await supabase.auth.verifyOtp({
         email: cleanEmail,
@@ -148,7 +146,7 @@ const useAuthStore = create((set, get) => ({
     let authUser = data?.user;
     let activeSession = data?.session;
 
-    // If verification succeeded but Supabase didn't issue a session, auto-login with password
+    // If verification succeeded but Supabase didn't auto-issue a session, sign in with password
     if (!activeSession && password) {
       try {
         const { data: signInData } = await supabase.auth.signInWithPassword({
@@ -160,11 +158,11 @@ const useAuthStore = create((set, get) => ({
           if (signInData.user) authUser = signInData.user;
         }
       } catch {
-        // Signin attempt fallback silent
+        // Silent fallback
       }
     }
 
-    // Explicitly persist session into Supabase Auth Client & localStorage
+    // Explicitly set session in Supabase Auth client to persist tokens in localStorage
     if (activeSession) {
       const { data: setSessionData, error: setSessionErr } = await supabase.auth.setSession({
         access_token: activeSession.access_token,
@@ -173,9 +171,6 @@ const useAuthStore = create((set, get) => ({
       if (!setSessionErr && setSessionData?.session) {
         activeSession = setSessionData.session;
       }
-    } else {
-      const { data: sessionData } = await supabase.auth.getSession();
-      activeSession = sessionData?.session || null;
     }
 
     const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;
@@ -188,14 +183,55 @@ const useAuthStore = create((set, get) => ({
     return fullUser;
   },
 
-  // Sign out cleanly
+  // ── Login Action (NO OTP FOR VERIFIED USERS) ──────────────────────────────
+  loginUser: async ({ email, password }) => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Clear stale state first
+    await supabase.auth.signOut().catch(() => {});
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const authUser = data?.user;
+    const session = data?.session;
+    if (!authUser || !session) {
+      throw new Error('Login succeeded but no valid session was returned.');
+    }
+
+    const fullUser = await get().fetchPublicUser(authUser);
+
+    useAuthStore.setState({
+      session,
+      user: fullUser,
+      initialized: true,
+    });
+
+    return fullUser;
+  },
+
+  // ── Resend Signup OTP Action ──────────────────────────────────────────────
+  resendSignupOtp: async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail,
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  // ── Logout Action ─────────────────────────────────────────────────────────
   logout: async () => {
     try {
       await supabase.auth.signOut();
     } catch {
       // Fail silently
     }
-    set({ session: null, user: null });
+    set({ session: null, user: null, initialized: true });
   },
 }));
 
