@@ -25,6 +25,7 @@ vi.mock('../supabaseClient', () => {
         })),
         resend: (...args) => mockResend(...args),
         verifyOtp: (...args) => mockVerifyOtp(...args),
+        setSession: vi.fn((params) => Promise.resolve({ data: { session: { access_token: params?.access_token || 'token' } }, error: null })),
         signOut: vi.fn(() => Promise.resolve({ error: null })),
       },
       from: (...args) => mockFrom(...args),

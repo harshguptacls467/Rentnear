@@ -132,13 +132,23 @@ const useAuthStore = create((set, get) => ({
     const authUser = data?.user;
     if (!authUser) throw new Error('Verification succeeded but no user returned.');
 
-    const fullUser = await get().fetchPublicUser(authUser);
-
     let activeSession = data?.session;
-    if (!activeSession) {
+
+    // Explicitly persist session into Supabase Auth Client & localStorage
+    if (activeSession) {
+      const { data: setSessionData, error: setSessionErr } = await supabase.auth.setSession({
+        access_token: activeSession.access_token,
+        refresh_token: activeSession.refresh_token,
+      });
+      if (!setSessionErr && setSessionData?.session) {
+        activeSession = setSessionData.session;
+      }
+    } else {
       const { data: sessionData } = await supabase.auth.getSession();
       activeSession = sessionData?.session || null;
     }
+
+    const fullUser = await get().fetchPublicUser(authUser);
 
     useAuthStore.setState({
       session: activeSession,
