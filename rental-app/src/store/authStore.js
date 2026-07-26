@@ -108,19 +108,40 @@ const useAuthStore = create((set, get) => ({
 
   // Verify the 6-digit OTP, then sync the public profile and persist the session.
   verifySignupOtp: async (email, token) => {
-    const { data, error } = await supabase.auth.verifyOtp({
+    let { data, error } = await supabase.auth.verifyOtp({
       email,
       token,
       type: 'signup',
     });
-    if (error) throw new Error(error.message);
+
+    // Fallback to type: 'email' if type: 'signup' returns an error
+    if (error) {
+      const fallback = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+      if (fallback && !fallback.error) {
+        data = fallback.data;
+        error = null;
+      }
+    }
+
+    if (error) throw new Error(error.message || 'Invalid or expired verification code.');
 
     const authUser = data?.user;
     if (!authUser) throw new Error('Verification succeeded but no user returned.');
 
     const fullUser = await get().fetchPublicUser(authUser);
+
+    let activeSession = data?.session;
+    if (!activeSession) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      activeSession = sessionData?.session || null;
+    }
+
     useAuthStore.setState({
-      session: data.session,
+      session: activeSession,
       user: fullUser,
       initialized: true,
     });

@@ -161,45 +161,47 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
         </div>
       )}
 
-      {/* OTP Digit Inputs */}
-      <div className="flex gap-2 justify-center mb-6" onPaste={handlePaste}>
-        {digits.map((digit, index) => (
-          <input
-            key={index}
-            ref={(el) => (inputRefs.current[index] = el)}
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            value={digit}
-            onChange={(e) => handleDigitChange(index, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(index, e)}
-            disabled={loading}
-            className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all duration-200 bg-white/80
-              ${digit ? 'border-primary text-primary shadow-sm shadow-primary/10' : 'border-gray-200 text-gray-800'}
-              ${error ? 'border-red-400' : ''}
-              focus:border-primary focus:ring-2 focus:ring-primary/20
-              disabled:opacity-50 disabled:cursor-not-allowed`}
-            aria-label={`OTP digit ${index + 1}`}
-          />
-        ))}
-      </div>
+      {/* Form Container */}
+      <form onSubmit={(e) => { e.preventDefault(); handleVerify(); }}>
+        {/* OTP Digit Inputs */}
+        <div className="flex gap-2 justify-center mb-6" onPaste={handlePaste}>
+          {digits.map((digit, index) => (
+            <input
+              key={index}
+              ref={(el) => (inputRefs.current[index] = el)}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={digit}
+              onChange={(e) => handleDigitChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              disabled={loading}
+              className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all duration-200 bg-white/80
+                ${digit ? 'border-primary text-primary shadow-sm shadow-primary/10' : 'border-gray-200 text-gray-800'}
+                ${error ? 'border-red-400' : ''}
+                focus:border-primary focus:ring-2 focus:ring-primary/20
+                disabled:opacity-50 disabled:cursor-not-allowed`}
+              aria-label={`OTP digit ${index + 1}`}
+            />
+          ))}
+        </div>
 
-      {/* Verify Button */}
-      <Button
-        type="button"
-        className="w-full py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/20 mb-4"
-        disabled={!isComplete || loading}
-        onClick={handleVerify}
-      >
-        {externalLoading ? (
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>Verifying...</span>
-          </div>
-        ) : (
-          'Verify & Continue'
-        )}
-      </Button>
+        {/* Verify Button */}
+        <Button
+          type="submit"
+          className="w-full py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/20 mb-4"
+          disabled={!isComplete || loading}
+        >
+          {externalLoading ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Verifying...</span>
+            </div>
+          ) : (
+            'Verify & Continue'
+          )}
+        </Button>
+      </form>
 
       {/* Resend Row */}
       <div className="flex items-center justify-center gap-2 text-xs">
