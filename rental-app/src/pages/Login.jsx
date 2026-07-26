@@ -117,7 +117,7 @@ const Login = () => {
       });
 
       showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
-      navigate('/home');
+      navigate('/home', { replace: true });
     } catch (error) {
       setErrorMsg(error.message || 'Invalid email or password.');
       showToast(error.message || 'Login failed.', 'error');
@@ -132,12 +132,8 @@ const Login = () => {
     try {
       const fullUser = await verifySignupOtp(pendingEmail, token);
       showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
+      setVerifying(false);
       navigate('/home', { replace: true });
-      setTimeout(() => {
-        if (window.location.pathname !== '/home') {
-          window.location.href = '/home';
-        }
-      }, 300);
     } catch (err) {
       setVerifying(false);
       throw err;
