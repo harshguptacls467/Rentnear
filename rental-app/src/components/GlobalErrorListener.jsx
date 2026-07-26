@@ -35,12 +35,24 @@ const GlobalErrorListener = () => {
       showToast(`❌ System error: ${message}`, 'error');
     };
 
+    const handleOnline = () => {
+      showToast('⚡ Internet connection restored! Syncing data...', 'success');
+    };
+
+    const handleOffline = () => {
+      showToast('📶 You are currently offline. Local cache database will be used.', 'warning');
+    };
+
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     window.addEventListener('error', handleGlobalError);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, [showToast]);
 

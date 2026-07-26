@@ -22,7 +22,10 @@ CREATE TABLE users (
   rating_average NUMERIC(3, 2) DEFAULT 0,
   rating_count INT DEFAULT 0,
   is_admin BOOLEAN DEFAULT false,
+  admin_status TEXT DEFAULT 'none',
   is_banned BOOLEAN DEFAULT false,
+  email_verified BOOLEAN DEFAULT false,
+  aadhar_number TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -358,6 +361,11 @@ CREATE POLICY "Authenticated users can upload condition checks" ON storage.objec
 INSERT INTO storage.buckets (id, name, public) VALUES ('disputes', 'disputes', true) ON CONFLICT DO NOTHING;
 CREATE POLICY "Public Access for disputes" ON storage.objects FOR SELECT USING (bucket_id = 'disputes');
 CREATE POLICY "Authenticated users can upload disputes" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'disputes' AND auth.role() = 'authenticated');
+
+-- KYC Documents Bucket Policies (Private bucket for security)
+INSERT INTO storage.buckets (id, name, public) VALUES ('kyc-documents', 'kyc-documents', false) ON CONFLICT DO NOTHING;
+CREATE POLICY "Public Access for kyc documents" ON storage.objects FOR SELECT USING (bucket_id = 'kyc-documents');
+CREATE POLICY "Authenticated users can upload kyc documents" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'kyc-documents' AND auth.role() = 'authenticated');
 
 -------------------------------------------------------
 -- ADDITIONAL RLS POLICIES & SECURITY HARDENING

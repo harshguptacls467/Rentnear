@@ -248,7 +248,7 @@ const bookingController = {
 
       if (fetchError || !booking) return res.status(404).json({ message: 'Booking not found' });
       if (booking.owner_id !== userId) return res.status(403).json({ message: 'Only the owner can generate an OTP' });
-      if (booking.status !== 'approved') return res.status(400).json({ message: 'Booking must be approved before handover' });
+      if (booking.status !== 'awaiting_handover') return res.status(400).json({ message: 'Booking must be paid and awaiting handover' });
 
       // Generate 6-digit OTP
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -298,7 +298,7 @@ const bookingController = {
 
       if (fetchError || !booking) return res.status(404).json({ message: 'Booking not found' });
       if (booking.renter_id !== userId) return res.status(403).json({ message: 'Only the renter can verify the OTP' });
-      if (booking.status !== 'approved') return res.status(400).json({ message: 'Booking is not awaiting handover' });
+      if (booking.status !== 'awaiting_handover') return res.status(400).json({ message: 'Booking is not awaiting handover' });
 
       // Get the most recent active OTP for this booking
       const { data: otpRecord, error: otpError } = await supabase

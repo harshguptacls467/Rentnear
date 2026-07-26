@@ -11,6 +11,8 @@ const Input = ({ label, id, error, className = '', ...props }) => {
       <div className="relative">
         <input
           id={id}
+          aria-invalid={error ? "true" : "false"}
+          aria-describedby={error ? `${id}-error` : undefined}
           className={`block w-full rounded-xl py-3 px-4 sm:text-sm transition-all shadow-sm
             ${error 
               ? 'bg-red-50 border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500' 
@@ -25,7 +27,7 @@ const Input = ({ label, id, error, className = '', ...props }) => {
         )}
       </div>
       {error && (
-        <p className="mt-2 text-sm text-red-600 font-medium flex items-center">
+        <p id={`${id}-error`} className="mt-2 text-sm text-red-600 font-medium flex items-center">
           {error}
         </p>
       )}

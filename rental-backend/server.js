@@ -19,7 +19,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // ── Graceful Shutdown ────────────────────────────────────────────────────────
-const gracefulShutdown = (code = 0) => {
+function gracefulShutdown(code = 0) {
   console.log('Initiating graceful shutdown...');
   server.close(() => {
     console.log('HTTP server closed.');
@@ -31,7 +31,7 @@ const gracefulShutdown = (code = 0) => {
     console.error('Could not close connections in time, forcefully shutting down');
     process.exit(code);
   }, 10000);
-};
+}
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received.');

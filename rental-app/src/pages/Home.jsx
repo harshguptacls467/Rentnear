@@ -1,387 +1,524 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
 import useRealtimeStore from '../store/realtimeStore';
 import useRealtimeProducts from '../hooks/useRealtimeProducts';
-import { Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, MapPin, Sparkles, User as UserIcon, ChevronRight, TrendingUp, ShieldCheck, Zap, Lightbulb } from 'lucide-react';
+import { 
+  Search, PlusCircle, Calendar, ArrowRight, PackageOpen, LayoutDashboard, 
+  MapPin, Sparkles, User as UserIcon, ChevronRight, TrendingUp, ShieldCheck, 
+  Zap, Lightbulb, Heart, Bookmark, History, Clock, CheckCircle2, MessageSquare, AlertCircle
+} from 'lucide-react';
 import { MOCK_USER, MOCK_PRODUCTS } from '../data/mockData';
-import { getLocalProducts } from '../utils/localDb';
-import { motion } from 'framer-motion';
+import { 
+  getLocalProducts, getLocalBookings, saveLocalBookings, 
+  getLocalWishlist, getLocalSavedSearches 
+} from '../utils/localDb';
+import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
-};
-
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15 }
-  }
-};
-
-// ==========================================
-// REUSABLE UI COMPONENTS
-// ==========================================
-
-const LoadingSkeleton = () => (
-  <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8">
-    <div className="max-w-7xl mx-auto space-y-12 animate-pulse">
-      <div className="h-40 md:h-64 bg-gray-200 rounded-[2rem] w-full"></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[1, 2, 3].map(i => <div key={i} className="h-48 bg-gray-200 rounded-2xl w-full"></div>)}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        {[1, 2, 3, 4].map(i => <div key={i} className="h-72 bg-gray-200 rounded-2xl w-full"></div>)}
-      </div>
-    </div>
-  </div>
-);
-
-const RoleToggle = ({ mode, setMode }) => (
-  <div className="relative flex items-center bg-white/10 backdrop-blur-md p-1.5 rounded-full border border-white/20 shadow-inner overflow-hidden mt-4 md:mt-0 w-full md:w-auto">
-    <div 
-      className={`absolute top-1.5 bottom-1.5 w-[calc(50%-0.375rem)] bg-white rounded-full shadow-lg transition-transform duration-500 ease-spring ${mode === 'owner' ? 'translate-x-full' : 'translate-x-0'}`}
-    ></div>
-    <button 
-      onClick={() => setMode('renter')}
-      className={`relative z-10 flex-1 md:flex-none px-6 py-2.5 text-sm font-bold rounded-full transition-colors duration-300 ${mode === 'renter' ? 'text-primary' : 'text-white hover:text-white/80'}`}
-    >
-      Renting
-    </button>
-    <button 
-      onClick={() => setMode('owner')}
-      className={`relative z-10 flex-1 md:flex-none px-6 py-2.5 text-sm font-bold rounded-full transition-colors duration-300 ${mode === 'owner' ? 'text-primary' : 'text-white hover:text-white/80'}`}
-    >
-      Listing
-    </button>
-  </div>
-);
-
-const DashboardHeader = ({ profile, mode, setMode }) => {
-  const firstName = profile?.name?.split(' ')[0] || 'There';
-  
-  return (
-    <div className="relative bg-navy rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-14 overflow-hidden shadow-2xl mb-8 md:mb-12 animate-fade-in-up">
-      <div className="absolute top-0 right-0 w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-primary rounded-full mix-blend-screen filter blur-[80px] md:blur-[120px] opacity-20 animate-blob"></div>
-      <div className="absolute bottom-0 left-0 w-[200px] md:w-[400px] h-[200px] md:h-[400px] bg-blue-500 rounded-full mix-blend-screen filter blur-[80px] md:blur-[100px] opacity-20 animate-blob delay-300"></div>
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
-      
-      <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full md:w-auto">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full border-2 border-white/20 p-1 flex-shrink-0">
-            <div className="w-full h-full rounded-full bg-gray-800 overflow-hidden shadow-inner">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900 text-gray-400">
-                  <UserIcon size={32} />
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles size={14} className="text-primary-light animate-pulse" />
-              <span className="text-primary-light text-xs md:text-sm font-bold tracking-wider uppercase">Welcome Back</span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mb-2">
-              Hi, {firstName}.
-            </h1>
-            <p className="text-gray-400 text-sm md:text-lg">
-              {mode === 'renter' 
-                ? 'Discover what your neighborhood has to offer today.' 
-                : 'Manage your listings and track your earnings.'}
-            </p>
-          </div>
-        </div>
-        
-        <RoleToggle mode={mode} setMode={setMode} />
-      </div>
-    </div>
-  );
-};
-
-const QuickActionCard = ({ title, desc, icon: Icon, to, gradient }) => (
-  <motion.div variants={fadeUp} className="h-full">
-    <TiltCard scaleOnHover={1.03}>
-      <Link to={to} className={`group relative bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-gray-100 hover:shadow-2xl transition-all duration-500 overflow-hidden block h-full flex flex-col`}>
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}></div>
-        
-        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-white mb-4 md:mb-6 shadow-lg bg-gradient-to-br ${gradient} group-hover:scale-110 transition-transform duration-500`}>
-          <Icon size={24} className="md:w-7 md:h-7" />
-        </div>
-        <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2 md:mb-3 group-hover:text-primary transition-colors">{title}</h3>
-        <p className="text-gray-500 text-xs md:text-sm leading-relaxed mb-6 flex-1">{desc}</p>
-        
-        <div className="flex items-center gap-2 text-sm font-bold text-primary opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500 mt-auto">
-          Get Started <ArrowRight size={16} />
-        </div>
-      </Link>
-    </TiltCard>
-  </motion.div>
-);
-
-const ProductCard = ({ product }) => {
-  const isNew = useRealtimeStore(state => state.isNewProduct(product.id));
-  return (
-    <motion.div variants={fadeUp} className="h-full">
-      <TiltCard scaleOnHover={1.03}>
-        <Link to={`/products/${product.id}`} className={`group relative bg-white rounded-[2rem] border overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 block h-full flex flex-col ${isNew ? 'border-primary/40 ring-2 ring-primary/10' : 'border-gray-100'}`}>
-          
-          <div className="h-48 md:h-56 relative overflow-hidden bg-gray-100">
-            {product.images && product.images.length > 0 ? (
-              <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-300">
-                <PackageOpen size={48} />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-            
-            {/* "New" badge for recently listed items */}
-            {isNew && (
-              <div className="absolute top-4 left-4">
-                <span className="bg-primary text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white"></span> NEW
-                </span>
-              </div>
-            )}
-            {!isNew && (
-              <div className="absolute top-4 left-4">
-                {product.is_available !== false ? (
-                  <span className="bg-white/90 backdrop-blur-md text-primary text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-primary animate-pulse"></span> Available
-                  </span>
-                ) : (
-                  <span className="bg-white/90 backdrop-blur-md text-red-500 text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-                    Rented
-                  </span>
-                )}
-              </div>
-            )}
-            
-            <div className="absolute top-4 right-4 bg-navy/90 backdrop-blur-md px-3 md:px-4 py-1.5 md:py-2 rounded-2xl text-white shadow-lg border border-white/10">
-              <span className="text-base md:text-lg font-bold">${product.price_per_day}</span>
-              <span className="text-[10px] md:text-xs text-gray-400 font-normal"> /day</span>
-            </div>
-
-            <div className="absolute bottom-4 left-4 right-4 flex items-center text-white/90 text-xs md:text-sm font-medium">
-              <MapPin size={14} className="mr-1.5 md:w-4 md:h-4" />
-              <span className="truncate drop-shadow-md">{product.location || 'Local Area'}</span>
-            </div>
-          </div>
-          
-          <div className="p-4 md:p-6 flex-1 flex flex-col">
-            <h4 className="font-bold text-gray-900 text-lg md:text-xl mb-1 md:mb-2 truncate group-hover:text-primary transition-colors">{product.title}</h4>
-            <p className="text-xs md:text-sm text-gray-500 line-clamp-2 leading-relaxed flex-1">{product.description || 'No description provided'}</p>
-          </div>
-        </Link>
-      </TiltCard>
-    </motion.div>
-  );
-};
-
-
-// ==========================================
-// MAIN PAGE COMPONENT
-// ==========================================
-
 const Home = () => {
   const { user, isMock } = useAuthStore();
+  const navigate = useNavigate();
+  
   const [profile, setProfile] = useState(null);
-  const [recentProducts, setRecentProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('renter');
 
-  // Live product feed — auto-prepends new listings as they are created
+  // Dashboard specific data
+  const [recentProducts, setRecentProducts] = useState([]);
+  const [ownerListings, setOwnerListings] = useState([]);
+  const [ownerRequests, setOwnerRequests] = useState([]);
+  const [renterActive, setRenterActive] = useState([]);
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [savedSearches, setSavedSearches] = useState([]);
+
+  // Live product feed
   useRealtimeProducts(setRecentProducts, isMock);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
-      try {
-        setLoading(true);
-        if (isMock) {
-          throw new Error('mock');
-        }
-        const { data: profileData } = await supabase.from('users').select('*').eq('id', user.id).single();
-        if (profileData) {
-          setProfile(profileData);
-          setViewMode(profileData.role === 'owner' ? 'owner' : 'renter');
-        } else {
-          setProfile(MOCK_USER);
-          setViewMode(MOCK_USER.role === 'owner' ? 'owner' : 'renter');
-        }
-
-        const { data: productsData } = await supabase.from('products').select('*').limit(4).order('created_at', { ascending: false });
-        if (productsData && productsData.length > 0) setRecentProducts(productsData);
-        else setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
-
-      } catch (error) {
-        if (isMock) {
-          setProfile(user);
-          setViewMode(user?.role === 'owner' ? 'owner' : 'renter');
-          
-          const localProds = getLocalProducts();
-          // Sort newest (created_at desc)
-          const sortedProds = [...localProds].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          setRecentProducts(sortedProds.slice(0, 4));
-        } else {
-          setProfile(MOCK_USER);
-          setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
-        }
-      } finally {
-        setLoading(false);
+  const fetchDashboardData = async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      
+      // User Profile Details
+      let profileData = null;
+      if (!isMock) {
+        const { data } = await supabase.from('users').select('*').eq('id', user.id).single();
+        if (data) profileData = data;
       }
-    };
+      if (!profileData) {
+        profileData = user;
+      }
+      setProfile(profileData);
+      setViewMode(profileData.role === 'owner' ? 'owner' : 'renter');
 
-    if (!user) {
-      Promise.resolve().then(() => {
-        setProfile(MOCK_USER);
-        setRecentProducts(MOCK_PRODUCTS.slice(0, 4));
-        setLoading(false);
-      });
-      return;
+      // Fetch Recent Directory Listings
+      let productsData = [];
+      if (!isMock) {
+        const { data } = await supabase.from('products').select('*').limit(4).order('created_at', { ascending: false });
+        if (data) productsData = data;
+      }
+      if (productsData.length === 0) {
+        productsData = getLocalProducts().slice(0, 4);
+      }
+      setRecentProducts(productsData);
+
+      // Fetch User Wishlist, Saved Searches
+      const wishIds = getLocalWishlist(user.id);
+      const allLocalProds = getLocalProducts();
+      setWishlistItems(allLocalProds.filter(p => wishIds.includes(p.id)).slice(0, 3));
+      setSavedSearches(getLocalSavedSearches(user.id).slice(0, 4));
+
+      // Fetch Owner Listings & Incoming Requests
+      let localListings = [];
+      let localRequests = [];
+      if (!isMock) {
+        const { data: listData } = await supabase.from('products').select('*').eq('owner_id', user.id);
+        if (listData) localListings = listData;
+
+        const { data: reqData } = await supabase.from('bookings').select(`
+          *,
+          product:products(*),
+          renter:users!bookings_renter_id_fkey(name, avatar_url)
+        `).eq('owner_id', user.id).eq('status', 'pending');
+        if (reqData) localRequests = reqData;
+      } else {
+        localListings = getLocalProducts().filter(p => p.owner_id === user.id);
+        localRequests = getLocalBookings().filter(b => b.owner_id === user.id && b.status === 'pending');
+      }
+      setOwnerListings(localListings);
+      setOwnerRequests(localRequests);
+
+      // Fetch Active Renter Rentals
+      let localRenterRentals = [];
+      if (!isMock) {
+        const { data: rentData } = await supabase.from('bookings').select(`
+          *,
+          product:products(*)
+        `).eq('renter_id', user.id).in('status', ['approved', 'awaiting_handover', 'active']);
+        if (rentData) localRenterRentals = rentData;
+      } else {
+        localRenterRentals = getLocalBookings().filter(b => b.renter_id === user.id && ['approved', 'awaiting_handover', 'active'].includes(b.status));
+      }
+      setRenterActive(localRenterRentals);
+
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
   }, [user, isMock]);
 
-  if (loading) return <LoadingSkeleton />;
+  const handleApproveRequest = async (reqId) => {
+    try {
+      if (!isMock) {
+        await supabase.from('bookings').update({ status: 'approved' }).eq('id', reqId);
+      } else {
+        const bookings = getLocalBookings();
+        const updated = bookings.map(b => b.id === reqId ? { ...b, status: 'approved' } : b);
+        saveLocalBookings(updated);
+      }
+      fetchDashboardData();
+    } catch (e) {
+      alert('Failed to approve request');
+    }
+  };
+
+  const handleRejectRequest = async (reqId) => {
+    try {
+      if (!isMock) {
+        await supabase.from('bookings').update({ status: 'rejected' }).eq('id', reqId);
+      } else {
+        const bookings = getLocalBookings();
+        const updated = bookings.map(b => b.id === reqId ? { ...b, status: 'rejected' } : b);
+        saveLocalBookings(updated);
+      }
+      fetchDashboardData();
+    } catch (e) {
+      alert('Failed to reject request');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 flex justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  const firstName = profile?.name?.split(' ')[0] || 'Neighbor';
 
   return (
     <AnimatedPage className="min-h-screen bg-[#F8FAFC] pb-24 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-full h-[600px] bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none"></div>
+      {/* Decorative premium background shapes */}
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[150px] pointer-events-none"></div>
 
-      <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
-        {/* Header */}
-        <motion.div variants={fadeUp}>
-          <DashboardHeader profile={profile} mode={viewMode} setMode={setViewMode} />
-        </motion.div>
-
-        {/* Dashboard Analytics & Stats */}
-        {viewMode === 'owner' && (
-          <motion.div variants={fadeUp} className="mb-8 md:mb-12">
-            <h2 className="text-xl md:text-2xl font-extrabold text-gray-900 mb-4 md:mb-6">Performance Overview</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {[
-                { label: "Earnings this month", val: "$450.00", icon: TrendingUp, color: "text-green-500", bg: "bg-green-50" },
-                { label: "Active Listings", val: "4 Items", icon: PackageOpen, color: "text-blue-500", bg: "bg-blue-50" },
-                { label: "Pending Requests", val: "2 Alerts", icon: Zap, color: "text-amber-500", bg: "bg-amber-50" },
-                { label: "Profile Rating", val: "4.9/5.0", icon: ShieldCheck, color: "text-primary", bg: "bg-primary/10" }
-              ].map((stat, i) => (
-                <div key={i} className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm">
-                  <div className={`w-10 h-10 md:w-12 md:h-12 ${stat.bg} rounded-xl flex items-center justify-center mb-3 md:mb-4`}>
-                    <stat.icon size={20} className={`${stat.color}`} />
-                  </div>
-                  <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">{stat.label}</p>
-                  <p className="text-xl md:text-3xl font-black text-gray-900">{stat.val}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Quick Actions Bento Grid */}
-        <motion.div variants={staggerContainer} className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-12 md:mb-20 relative z-10">
-          <QuickActionCard 
-            title="Browse Nearby" 
-            desc="Discover tools, electronics, and gear available to rent from your neighbors right now. Everything is KYC verified."
-            icon={Search} 
-            to="/products"
-            gradient="from-blue-500 to-indigo-600"
-          />
-          <QuickActionCard 
-            title="List an Item" 
-            desc="Turn your idle items into a passive income stream. It takes 2 minutes to create a listing. Insurance included."
-            icon={PlusCircle} 
-            to="/list-product"
-            gradient="from-primary to-teal-600"
-          />
-          <QuickActionCard 
-            title="My Bookings" 
-            desc="Manage your current rentals, upcoming reservations, and detailed history. Track everything in one place."
-            icon={Calendar} 
-            to="/bookings"
-            gradient="from-purple-500 to-pink-500"
-          />
-        </motion.div>
-
-        {/* Dynamic Helpful Tips Section */}
-        <motion.div variants={fadeUp} className="bg-gradient-to-br from-navy to-navy-light rounded-[2rem] p-6 md:p-10 text-white mb-16 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]"></div>
-          <div className="relative z-10 flex flex-col md:flex-row gap-6 md:gap-12 items-center">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <Lightbulb size={20} className="text-yellow-400" />
-                <span className="text-yellow-400 font-bold tracking-widest uppercase text-xs">RentNear Guide</span>
-              </div>
-              <h3 className="text-2xl md:text-3xl font-extrabold mb-4 leading-tight">Maximize your experience</h3>
-              <p className="text-gray-300 text-sm md:text-base leading-relaxed mb-6">
-                Did you know that listings with 3 or more high-quality photos get rented 4x more often? Make sure your descriptions are clear and you reply to booking requests within 12 hours to maintain a high trust score.
+        {/* Hero Banner Area */}
+        <div className="relative overflow-hidden bg-navy text-white rounded-[2.5rem] p-8 md:p-16 mb-12 shadow-premium border border-white/5">
+          <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-primary/25 rounded-full filter blur-[120px] mix-blend-screen pointer-events-none"></div>
+          <div className="absolute bottom-[-10%] left-[20%] w-[300px] h-[300px] bg-indigo-500/10 rounded-full filter blur-[100px] mix-blend-screen pointer-events-none"></div>
+          
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            <div className="space-y-6">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-widest text-primary-light uppercase bg-primary/15 border border-primary/20">
+                <Sparkles size={10} className="animate-spin-slow" /> Peer-to-Peer Rental Network
+              </span>
+              <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-none text-white">
+                Rent goods <br />
+                <span className="text-primary-light bg-gradient-to-r from-primary-light to-emerald-400 bg-clip-text text-transparent">locally near you</span>
+              </h1>
+              <p className="text-sm md:text-base text-gray-455 max-w-md leading-relaxed">
+                Save money, declutter your closets, and reduce carbon emissions. Access premium tools, camera gear, and camping supplies right in your neighborhood.
               </p>
-              <Link to="/profile" className="inline-block bg-white/10 hover:bg-white/20 px-6 py-3 rounded-full font-bold text-sm transition-colors border border-white/20">
-                Complete your Profile
-              </Link>
-            </div>
-            <div className="w-full md:w-1/3 grid grid-cols-2 gap-3">
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl text-center">
-                <p className="text-2xl font-black text-white">4x</p>
-                <p className="text-[10px] text-gray-400 uppercase font-bold mt-1">More Bookings</p>
+              
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Link to="/products" className="px-6 py-3 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dark transition-all shadow-lg shadow-primary/25 hover:scale-[1.02]">
+                  Explore Catalog
+                </Link>
+                <Link to="/list-product" className="px-6 py-3 bg-white/10 text-white rounded-2xl text-xs font-black border border-white/10 hover:bg-white/20 transition-all hover:scale-[1.02]">
+                  List an Item
+                </Link>
               </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl text-center">
-                <p className="text-2xl font-black text-white">100%</p>
-                <p className="text-[10px] text-gray-400 uppercase font-bold mt-1">Secured Escrow</p>
+            </div>
+            
+            <div className="hidden lg:block relative">
+              {/* Premium Dashboard preview graphics panel */}
+              <div className="glass-panel-dark rounded-3xl p-6 border border-white/10 shadow-2xl relative z-10 max-w-sm mx-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <span className="text-xs font-black text-gray-400 tracking-wider">ECO SAVINGS INDEX</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center"><span className="text-xs text-gray-400">Total Carbon Offset</span><span className="font-mono text-sm font-black text-primary-light">-240kg CO₂</span></div>
+                  <div className="flex justify-between items-center"><span className="text-xs text-gray-400">Circular Rentals</span><span className="font-mono text-sm font-black text-primary-light">342 Handovers</span></div>
+                  <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-primary w-4/5 rounded-full"></div></div>
+                </div>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Recent Listings Header */}
-        <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 md:mb-10 gap-4">
+        {/* Dashboard Switch Header & Toggle Block */}
+        <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2 md:gap-3">
-              <LayoutDashboard className="text-primary" size={24} />
-              Fresh on RentNear
-            </h2>
-            <p className="text-gray-500 mt-2 text-sm md:text-lg">The latest items added by your community</p>
+            <h2 className="text-xl font-black text-navy leading-none">Hi, {firstName}.</h2>
+            <p className="text-xs text-gray-400 mt-1">Manage your active accounts and dashboard panels below.</p>
           </div>
-          <Link to="/products" className="group flex items-center justify-center gap-2 text-primary font-bold hover:text-primary-dark transition-colors bg-primary/10 px-6 py-3 rounded-full w-full sm:w-auto text-sm md:text-base">
-            View Directory <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </motion.div>
+          
+          <div className="relative flex items-center bg-gray-150/50 p-1.5 rounded-full border border-gray-200 w-full md:w-auto">
+            <button 
+              onClick={() => setViewMode('renter')}
+              className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-full transition-all duration-300 ${viewMode === 'renter' ? 'bg-navy text-white shadow-md' : 'text-gray-500 hover:text-navy'}`}
+            >
+              Renter Dashboard
+            </button>
+            <button 
+              onClick={() => setViewMode('owner')}
+              className={`flex-1 md:flex-none px-6 py-2 text-xs font-bold rounded-full transition-all duration-300 ${viewMode === 'owner' ? 'bg-navy text-white shadow-md' : 'text-gray-500 hover:text-navy'}`}
+            >
+              Owner Dashboard
+            </button>
+          </div>
+        </div>
 
-        {/* Recent Listings Grid */}
-        {recentProducts.length > 0 ? (
-          <motion.div variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {recentProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </motion.div>
-        ) : (
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 md:p-16 text-center shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-200 via-primary to-gray-200"></div>
-            <div className="w-20 h-20 md:w-24 md:h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-              <PackageOpen size={32} className="text-gray-400 md:w-10 md:h-10" />
-            </div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-3">No listings in your area yet</h3>
-            <p className="text-gray-500 mb-8 max-w-md mx-auto text-sm md:text-lg leading-relaxed">
-              Be the first pioneer in your neighborhood to list an item and start building the local circular economy.
-            </p>
-            <Link to="/list-product">
-              <button className="w-full sm:w-auto px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary-dark hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(13,158,117,0.8)] transition-all duration-300">
-                Create First Listing
+        {/* Bento Grid Containers based on Switch mode */}
+        <AnimatePresence mode="wait">
+          {viewMode === 'renter' ? (
+            
+            /* RENTER BENTO DASHBOARD PAGE */
+            <motion.div 
+              key="renter"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12"
+            >
+              {/* Active Rentals Panel (Left Column span-2) */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <h3 className="text-lg font-black text-navy mb-4 flex items-center gap-2">
+                    <Clock className="text-primary" size={20} /> Active Rentals & Pickups
+                  </h3>
+                  
+                  {renterActive.length === 0 ? (
+                    <div className="text-center py-10 border border-dashed border-gray-250 rounded-2xl">
+                      <PackageOpen className="text-gray-300 mx-auto mb-2" size={32} />
+                      <p className="text-sm font-bold text-gray-500">No active rentals right now</p>
+                      <Link to="/products" className="text-xs text-primary font-bold hover:underline mt-2 inline-block">Browse Catalog</Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {renterActive.map((rent) => (
+                        <div key={rent.id} className="bg-gray-50 p-4 border border-gray-100 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-10 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                              <img src={rent.product?.images?.[0] || 'https://via.placeholder.com/150'} alt="product" className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                              <h4 className="font-extrabold text-navy text-sm leading-tight">{rent.product?.title}</h4>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Return Due: {new Date(rent.end_date).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 w-full md:w-auto justify-end">
+                            <Link to={`/chat/${rent.id}`} className="px-3.5 py-2 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold flex items-center gap-1">
+                              <MessageSquare size={13} /> Chat
+                            </Link>
+                            <Link to="/bookings" className="px-3.5 py-2 bg-navy text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm">
+                              Track Details <ChevronRight size={13} />
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Popular searches Suggestions */}
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <h3 className="text-lg font-black text-navy mb-4 flex items-center gap-2">
+                    <Search className="text-primary" size={20} /> Saved Searches & Tags
+                  </h3>
+                  {savedSearches.length === 0 ? (
+                    <p className="text-xs text-gray-450 italic">No saved search keywords yet.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {savedSearches.map((term, idx) => (
+                        <button 
+                          key={idx}
+                          onClick={() => navigate(`/products?search=${encodeURIComponent(term)}`)}
+                          className="px-4 py-2 bg-gray-50 border border-gray-200 hover:border-navy text-gray-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                        >
+                          <Bookmark size={11} /> {term}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Renter Right Column: Wishlist shortcuts */}
+              <div className="space-y-6">
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <h3 className="text-lg font-black text-navy mb-4 flex items-center gap-2">
+                    <Heart className="text-red-500 fill-current" size={20} /> Wishlist shortcuts
+                  </h3>
+                  {wishlistItems.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic text-center py-6">Your wishlist is empty.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {wishlistItems.map((item) => (
+                        <Link key={item.id} to={`/products/${item.id}`} className="flex items-center gap-3 group border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                          <div className="w-12 h-12 bg-gray-150 rounded-xl overflow-hidden flex-shrink-0">
+                            <img src={item.images?.[0] || 'https://via.placeholder.com/150'} alt="wishlist product" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-navy text-xs leading-tight truncate group-hover:text-primary transition-colors">{item.title}</h4>
+                            <p className="text-[10px] text-gray-400 font-extrabold mt-1">${item.price_per_day}/day</p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            
+            /* OWNER BENTO DASHBOARD PAGE */
+            <motion.div 
+              key="owner"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12"
+            >
+              {/* Owner Stats & Payout Chart (Left Column span-2) */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Pending requests directly actioned on Home screen */}
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <h3 className="text-lg font-black text-navy mb-4 flex items-center gap-2">
+                    <Zap className="text-amber-500 fill-current animate-pulse" size={20} /> Incoming Rent Requests
+                  </h3>
+                  {ownerRequests.length === 0 ? (
+                    <p className="text-xs text-gray-450 italic py-4">No pending request tickets at this moment.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {ownerRequests.map((req) => (
+                        <div key={req.id} className="p-4 bg-gray-50 border border-gray-100 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div>
+                            <h4 className="font-extrabold text-navy text-sm leading-tight">Request for {req.product?.title}</h4>
+                            <p className="text-[10px] text-gray-400 font-bold mt-1">Requested by: {req.renter?.name || 'Neighbor'}</p>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleApproveRequest(req.id)}
+                              className="px-3.5 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-xs font-bold shadow-sm"
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              onClick={() => handleRejectRequest(req.id)}
+                              className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-xl text-xs font-bold"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Earnings Progression Analytics */}
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-base font-black text-navy">Payout Payout Analytics</h3>
+                      <p className="text-xs text-gray-500">Your monthly platform paycheck trajectory</p>
+                    </div>
+                    <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                      Take-Home Rate: 90%
+                    </span>
+                  </div>
+
+                  {/* SVG Chart Preview */}
+                  <div className="h-32 w-full mt-4">
+                    <svg className="w-full h-full" viewBox="0 0 500 120" preserveAspectRatio="none">
+                      <linearGradient id="homeEarnGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0d9e75" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#0d9e75" stopOpacity="0.0" />
+                      </linearGradient>
+                      <path d="M 0 90 L 100 70 L 200 45 L 300 65 L 400 30 L 500 15 L 500 120 L 0 120 Z" fill="url(#homeEarnGrad)" />
+                      <path d="M 0 90 L 100 70 L 200 45 L 300 65 L 400 30 L 500 15" fill="none" stroke="#0d9e75" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Owner Right Column: active Listings list */}
+              <div className="space-y-6">
+                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-black text-navy flex items-center gap-2">
+                      <PackageOpen className="text-primary" size={20} /> Active Listings
+                    </h3>
+                    <Link to="/my-listings" className="text-xs text-primary font-bold hover:underline">Manage All</Link>
+                  </div>
+                  {ownerListings.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic text-center py-6">No listings added yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {ownerListings.slice(0, 3).map((list) => (
+                        <div key={list.id} className="flex items-center gap-3 border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                          <div className="w-12 h-12 bg-gray-150 rounded-xl overflow-hidden flex-shrink-0">
+                            <img src={list.images?.[0] || 'https://via.placeholder.com/150'} alt="listing" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-navy text-xs leading-tight truncate">{list.title}</h4>
+                            <p className="text-[10px] text-gray-450 mt-1 font-bold">
+                              ${list.price_per_day}/day • <span className={list.is_available ? 'text-green-500' : 'text-amber-500'}>{list.is_available ? 'Available' : 'Rented'}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+          )}
+        </AnimatePresence>
+
+        {/* Featured Categories Collections */}
+        <div className="mb-12">
+          <h3 className="text-lg font-black text-navy mb-4 flex items-center gap-2">
+            <LayoutDashboard className="text-primary" size={20} /> Featured Categories
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { title: "Camera Gear", icon: "📸", category: "Electronics", color: "from-blue-500/10 to-indigo-500/10" },
+              { title: "Camping & Outdoors", icon: "🏕️", category: "Outdoors", color: "from-green-500/10 to-emerald-500/10" },
+              { title: "Power Tools", icon: "🔧", category: "Tools", color: "from-amber-500/10 to-orange-500/10" },
+              { title: "Party Supplies", icon: "🥳", category: "Party", color: "from-pink-500/10 to-rose-500/10" }
+            ].map((cat, idx) => (
+              <button 
+                key={idx}
+                onClick={() => navigate(`/products?category=${cat.category}`)}
+                className={`bg-gradient-to-br ${cat.color} border border-gray-100 hover:border-primary/30 p-5 rounded-3xl text-left transition-all duration-300 hover:scale-[1.02] flex items-center gap-4 group`}
+              >
+                <span className="text-3xl group-hover:scale-110 transition-transform">{cat.icon}</span>
+                <div>
+                  <h4 className="font-extrabold text-navy text-sm leading-tight">{cat.title}</h4>
+                  <p className="text-[10px] text-gray-455 mt-1 font-bold">Browse Listings →</p>
+                </div>
               </button>
-            </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Global Directory Overview header */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-navy tracking-tight flex items-center gap-2">
+              <LayoutDashboard className="text-primary" size={22} /> Fresh Listings Near Me
+            </h2>
+            <p className="text-gray-500 text-xs md:text-sm mt-1">Rent tools, camera kits, and camping products locally.</p>
+          </div>
+          <Link to="/products" className="group flex items-center justify-center gap-2 text-primary font-bold hover:text-primary-dark transition-colors bg-primary/10 px-5 py-2.5 rounded-full text-xs">
+            Explore Directory <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
+
+        {/* Product Card Row */}
+        {recentProducts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {recentProducts.slice(0, 4).map((product) => {
+              const image = product.images?.[0] || 'https://via.placeholder.com/400';
+              return (
+                <div key={product.id} className="h-full">
+                  <TiltCard scaleOnHover={1.02}>
+                    <Link to={`/products/${product.id}`} className="group relative bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm card-hover-lift block h-full flex flex-col">
+                      <div className="h-44 relative bg-gray-100 overflow-hidden">
+                        <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute top-3 right-3 bg-navy/90 px-3 py-1.5 rounded-xl text-white shadow-sm backdrop-blur-sm border border-white/10">
+                          <span className="text-sm font-black">${product.price_per_day}</span>
+                          <span className="text-[9px] text-gray-400">/day</span>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 flex-1 flex flex-col">
+                        <span className="text-[9px] font-black text-primary uppercase tracking-widest mb-1.5">{product.category}</span>
+                        <h4 className="font-extrabold text-navy text-sm mb-1 truncate group-hover:text-primary transition-colors">{product.title}</h4>
+                        <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed flex-1">{product.description || 'No description provided'}</p>
+                      </div>
+                    </Link>
+                  </TiltCard>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white rounded-3xl border border-gray-100 p-8 text-center shadow-sm">
+            <PackageOpen size={36} className="text-gray-300 mx-auto mb-3" />
+            <p className="text-sm font-bold text-gray-500">No active products added nearby.</p>
           </div>
         )}
-      </motion.div>
+
+      </div>
     </AnimatedPage>
   );
 };

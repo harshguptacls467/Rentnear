@@ -60,7 +60,7 @@ router.patch('/kyc/:id/resolve', resolveKycSubmission);
 
 // Payments & Refunds
 router.get('/payments', getPayments);
-postRefund = processRefund; // alias
+const postRefund = processRefund; // alias
 router.post('/payments/refund', processRefund);
 
 // Category Settings

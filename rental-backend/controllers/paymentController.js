@@ -84,10 +84,10 @@ const paymentController = {
 
       if (bookingError || !booking) return res.status(404).json({ message: 'Booking not found' });
 
-      // 1. Update booking status
+      // 1. Update booking status to awaiting_handover
       const { error: updateError } = await supabase
         .from('bookings')
-        .update({ status: 'paid' })
+        .update({ status: 'awaiting_handover' })
         .eq('id', booking_id);
 
       if (updateError) throw updateError;
@@ -172,6 +172,37 @@ const paymentController = {
       );
 
       res.json({ message: "Deposit refunded successfully" });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // 4. Create Stripe Checkout Session (Skeleton for future integration)
+  createStripeCheckoutSession: async (req, res, next) => {
+    try {
+      const { id: booking_id } = req.params;
+      res.json({
+        stripe_session_id: `mock_stripe_session_${Math.random().toString(36).substring(2, 10)}`,
+        publishable_key: "pk_test_mock_keys_rentnear",
+        message: "Stripe gateway mock session prepared successfully"
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // 5. Record Payment Retry Attempt
+  recordPaymentRetry: async (req, res, next) => {
+    try {
+      const { id: booking_id } = req.params;
+      const { error_message } = req.body;
+      
+      await supabase.from('admin_audit_logs').insert([{
+        action: 'payment_retry_recorded',
+        details: { booking_id, error_message, user_id: req.user.id }
+      }]);
+      
+      res.json({ success: true, message: "Payment retry log successfully submitted" });
     } catch (error) {
       next(error);
     }

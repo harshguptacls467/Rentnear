@@ -83,10 +83,12 @@ const Register = () => {
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
     try {
+      const redirectUri = `${window.location.origin}/auth/callback`;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: redirectUri,
           data: {
             name: name,
             full_name: name,

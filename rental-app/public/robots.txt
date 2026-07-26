@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /settings/
+Disallow: /bookings/
+Disallow: /chat/
+
+Sitemap: https://rentnear.app/sitemap.xml

@@ -52,7 +52,19 @@ const AuthCallback = () => {
             return;
           }
 
-          if (data?.session) {
+          let session = data?.session;
+          if (!session) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            session = sessionData?.session;
+          }
+
+          if (session) {
+            const fullUser = await useAuthStore.getState().fetchPublicUser(session.user);
+            useAuthStore.setState({ 
+              session: session, 
+              user: fullUser, 
+              isAuthenticated: true 
+            });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
             setTimeout(() => navigate(targetRoute), 1500);
@@ -72,7 +84,19 @@ const AuthCallback = () => {
             return;
           }
 
-          if (data?.session) {
+          let session = data?.session;
+          if (!session) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            session = sessionData?.session;
+          }
+
+          if (session) {
+            const fullUser = await useAuthStore.getState().fetchPublicUser(session.user);
+            useAuthStore.setState({ 
+              session: session, 
+              user: fullUser, 
+              isAuthenticated: true 
+            });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
             setTimeout(() => navigate(targetRoute), 1500);
@@ -95,7 +119,19 @@ const AuthCallback = () => {
             return;
           }
 
-          if (data?.session) {
+          let session = data?.session;
+          if (!session) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            session = sessionData?.session;
+          }
+
+          if (session) {
+            const fullUser = await useAuthStore.getState().fetchPublicUser(session.user);
+            useAuthStore.setState({ 
+              session: session, 
+              user: fullUser, 
+              isAuthenticated: true 
+            });
             setStatus('success');
             const targetRoute = type === 'recovery' ? '/reset-password' : '/home';
             setTimeout(() => navigate(targetRoute), 1500);

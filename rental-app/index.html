@@ -4,7 +4,37 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>rental-app</title>
+    <title>RentNear | Local Peer-to-Peer Rental Marketplace</title>
+    <meta name="description" content="RentNear is the premier peer-to-peer neighborhood marketplace. Rent tools, camera gear, speakers, camping equipment, and books locally with secure escrow holds." />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://rentnear.app/" />
+    <meta property="og:title" content="RentNear | Neighborhood Peer-to-Peer Rental Marketplace" />
+    <meta property="og:description" content="Access thousands of certified rental products within your neighborhood. Create listings, rent gear safely, and scale the local sharing economy." />
+    <meta property="og:image" content="https://rentnear.app/signup_cover.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://rentnear.app/" />
+    <meta property="twitter:title" content="RentNear | Neighborhood Peer-to-Peer Rental Marketplace" />
+    <meta property="twitter:description" content="Access thousands of certified rental products within your neighborhood. Create listings, rent gear safely, and scale the local sharing economy." />
+    <meta property="twitter:image" content="https://rentnear.app/signup_cover.png" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "RentNear",
+        "url": "https://rentnear.app/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://rentnear.app/products?search={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

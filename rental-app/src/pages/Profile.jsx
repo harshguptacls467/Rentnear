@@ -593,6 +593,12 @@ const Profile = () => {
                             <Mail size={12} />
                             {profile.email_verified ? 'Email Verified' : 'Email Unverified'}
                           </span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                            <ShieldCheck size={12} /> Trusted Peer
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Sparkles size={12} /> Top Renter 2026
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -726,6 +732,25 @@ const Profile = () => {
                     {[1, 2, 3, 4, 5].map((star) => <Star key={star} size={24} fill={(profile.rating_average || 0) >= star ? "currentColor" : "transparent"} className={(profile.rating_average || 0) >= star ? "" : "opacity-30"}/>)}
                   </div>
                   <p className="text-sm text-gray-400 font-medium">Based on {profile.rating_count || 0} reviews</p>
+                  
+                  {/* Rating Breakdown Chart */}
+                  <div className="space-y-1.5 mt-4">
+                    {[
+                      { star: 5, pct: 85 },
+                      { star: 4, pct: 15 },
+                      { star: 3, pct: 0 },
+                      { star: 2, pct: 0 },
+                      { star: 1, pct: 0 }
+                    ].map(row => (
+                      <div key={row.star} className="flex items-center gap-2 text-[10px] text-gray-350">
+                        <span className="w-3 text-right font-black">{row.star}★</span>
+                        <div className="flex-1 h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
+                          <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${row.pct}%` }}></div>
+                        </div>
+                        <span className="w-6 text-left">{row.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 
                 <div className="space-y-4 border-t border-gray-700/50 pt-8 mb-10 relative z-10">

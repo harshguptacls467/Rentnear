@@ -1,11 +1,10 @@
+const logger = require('../utils/logger');
+
 const errorHandler = (err, req, res, next) => {
   const isDev = process.env.NODE_ENV !== 'production';
 
-  // Log the complete error stack on the server for debugging
-  console.error(`[ERROR] [${new Date().toISOString()}] Path: ${req.path} | Message: ${err.message}`);
-  if (err.stack) {
-    console.error(err.stack);
-  }
+  // Log the complete error stack on the server for debugging using structured logger
+  logger.error(`Path: ${req.path} | Message: ${err.message}`, err);
 
   let statusCode = err.statusCode || err.status || 500;
   let message = err.message || 'An unexpected error occurred.';

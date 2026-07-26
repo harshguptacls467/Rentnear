@@ -48,6 +48,21 @@ const NotificationBell = () => {
           setNotifications((prev) => [payload.new, ...prev].slice(0, 10));
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          const updated = payload.new;
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === updated.id ? { ...n, ...updated } : n))
+          );
+        }
+      )
       .subscribe();
 
     return () => {

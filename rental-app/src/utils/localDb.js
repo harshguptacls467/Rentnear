@@ -82,3 +82,51 @@ export const getLocalReviews = () => {
 export const saveLocalReviews = (reviews) => {
   safeSetItem('rentnear_local_reviews', JSON.stringify(reviews));
 };
+
+// Wishlist Helpers
+export const getLocalWishlist = (userId) => {
+  const key = `rentnear_wishlist_${userId || 'anonymous'}`;
+  const data = safeGetItem(key);
+  try {
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveLocalWishlist = (userId, wishlist) => {
+  const key = `rentnear_wishlist_${userId || 'anonymous'}`;
+  safeSetItem(key, JSON.stringify(wishlist));
+};
+
+// Recently Viewed Helpers
+export const getLocalRecentlyViewed = (userId) => {
+  const key = `rentnear_recent_viewed_${userId || 'anonymous'}`;
+  const data = safeGetItem(key);
+  try {
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveLocalRecentlyViewed = (userId, items) => {
+  const key = `rentnear_recent_viewed_${userId || 'anonymous'}`;
+  safeSetItem(key, JSON.stringify(items));
+};
+
+// Saved Searches Helpers
+export const getLocalSavedSearches = (userId) => {
+  const key = `rentnear_saved_searches_${userId || 'anonymous'}`;
+  const data = safeGetItem(key);
+  try {
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveLocalSavedSearches = (userId, searches) => {
+  const key = `rentnear_saved_searches_${userId || 'anonymous'}`;
+  safeSetItem(key, JSON.stringify(searches));
+};

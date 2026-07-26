@@ -33,5 +33,7 @@ router.patch('/:id/process-return', bookingController.processReturnDecision);
 router.post('/:id/pay', authMiddleware, paymentController.createRazorpayOrder);
 router.post('/:id/verify-payment', authMiddleware, paymentController.verifyRazorpayPayment);
 router.post('/:id/refund-deposit', authMiddleware, paymentController.refundDeposit);
+router.post('/:id/stripe-session', authMiddleware, paymentController.createStripeCheckoutSession);
+router.post('/:id/pay-retry', authMiddleware, paymentController.recordPaymentRetry);
 
 module.exports = router;

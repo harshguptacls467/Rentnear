@@ -34,6 +34,7 @@ const ConditionCheck = lazy(() => import('./pages/ConditionCheck'));
 const ReturnCheck = lazy(() => import('./pages/ReturnCheck'));
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
 const Payment = lazy(() => import('./pages/Payment'));
+const Invoice = lazy(() => import('./pages/Invoice'));
 const ChatWindow = lazy(() => import('./pages/ChatWindow'));
 const DisputeForm = lazy(() => import('./pages/DisputeForm'));
 const DisputeDetail = lazy(() => import('./pages/DisputeDetail'));
@@ -87,6 +88,7 @@ const AnimatedRoutes = () => {
             <Route path="bookings/:id/return" element={<ReturnCheck />} />
             <Route path="bookings/:id/compare" element={<ReturnComparison />} />
             <Route path="bookings/:id/pay" element={<Payment />} />
+            <Route path="bookings/:id/invoice" element={<Invoice />} />
             <Route path="bookings/:id/dispute-form" element={<DisputeForm />} />
             <Route path="bookings/:id/dispute" element={<DisputeDetail />} />
             <Route path="chat" element={<Chat />} />

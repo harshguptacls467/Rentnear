@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase } from '../supabaseClient';
 import useAuthStore from '../store/authStore';
@@ -61,6 +61,42 @@ const MapSearch = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [radius, setRadius] = useState(5); // Default 5km
   const productsFeedStatus = useRealtimeStore(s => s.productsFeedStatus);
+
+  // Routing properties
+  const [activeRouteProduct, setActiveRouteProduct] = useState(null);
+  const [simulatedRoutePoints, setSimulatedRoutePoints] = useState([]);
+  const [routeStats, setRouteStats] = useState(null);
+
+  const handleShowRoute = (product) => {
+    if (!userLocation) return;
+    setActiveRouteProduct(product);
+    const startLat = userLocation[0];
+    const startLng = userLocation[1];
+    const endLat = product.latitude;
+    const endLng = product.longitude;
+    const dist = calculateDistance(startLat, startLng, endLat, endLng);
+    const etaMin = Math.round((dist / 30) * 60) || 1;
+    setRouteStats({
+      distance: dist.toFixed(1),
+      eta: etaMin,
+      title: product.title
+    });
+    const points = [];
+    const segments = 4;
+    for (let i = 0; i <= segments; i++) {
+      const fraction = i / segments;
+      const lat = startLat + (endLat - startLat) * fraction;
+      const lng = startLng + (endLng - startLng) * fraction;
+      if (i > 0 && i < segments) {
+        const offsetLat = (Math.random() - 0.5) * 0.002;
+        const offsetLng = (Math.random() - 0.5) * 0.002;
+        points.push([lat + offsetLat, lng + offsetLng]);
+      } else {
+        points.push([lat, lng]);
+      }
+    }
+    setSimulatedRoutePoints(points);
+  };
 
   // 1. Get User Location
   const locateUser = useCallback(() => {
@@ -258,6 +294,12 @@ const MapSearch = () => {
                 >
                   View Details
                 </button>
+                <button 
+                  onClick={() => { handleShowRoute(product); }}
+                  className="w-full bg-navy text-white py-2 rounded-lg text-sm font-bold hover:bg-navy-light transition-colors mb-2 flex items-center justify-center gap-1.5"
+                >
+                  🗺️ Show Route to Pickup
+                </button>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handleInAppChat(product)}
@@ -278,7 +320,42 @@ const MapSearch = () => {
             </Popup>
           </Marker>
         ))}
+        {/* Route Line Overlay */}
+        {simulatedRoutePoints.length > 0 && (
+          <Polyline 
+            positions={simulatedRoutePoints} 
+            pathOptions={{ color: '#6366F1', weight: 5, opacity: 0.85, dashArray: '10, 10' }} 
+          />
+        )}
       </MapContainer>
+
+      {/* Route Navigation HUD Panel */}
+      {routeStats && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-navy text-white rounded-3xl p-5 shadow-2xl border border-white/10 w-[90%] max-w-md flex flex-col gap-3">
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="text-[9px] font-black text-primary-light uppercase tracking-widest">Pickup Route Guide</span>
+              <h3 className="font-extrabold text-sm text-gray-100 line-clamp-1">{routeStats.title}</h3>
+            </div>
+            <button 
+              onClick={() => { setActiveRouteProduct(null); setRouteStats(null); setSimulatedRoutePoints([]); }}
+              className="text-gray-400 hover:text-white font-bold text-xs"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-3 text-center">
+            <div className="bg-white/5 rounded-2xl p-2.5">
+              <span className="text-[10px] text-gray-400 font-bold block">DISTANCE</span>
+              <span className="text-lg font-black text-primary-light">{routeStats.distance} km</span>
+            </div>
+            <div className="bg-white/5 rounded-2xl p-2.5">
+              <span className="text-[10px] text-gray-400 font-bold block">ESTIMATED ETA</span>
+              <span className="text-lg font-black text-primary-light">{routeStats.eta} mins</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

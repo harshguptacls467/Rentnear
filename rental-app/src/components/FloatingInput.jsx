@@ -36,6 +36,7 @@ const FloatingInput = ({
         )}
         <div className="relative flex-1">
           <input
+            id={name}
             type={inputType}
             name={name}
             value={value}
@@ -44,10 +45,13 @@ const FloatingInput = ({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder=" "
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? `${name}-error` : undefined}
             className="peer w-full px-4 py-3 bg-transparent text-gray-800 text-sm outline-none placeholder-transparent pt-5 pb-1.5 transition-all"
             {...props}
           />
           <label
+            htmlFor={name}
             className={`absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-all duration-200 origin-[0_0] scale-100 ${
               focused || value
                 ? 'scale-75 -translate-y-3.5 text-xs text-primary'
@@ -61,6 +65,7 @@ const FloatingInput = ({
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
             className="pr-4 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center cursor-pointer"
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -68,7 +73,7 @@ const FloatingInput = ({
         )}
       </div>
       {error && (
-        <span className="text-xs text-red-500 font-medium pl-1 mt-1 block">
+        <span id={`${name}-error`} className="text-xs text-red-500 font-medium pl-1 mt-1 block">
           {error}
         </span>
       )}
