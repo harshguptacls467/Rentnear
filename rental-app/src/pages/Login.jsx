@@ -132,11 +132,10 @@ const Login = () => {
     try {
       const fullUser = await verifySignupOtp(pendingEmail, token);
       showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
-      navigate('/home');
+      window.location.href = '/home';
     } catch (err) {
-      throw err;
-    } finally {
       setVerifying(false);
+      throw err;
     }
   };
 
