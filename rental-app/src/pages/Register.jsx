@@ -139,7 +139,12 @@ const Register = () => {
     try {
       const fullUser = await verifySignupOtp(pendingEmail, token);
       showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
-      window.location.href = '/home';
+      navigate('/home', { replace: true });
+      setTimeout(() => {
+        if (window.location.pathname !== '/home') {
+          window.location.href = '/home';
+        }
+      }, 300);
     } catch (err) {
       setVerifying(false);
       throw err; // bubble up to OtpVerification for inline error display

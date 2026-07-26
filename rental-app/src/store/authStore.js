@@ -114,15 +114,28 @@ const useAuthStore = create((set, get) => ({
       type: 'signup',
     });
 
-    // Fallback to type: 'email' if type: 'signup' returns an error
+    // Fallback 1 to type: 'email' if type: 'signup' returns an error
     if (error) {
-      const fallback = await supabase.auth.verifyOtp({
+      const fallback1 = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'email',
       });
-      if (fallback && !fallback.error) {
-        data = fallback.data;
+      if (fallback1 && !fallback1.error) {
+        data = fallback1.data;
+        error = null;
+      }
+    }
+
+    // Fallback 2 to type: 'magiclink' if type: 'email' returns an error
+    if (error) {
+      const fallback2 = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'magiclink',
+      });
+      if (fallback2 && !fallback2.error) {
+        data = fallback2.data;
         error = null;
       }
     }
