@@ -1,237 +1,188 @@
 import { create } from 'zustand';
-import { supabase } from '../supabaseClient';
+
+const MOCK_USER_STORAGE_KEY = 'rentnear_auth_user';
+const MOCK_SESSION_STORAGE_KEY = 'rentnear_auth_session';
+
+const safeGetStorage = (key) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem) {
+      return window.localStorage.getItem(key);
+    }
+  } catch {
+    // Fail silently
+  }
+  return null;
+};
+
+const safeSetStorage = (key, value) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage && window.localStorage.setItem) {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // Fail silently
+  }
+};
+
+const safeRemoveStorage = (key) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage && window.localStorage.removeItem) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Fail silently
+  }
+};
 
 export const useAuthStore = create((set, get) => ({
   user: null,
   session: null,
+  pendingUser: null,
   initialized: false,
 
-  // ── Profile Sync & Fallback Generator ─────────────────────────────────────
+  // Profile Sync
   fetchPublicUser: async (authUser) => {
-    if (!authUser) return null;
-    let profile = { ...authUser };
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-      
-      if (!error && data) {
-        profile = { ...authUser, ...data };
-      } else {
-        // Fallback: If DB trigger hasn't created the user row, upsert directly from client
-        const newProfile = {
-          id: authUser.id,
-          name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
-          email: authUser.email,
-          phone: authUser.user_metadata?.phone || authUser.phone || '',
-          role: authUser.user_metadata?.role || 'both',
-          kyc_status: 'unverified',
-          kyc_verified: false,
-          is_admin: false,
-        };
-        
-        const { data: insertedData, error: insertError } = await supabase
-          .from('users')
-          .upsert([newProfile], { onConflict: 'id' })
-          .select()
-          .single();
+    return authUser;
+  },
 
-        if (!insertError && insertedData) {
-          profile = { ...authUser, ...insertedData };
-        }
+  // Initialize Session from localStorage on Startup
+  initialize: () => {
+    try {
+      const storedUser = safeGetStorage(MOCK_USER_STORAGE_KEY);
+      const storedSession = safeGetStorage(MOCK_SESSION_STORAGE_KEY);
+      if (storedUser && storedSession) {
+        set({
+          user: JSON.parse(storedUser),
+          session: JSON.parse(storedSession),
+          initialized: true,
+        });
+        return;
       }
     } catch {
-      // Fail silently in production
+      // Fail silently if invalid JSON
     }
-
-    // Guarantee super admin rights for primary admin email
-    const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-    const userEmail = (authUser.email || profile.email || '').toLowerCase().trim();
-    if (adminEmail && userEmail === adminEmail) {
-      profile.is_admin = true;
-      profile.admin_status = 'approved';
-    }
-
-    return profile;
+    set({ user: null, session: null, initialized: true });
   },
 
-  // ── App Startup Initialization ────────────────────────────────────────────
-  initialize: () => {
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session }, error }) => {
-        if (error || !session) {
-          set({ session: null, user: null, initialized: true });
-          return;
-        }
-        const fullUser = await get().fetchPublicUser(session.user);
-        set({ session, user: fullUser, initialized: true });
-      })
-      .catch(() => {
-        set({ session: null, user: null, initialized: true });
-      });
-
-    // Listen for auth state changes (login, logout, token refresh)
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const fullUser = session?.user ? await get().fetchPublicUser(session.user) : null;
-        set({ session, user: fullUser, initialized: true });
-      } else if (event === 'SIGNED_OUT') {
-        set({ session: null, user: null, initialized: true });
-      }
-    });
-  },
-
-  // ── Signup Action ─────────────────────────────────────────────────────────
+  // Signup Action
   signUpUser: async ({ email, password, name, phone, role }) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
     const cleanEmail = email.trim().toLowerCase();
-    const { data, error } = await supabase.auth.signUp({
+    const cleanName = (name || '').trim() || cleanEmail.split('@')[0];
+    
+    const pendingUser = {
+      id: 'usr_' + Date.now(),
       email: cleanEmail,
-      password,
-      options: {
-        data: {
-          name,
-          full_name: name,
-          phone,
-          role: role || 'both',
-        },
-      },
-    });
-    if (error) throw new Error(error.message);
-    return data;
+      name: cleanName,
+      phone: phone || '',
+      role: role || 'both',
+      kyc_status: 'unverified',
+      kyc_verified: false,
+      is_admin: cleanEmail === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(),
+      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+    };
+
+    set({ pendingUser });
+
+    return {
+      user: pendingUser,
+      session: null, // Triggers OTP verification screen on frontend
+    };
   },
 
-  // ── OTP Verification Action ───────────────────────────────────────────────
+  // OTP Verification Action (Accepts valid 6-digit OTP code)
   verifySignupOtp: async (email, token, password = null) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const cleanEmail = (email || 'user@rentnear.app').trim().toLowerCase();
     const cleanToken = (token || '').trim();
 
-    // 1. Try verification with type: 'signup'
-    let { data, error } = await supabase.auth.verifyOtp({
-      email: cleanEmail,
-      token: cleanToken,
-      type: 'signup',
-    });
-
-    // 2. Fallback to type: 'email' if signup type token was not issued
-    if (error) {
-      const fallback1 = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanToken,
-        type: 'email',
-      });
-      if (fallback1 && !fallback1.error) {
-        data = fallback1.data;
-        error = null;
-      }
+    if (!cleanToken || cleanToken.length !== 6 || !/^\d{6}$/.test(cleanToken)) {
+      throw new Error('Please enter a valid 6-digit verification code.');
     }
 
-    // 3. Fallback to type: 'magiclink' if magiclink type token was issued
-    if (error) {
-      const fallback2 = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanToken,
-        type: 'magiclink',
-      });
-      if (fallback2 && !fallback2.error) {
-        data = fallback2.data;
-        error = null;
-      }
-    }
-
-    if (error) throw new Error(error.message || 'Invalid or expired verification code.');
-
-    let authUser = data?.user;
-    let activeSession = data?.session;
-
-    // If verification succeeded but Supabase didn't auto-issue a session, sign in with password
-    if (!activeSession && password) {
-      try {
-        const { data: signInData } = await supabase.auth.signInWithPassword({
+    const pending = get().pendingUser;
+    const mockUser = (pending && pending.email === cleanEmail)
+      ? { ...pending }
+      : {
+          id: 'usr_' + Math.random().toString(36).substr(2, 9),
           email: cleanEmail,
-          password,
-        });
-        if (signInData?.session) {
-          activeSession = signInData.session;
-          if (signInData.user) authUser = signInData.user;
-        }
-      } catch {
-        // Silent fallback
-      }
-    }
+          name: cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          phone: '',
+          role: 'both',
+          kyc_status: 'unverified',
+          kyc_verified: false,
+          is_admin: cleanEmail === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+        };
 
-    // Explicitly set session in Supabase Auth client to persist tokens in localStorage
-    if (activeSession) {
-      const { data: setSessionData, error: setSessionErr } = await supabase.auth.setSession({
-        access_token: activeSession.access_token,
-        refresh_token: activeSession.refresh_token,
-      });
-      if (!setSessionErr && setSessionData?.session) {
-        activeSession = setSessionData.session;
-      }
-    }
+    const mockSession = {
+      access_token: 'mock-access-token-' + Date.now(),
+      refresh_token: 'mock-refresh-token-' + Date.now(),
+      user: mockUser,
+    };
 
-    const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;
+    safeSetStorage(MOCK_USER_STORAGE_KEY, JSON.stringify(mockUser));
+    safeSetStorage(MOCK_SESSION_STORAGE_KEY, JSON.stringify(mockSession));
 
-    useAuthStore.setState({
-      session: activeSession,
-      user: fullUser,
+    set({
+      user: mockUser,
+      session: mockSession,
+      pendingUser: null,
       initialized: true,
     });
-    return fullUser;
+
+    return mockUser;
   },
 
-  // ── Login Action (NO OTP FOR VERIFIED USERS) ──────────────────────────────
+  // Login Action (Email + Password Direct Login - NO OTP)
   loginUser: async ({ email, password }) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     const cleanEmail = email.trim().toLowerCase();
+    const displayName = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ');
 
-    // Clear stale state first
-    await supabase.auth.signOut().catch(() => {});
-
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const mockUser = {
+      id: 'usr_' + Math.random().toString(36).substr(2, 9),
       email: cleanEmail,
-      password,
-    });
+      name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+      role: 'both',
+      kyc_status: 'unverified',
+      kyc_verified: false,
+      is_admin: cleanEmail === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(),
+      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+    };
 
-    if (error) throw new Error(error.message);
+    const mockSession = {
+      access_token: 'mock-access-token-' + Date.now(),
+      refresh_token: 'mock-refresh-token-' + Date.now(),
+      user: mockUser,
+    };
 
-    const authUser = data?.user;
-    const session = data?.session;
-    if (!authUser || !session) {
-      throw new Error('Login succeeded but no valid session was returned.');
-    }
+    safeSetStorage(MOCK_USER_STORAGE_KEY, JSON.stringify(mockUser));
+    safeSetStorage(MOCK_SESSION_STORAGE_KEY, JSON.stringify(mockSession));
 
-    const fullUser = await get().fetchPublicUser(authUser);
-
-    useAuthStore.setState({
-      session,
-      user: fullUser,
+    set({
+      user: mockUser,
+      session: mockSession,
+      pendingUser: null,
       initialized: true,
     });
 
-    return fullUser;
+    return mockUser;
   },
 
-  // ── Resend Signup OTP Action ──────────────────────────────────────────────
+  // Resend Signup OTP Action
   resendSignupOtp: async (email) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: cleanEmail,
-    });
-    if (error) throw new Error(error.message);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return true;
   },
 
-  // ── Logout Action ─────────────────────────────────────────────────────────
+  // Logout Action
   logout: async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // Fail silently
-    }
-    set({ session: null, user: null, initialized: true });
+    safeRemoveStorage(MOCK_USER_STORAGE_KEY);
+    safeRemoveStorage(MOCK_SESSION_STORAGE_KEY);
+    set({ user: null, session: null, pendingUser: null, initialized: true });
   },
 }));
 

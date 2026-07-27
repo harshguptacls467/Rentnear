@@ -39,48 +39,60 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Focus first input on mount
+  // Focus first input on mount without page scrolling
   useEffect(() => {
-    inputRefs.current[0]?.focus();
+    inputRefs.current[0]?.focus({ preventScroll: true });
   }, []);
 
   const handleDigitChange = (index, value) => {
-    // Allow paste of full OTP into a single box
-    if (value.length > 1) {
-      const pasted = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    const clean = value.replace(/\D/g, '');
+    setError('');
+
+    // Handle full paste or multi-character input
+    if (clean.length > 1) {
+      const pasted = clean.slice(0, OTP_LENGTH);
       const newDigits = Array(OTP_LENGTH).fill('');
-      pasted.split('').forEach((ch, i) => { newDigits[i] = ch; });
+      const startIdx = clean.length === OTP_LENGTH ? 0 : index;
+      pasted.split('').forEach((ch, i) => {
+        if (startIdx + i < OTP_LENGTH) {
+          newDigits[startIdx + i] = ch;
+        }
+      });
       setDigits(newDigits);
-      setError('');
-      const nextIndex = Math.min(pasted.length, OTP_LENGTH - 1);
-      inputRefs.current[nextIndex]?.focus();
+      const nextIndex = Math.min(startIdx + pasted.length, OTP_LENGTH - 1);
+      inputRefs.current[nextIndex]?.focus({ preventScroll: true });
       return;
     }
 
-    const digit = value.replace(/\D/g, '');
+    // Single digit input (or replacement of existing character)
+    const digit = clean.slice(-1);
     const newDigits = [...digits];
     newDigits[index] = digit;
     setDigits(newDigits);
-    setError('');
 
     if (digit && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
+      inputRefs.current[index + 1]?.focus({ preventScroll: true });
     }
   };
 
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace') {
+      e.preventDefault();
+      const newDigits = [...digits];
       if (digits[index]) {
-        const newDigits = [...digits];
         newDigits[index] = '';
         setDigits(newDigits);
+        setError('');
       } else if (index > 0) {
-        inputRefs.current[index - 1]?.focus();
+        newDigits[index - 1] = '';
+        setDigits(newDigits);
+        setError('');
+        inputRefs.current[index - 1]?.focus({ preventScroll: true });
       }
     } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
+      inputRefs.current[index - 1]?.focus({ preventScroll: true });
     } else if (e.key === 'ArrowRight' && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
+      inputRefs.current[index + 1]?.focus({ preventScroll: true });
     }
   };
 
@@ -93,7 +105,7 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
     setDigits(newDigits);
     setError('');
     const nextIndex = Math.min(pasted.length, OTP_LENGTH - 1);
-    inputRefs.current[nextIndex]?.focus();
+    inputRefs.current[nextIndex]?.focus({ preventScroll: true });
   };
 
   const handleVerify = async () => {
@@ -108,7 +120,7 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
     } catch (err) {
       setError(err.message || 'Invalid or expired code. Please try again.');
       setDigits(Array(OTP_LENGTH).fill(''));
-      setTimeout(() => inputRefs.current[0]?.focus(), 50);
+      setTimeout(() => inputRefs.current[0]?.focus({ preventScroll: true }), 50);
     }
   };
 
@@ -120,7 +132,7 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
       await onResend();
       startCooldown();
       setDigits(Array(OTP_LENGTH).fill(''));
-      setTimeout(() => inputRefs.current[0]?.focus(), 50);
+      setTimeout(() => inputRefs.current[0]?.focus({ preventScroll: true }), 50);
     } catch (err) {
       setError(err.message || 'Failed to resend code. Please try again.');
     } finally {
@@ -131,14 +143,15 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
   const isComplete = digits.every(Boolean);
   const loading = externalLoading || resending;
 
+  // Auto verify when all 6 digits are populated
+  useEffect(() => {
+    if (isComplete && !loading && !error) {
+      handleVerify();
+    }
+  }, [isComplete]);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -16 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="w-full"
-    >
+    <div className="w-full">
       {/* Header */}
       <div className="text-center mb-6">
         <div className="mx-auto w-14 h-14 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
@@ -151,6 +164,11 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
           We sent a 6-digit code to<br />
           <span className="font-bold text-gray-600">{email}</span>
         </p>
+
+        {/* Demo Helper Badge */}
+        <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-full">
+          💡 Demo Code: Enter any 6 digits (e.g. 123456)
+        </div>
       </div>
 
       {/* Error Alert */}
@@ -235,7 +253,7 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
           Back to sign up
         </button>
       )}
-    </motion.div>
+    </div>
   );
 };
 

@@ -198,18 +198,17 @@ const Register = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
-            <AnimatePresence mode="wait">
-              {otpStep ? (
-                <OtpVerification
-                  key="otp"
-                  email={pendingEmail}
-                  onVerify={handleVerifyOtp}
-                  onResend={handleResendOtp}
-                  onBack={() => setOtpStep(false)}
-                  loading={verifying}
-                />
-              ) : (
-                <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            {otpStep ? (
+              <OtpVerification
+                key="otp"
+                email={pendingEmail}
+                onVerify={handleVerifyOtp}
+                onResend={handleResendOtp}
+                onBack={() => setOtpStep(false)}
+                loading={verifying}
+              />
+            ) : (
+              <div>
             {/* Header */}
             <div className="text-center mb-6">
               <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
@@ -406,13 +405,12 @@ const Register = () => {
                 </Button>
               </div>
             </form>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
-        </motion.div>
+        )}
       </div>
-    </div>
+    </motion.div>
+  </div>
+</div>
   );
 };
 

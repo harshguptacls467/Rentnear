@@ -29,6 +29,7 @@ import { useToast } from '../context/ToastContext';
 const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest') => {
 
   const { showToast } = useToast();
+  const { setProductsFeedStatus, setProductsChannelName, addNewProduct } = useRealtimeStore();
 
   const filtersRef = useRef(filters);
   const sortByRef = useRef(sortBy);
