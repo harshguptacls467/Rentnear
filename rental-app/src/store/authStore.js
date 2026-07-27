@@ -62,7 +62,7 @@ export const useAuthStore = create((set, get) => ({
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/home`,
       },
     });
     if (error) throw new Error(error.message || 'Google authentication failed.');

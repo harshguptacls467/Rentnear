@@ -278,7 +278,7 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/home`,
       },
     });
     expect(res.provider).toBe('google');
