@@ -22,9 +22,10 @@ export const useAuthStore = create((set, get) => ({
     const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
     const isAdmin = cleanEmail === adminEmail;
 
-    const name = meta.name || authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0];
-    const phone = meta.phone || authUser.user_metadata?.phone || '';
-    const role = meta.role || authUser.user_metadata?.role || 'both';
+    const pending = get()?.pendingUser || {};
+    const name = meta.name || pending.name || authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0];
+    const phone = meta.phone || pending.phone || authUser.user_metadata?.phone || '';
+    const role = meta.role || pending.role || authUser.user_metadata?.role || 'both';
     const avatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`;
 
     const defaultProfile = {
@@ -39,6 +40,22 @@ export const useAuthStore = create((set, get) => ({
       avatar_url: avatar,
     };
 
+    // Update Supabase Auth user_metadata in background so metadata persists in Auth session
+    try {
+      if (!authUser.user_metadata?.name || authUser.user_metadata.name !== defaultProfile.name) {
+        supabase.auth.updateUser({
+          data: {
+            name: defaultProfile.name,
+            phone: defaultProfile.phone,
+            role: defaultProfile.role,
+            avatar_url: defaultProfile.avatar_url,
+          },
+        }).catch(() => {});
+      }
+    } catch {
+      // Fail silently
+    }
+
     try {
       // 1. Check if user profile already exists in public.users table
       const { data: existingUser } = await supabase
@@ -48,8 +65,25 @@ export const useAuthStore = create((set, get) => ({
         .maybeSingle();
 
       if (existingUser) {
-        // Return existing DB profile, updating admin status if needed
-        const mergedUser = { ...defaultProfile, ...existingUser };
+        const mergedUser = {
+          ...defaultProfile,
+          ...existingUser,
+          name: (existingUser.name && existingUser.name.trim()) ? existingUser.name : defaultProfile.name,
+          phone: (existingUser.phone && existingUser.phone.trim()) ? existingUser.phone : defaultProfile.phone,
+          avatar_url: existingUser.avatar_url || defaultProfile.avatar_url,
+          role: existingUser.role || defaultProfile.role,
+        };
+
+        // If existing DB user was missing name/phone, backfill in database
+        if (!existingUser.name || !existingUser.phone) {
+          supabase.from('users').update({
+            name: mergedUser.name,
+            phone: mergedUser.phone,
+            role: mergedUser.role,
+            avatar_url: mergedUser.avatar_url,
+          }).eq('id', authUser.id).then(() => {}).catch(() => {});
+        }
+
         return mergedUser;
       }
 

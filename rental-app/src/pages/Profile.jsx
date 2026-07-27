@@ -120,8 +120,14 @@ const Profile = () => {
           if (dbError) console.warn('Database fetch warning:', dbError.message);
         }
 
-        // Fall back to authenticated user state from store if DB row not found
-        const activeProfile = profileData || user;
+        // Fall back to authenticated user state from store if DB row is missing fields
+        const activeProfile = {
+          ...user,
+          ...profileData,
+          name: profileData?.name || user?.name || '',
+          phone: profileData?.phone || user?.phone || '',
+          avatar_url: profileData?.avatar_url || user?.avatar_url || '',
+        };
         setProfile(activeProfile);
 
         const parsed = parsePhone(activeProfile.phone || '');
