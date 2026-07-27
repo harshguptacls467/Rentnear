@@ -156,19 +156,42 @@ export const useAuthStore = create((set, get) => ({
     const fullPhone = (phone || '').trim();
     const userRole = role || 'both';
 
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        data: {
-          name: cleanName,
-          phone: fullPhone,
-          role: userRole,
+    let signUpResult;
+    try {
+      signUpResult = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            name: cleanName,
+            phone: fullPhone,
+            role: userRole,
+          },
         },
-      },
-    });
+      });
 
-    if (error) throw error;
+      if (signUpResult.error) {
+        // Fallback for broken DB triggers choking on user_metadata
+        if (signUpResult.error.message?.toLowerCase().includes('database error saving new user')) {
+          signUpResult = await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+          });
+        }
+      }
+    } catch (err) {
+      if (err.message?.toLowerCase().includes('database error saving new user')) {
+        signUpResult = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    if (signUpResult.error) throw signUpResult.error;
+    const data = signUpResult.data;
 
     const pendingDetails = {
       id: data?.user?.id,
