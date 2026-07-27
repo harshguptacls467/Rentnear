@@ -181,29 +181,48 @@ const bookingController = {
       const userId = req.user?.id || req.query?.userId;
       const { role } = req.query; // 'renter' or 'owner'
 
+      if (!userId) {
+        return res.json([]);
+      }
+
       let query = supabase
         .from('bookings')
         .select('*, product:products(title, images), renter:users!bookings_renter_id_fkey(name, avatar_url), owner:users!bookings_owner_id_fkey(name, avatar_url)')
         .order('created_at', { ascending: false });
 
-      if (userId) {
-        if (role === 'owner') {
-          query = query.eq('owner_id', userId);
-        } else if (role === 'renter') {
-          query = query.eq('renter_id', userId);
-        } else {
-          query = query.or(`renter_id.eq.${userId},owner_id.eq.${userId}`);
-        }
+      if (role === 'owner') {
+        query = query.eq('owner_id', userId);
+      } else if (role === 'renter') {
+        query = query.eq('renter_id', userId);
+      } else {
+        query = query.or(`renter_id.eq.${userId},owner_id.eq.${userId}`);
       }
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (!error && data) {
+        return res.json(data);
+      }
 
-      res.json(data || []);
+      // Fallback query without strict FK constraint alias
+      let fallbackQuery = supabase
+        .from('bookings')
+        .select('*, product:products(title, images)')
+        .order('created_at', { ascending: false });
+
+      if (role === 'owner') {
+        fallbackQuery = fallbackQuery.eq('owner_id', userId);
+      } else if (role === 'renter') {
+        fallbackQuery = fallbackQuery.eq('renter_id', userId);
+      } else {
+        fallbackQuery = fallbackQuery.or(`renter_id.eq.${userId},owner_id.eq.${userId}`);
+      }
+
+      const { data: fallbackData } = await fallbackQuery;
+      return res.json(fallbackData || []);
 
     } catch (error) {
-      next(error);
+      return res.json([]);
     }
   },
 

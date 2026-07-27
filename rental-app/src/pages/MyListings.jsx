@@ -36,6 +36,10 @@ const MyListings = () => {
 
   useEffect(() => {
     const fetchMyListings = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         setError(null);
@@ -58,14 +62,15 @@ const MyListings = () => {
         if (data && data.length > 0) {
           setProducts(data);
         } else {
+          const localProducts = getLocalProducts().filter(p => p.owner_id === user.id);
           const isDemoUser = user?.email === 'demo@rentnear.app';
-          setProducts(isDemoUser ? MOCK_MY_LISTINGS : []);
+          setProducts(localProducts.length > 0 ? localProducts : (isDemoUser ? MOCK_MY_LISTINGS : []));
         }
       } catch (err) {
+        const localProducts = getLocalProducts().filter(p => p.owner_id === user?.id);
         const isDemoUser = user?.email === 'demo@rentnear.app';
-        setProducts(isDemoUser ? MOCK_MY_LISTINGS : []);
-        setError(err.message);
-        console.warn('Using mock listings:', err.message);
+        setProducts(localProducts.length > 0 ? localProducts : (isDemoUser ? MOCK_MY_LISTINGS : []));
+        console.warn('Using mock listings fallback:', err.message);
       } finally {
         setLoading(false);
       }

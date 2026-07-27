@@ -27,7 +27,7 @@ export const useAuthStore = create((set, get) => ({
     const role = meta.role || authUser.user_metadata?.role || 'both';
     const avatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`;
 
-    const profileData = {
+    const defaultProfile = {
       id: authUser.id,
       email: cleanEmail,
       name: name.trim(),
@@ -40,20 +40,35 @@ export const useAuthStore = create((set, get) => ({
     };
 
     try {
-      // Upsert profile into public.users table (on conflict update or ignore)
-      const { data, error } = await supabase
+      // 1. Check if user profile already exists in public.users table
+      const { data: existingUser } = await supabase
         .from('users')
-        .upsert(profileData, { onConflict: 'id' })
-        .select()
-        .single();
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
-      if (error) {
-        console.warn('Profile upsert notice:', error.message);
-        return profileData;
+      if (existingUser) {
+        // Return existing DB profile, updating admin status if needed
+        const mergedUser = { ...defaultProfile, ...existingUser };
+        return mergedUser;
       }
-      return data || profileData;
-    } catch {
-      return profileData;
+
+      // 2. Insert or Upsert new user profile into public.users table
+      const { data: newProfile, error: upsertError } = await supabase
+        .from('users')
+        .upsert(defaultProfile, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+
+      if (upsertError) {
+        console.warn('Profile upsert notice:', upsertError.message);
+        return defaultProfile;
+      }
+
+      return newProfile || defaultProfile;
+    } catch (err) {
+      console.warn('Profile sync notice:', err.message);
+      return defaultProfile;
     }
   },
 

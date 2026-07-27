@@ -99,6 +99,7 @@ const Profile = () => {
         setEditForm({ 
           name: MOCK_USER.name, 
           phone: MOCK_USER.phone,
+          avatar_url: MOCK_USER.avatar_url || '',
           location: MOCK_USER.location || 'New Delhi, India',
           upi_id: MOCK_USER.upi_id || 'demo@upi',
           bio: MOCK_USER.bio || 'Hi neighbors! I believe in the power of sharing.',
@@ -111,65 +112,60 @@ const Profile = () => {
       }
       try {
         setLoading(true); setError(null);
-        if (isMock) {
-          throw new Error('mock');
+        
+        let profileData = null;
+        if (!isMock) {
+          const { data, error: dbError } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
+          if (data) profileData = data;
+          if (dbError) console.warn('Database fetch warning:', dbError.message);
         }
-        const { data, error: dbError } = await supabase.from('users').select('*').eq('id', user.id).single();
-        if (dbError || !data) throw dbError || new Error('no data');
-        setProfile(data);
-        const parsed = parsePhone(data.phone || '');
+
+        // Fall back to authenticated user state from store if DB row not found
+        const activeProfile = profileData || user;
+        setProfile(activeProfile);
+
+        const parsed = parsePhone(activeProfile.phone || '');
         setCountryCode(parsed.countryCode);
         setPhoneNum(parsed.phoneNum);
         setEditForm({ 
-          name: data.name || '', 
-          phone: data.phone || '',
-          location: data.location || '',
-          upi_id: data.upi_id || '',
-          bio: data.bio || '',
-          role: data.role || 'both',
-          emergency_contact: data.emergency_contact || ''
+          name: activeProfile.name || '', 
+          phone: activeProfile.phone || '',
+          avatar_url: activeProfile.avatar_url || '',
+          location: activeProfile.location || '',
+          upi_id: activeProfile.upi_id || '',
+          bio: activeProfile.bio || '',
+          role: activeProfile.role || 'both',
+          emergency_contact: activeProfile.emergency_contact || ''
         });
 
         let reviewsData = [];
-        let reviewsError = null;
         try {
           const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/reviews/user/${user.id}?limit=3`);
-          if (!res.ok) throw new Error('Failed to fetch reviews');
-          reviewsData = await res.json();
-        } catch (err) { reviewsError = err; }
-        setReviews(reviewsError ? MOCK_REVIEWS : (reviewsData || MOCK_REVIEWS));
-      } catch (err) {
-        if (isMock) {
-          setProfile(user);
-          const parsed = parsePhone(user.phone || '');
-          setCountryCode(parsed.countryCode);
-          setPhoneNum(parsed.phoneNum);
-          setEditForm({ 
-            name: user.name || '', 
-            phone: user.phone || '',
-            location: user.location || '',
-            upi_id: user.upi_id || '',
-            bio: user.bio || '',
-            role: user.role || 'both',
-            emergency_contact: user.emergency_contact || ''
-          });
-          setReviews(MOCK_REVIEWS);
-        } else {
-          setProfile(MOCK_USER);
-          const parsed = parsePhone(MOCK_USER.phone);
-          setCountryCode(parsed.countryCode);
-          setPhoneNum(parsed.phoneNum);
-          setEditForm({ 
-            name: MOCK_USER.name, 
-            phone: MOCK_USER.phone,
-            location: MOCK_USER.location || '',
-            upi_id: MOCK_USER.upi_id || '',
-            bio: MOCK_USER.bio || '',
-            role: MOCK_USER.role || 'both',
-            emergency_contact: MOCK_USER.emergency_contact || ''
-          });
-          setReviews(MOCK_REVIEWS);
+          if (res.ok) {
+            reviewsData = await res.json();
+          }
+        } catch {
+          // Silent fallback for reviews API
         }
+        setReviews(reviewsData?.length > 0 ? reviewsData : MOCK_REVIEWS);
+      } catch (err) {
+        // Fallback to logged-in user state
+        const activeProfile = user || MOCK_USER;
+        setProfile(activeProfile);
+        const parsed = parsePhone(activeProfile.phone || '');
+        setCountryCode(parsed.countryCode);
+        setPhoneNum(parsed.phoneNum);
+        setEditForm({ 
+          name: activeProfile.name || '', 
+          phone: activeProfile.phone || '',
+          avatar_url: activeProfile.avatar_url || '',
+          location: activeProfile.location || '',
+          upi_id: activeProfile.upi_id || '',
+          bio: activeProfile.bio || '',
+          role: activeProfile.role || 'both',
+          emergency_contact: activeProfile.emergency_contact || ''
+        });
+        setReviews(MOCK_REVIEWS);
       } finally {
         setLoading(false);
       }

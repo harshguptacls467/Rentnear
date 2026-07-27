@@ -44,37 +44,57 @@ const Bookings = () => {
   const [renterTab, setRenterTab] = useState('pending'); // pending, active, past, cancelled
 
   const fetchBookings = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
 
       if (isMock) {
         const localBookings = getLocalBookings();
-        const myBookings = localBookings.filter(b => b.renter_id === user?.id || b.owner_id === user?.id);
+        const myBookings = localBookings.filter(b => b.renter_id === user.id || b.owner_id === user.id);
         setBookings(myBookings);
         return;
       }
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('no session');
-
-      const res = await fetch(`${API_URL}/bookings/my`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to fetch bookings');
-      
-      if (data.length > 0) {
-        setBookings(data);
-      } else {
-        const isDemoUser = user?.email === 'demo@rentnear.app';
-        setBookings(isDemoUser ? MOCK_BOOKINGS : []);
+      if (session?.access_token) {
+        try {
+          const res = await fetch(`${API_URL}/bookings/my`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              setBookings(data);
+              return;
+            }
+          }
+        } catch {
+          // Backend API offline — fall back to Supabase directly
+        }
       }
-    } catch (err) {
+
+      // Supabase direct query fallback
+      const { data: directData } = await supabase
+        .from('bookings')
+        .select('*')
+        .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+      if (directData && directData.length > 0) {
+        setBookings(directData);
+      } else {
+        const localBookings = getLocalBookings().filter(b => b.renter_id === user.id || b.owner_id === user.id);
+        const isDemoUser = user?.email === 'demo@rentnear.app';
+        setBookings(localBookings.length > 0 ? localBookings : (isDemoUser ? MOCK_BOOKINGS : []));
+      }
+    } catch {
+      const localBookings = getLocalBookings().filter(b => b.renter_id === user?.id || b.owner_id === user?.id);
       const isDemoUser = user?.email === 'demo@rentnear.app';
-      setBookings(isDemoUser ? MOCK_BOOKINGS : []);
-      setError(err.message);
+      setBookings(localBookings.length > 0 ? localBookings : (isDemoUser ? MOCK_BOOKINGS : []));
     } finally {
       setLoading(false);
     }
