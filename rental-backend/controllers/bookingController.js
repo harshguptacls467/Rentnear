@@ -178,7 +178,7 @@ const bookingController = {
   // GET /api/bookings/my
   getMyBookings: async (req, res, next) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user?.id || req.query?.userId;
       const { role } = req.query; // 'renter' or 'owner'
 
       let query = supabase
@@ -186,12 +186,14 @@ const bookingController = {
         .select('*, product:products(title, images), renter:users!bookings_renter_id_fkey(name, avatar_url), owner:users!bookings_owner_id_fkey(name, avatar_url)')
         .order('created_at', { ascending: false });
 
-      if (role === 'owner') {
-        query = query.eq('owner_id', userId);
-      } else if (role === 'renter') {
-        query = query.eq('renter_id', userId);
-      } else {
-        query = query.or(`renter_id.eq.${userId},owner_id.eq.${userId}`);
+      if (userId) {
+        if (role === 'owner') {
+          query = query.eq('owner_id', userId);
+        } else if (role === 'renter') {
+          query = query.eq('renter_id', userId);
+        } else {
+          query = query.or(`renter_id.eq.${userId},owner_id.eq.${userId}`);
+        }
       }
 
       const { data, error } = await query;

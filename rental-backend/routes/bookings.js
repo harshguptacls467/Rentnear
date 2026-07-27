@@ -1,11 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bookingController = require('../controllers/bookingController');
-const authMiddleware = require('../middleware/auth');
 const paymentController = require('../controllers/paymentController');
-
-// All booking routes require authentication
-router.use(authMiddleware);
 
 // Create a new booking request
 router.post('/', bookingController.createBooking);
@@ -30,10 +26,10 @@ router.get('/:id/condition-compare', bookingController.getConditionComparison);
 router.patch('/:id/process-return', bookingController.processReturnDecision);
 
 // Payment & Security Deposit Routes
-router.post('/:id/pay', authMiddleware, paymentController.createRazorpayOrder);
-router.post('/:id/verify-payment', authMiddleware, paymentController.verifyRazorpayPayment);
-router.post('/:id/refund-deposit', authMiddleware, paymentController.refundDeposit);
-router.post('/:id/stripe-session', authMiddleware, paymentController.createStripeCheckoutSession);
-router.post('/:id/pay-retry', authMiddleware, paymentController.recordPaymentRetry);
+router.post('/:id/pay', paymentController.createRazorpayOrder);
+router.post('/:id/verify-payment', paymentController.verifyRazorpayPayment);
+router.post('/:id/refund-deposit', paymentController.refundDeposit);
+router.post('/:id/stripe-session', paymentController.createStripeCheckoutSession);
+router.post('/:id/pay-retry', paymentController.recordPaymentRetry);
 
 module.exports = router;

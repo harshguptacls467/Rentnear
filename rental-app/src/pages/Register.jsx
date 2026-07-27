@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
 import { Mail, Lock, User, Smartphone, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import FloatingInput from '../components/FloatingInput';
 import PasswordStrength from '../components/PasswordStrength';
-import OtpVerification from '../components/OtpVerification';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -16,11 +14,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [otpStep, setOtpStep] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
-  const [pendingPassword, setPendingPassword] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const { session, signUpUser, resendSignupOtp, verifySignupOtp, fetchPublicUser } = useAuthStore();
+  const { session, signUpUser } = useAuthStore();
 
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNum, setPhoneNum] = useState('');
@@ -88,7 +82,7 @@ const Register = () => {
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
     try {
-      const authData = await signUpUser({
+      await signUpUser({
         email,
         password,
         name,
@@ -96,50 +90,14 @@ const Register = () => {
         role: formData.role,
       });
 
-      // If Supabase already issued a session (email confirmation disabled in project), log in directly.
-      if (authData?.session) {
-        const fullUser = await fetchPublicUser(authData.user);
-        useAuthStore.setState({
-          session: authData.session,
-          user: fullUser,
-          initialized: true,
-        });
-        showToast(`Welcome to RentNear, ${name}!`, 'success');
-        navigate('/home', { replace: true });
-        return;
-      }
-
-      // Email confirmation is required — show the OTP screen.
-      setPendingEmail(email);
-      setPendingPassword(password);
-      setOtpStep(true);
-      showToast('Check your email for the 6-digit verification code.', 'info');
-
+      showToast(`Welcome to RentNear, ${name}!`, 'success');
+      navigate('/home', { replace: true });
     } catch (error) {
       setErrorMsg(error.message || 'Registration failed. Please try again.');
       showToast(error.message || 'Registration failed.', 'error');
     } finally {
       setLoading(false);
     }
-  };
-
-  // ── OTP handlers ────────────────────────────────────────────────────────
-  const handleVerifyOtp = async (token) => {
-    setVerifying(true);
-    try {
-      const fullUser = await verifySignupOtp(pendingEmail, token, pendingPassword);
-      showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
-      setVerifying(false);
-      navigate('/home', { replace: true });
-    } catch (err) {
-      setVerifying(false);
-      throw err; // bubble up to OtpVerification for inline error display
-    }
-  };
-
-  const handleResendOtp = async () => {
-    await resendSignupOtp(pendingEmail);
-    showToast('A new verification code has been sent.', 'info');
   };
 
   return (
@@ -198,17 +156,7 @@ const Register = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
-            {otpStep ? (
-              <OtpVerification
-                key="otp"
-                email={pendingEmail}
-                onVerify={handleVerifyOtp}
-                onResend={handleResendOtp}
-                onBack={() => setOtpStep(false)}
-                loading={verifying}
-              />
-            ) : (
-              <div>
+            <div>
             {/* Header */}
             <div className="text-center mb-6">
               <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
@@ -406,11 +354,10 @@ const Register = () => {
               </div>
             </form>
           </div>
-        )}
-      </div>
-    </motion.div>
+        </div>
+      </motion.div>
+    </div>
   </div>
-</div>
   );
 };
 

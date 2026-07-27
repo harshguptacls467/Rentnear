@@ -6,8 +6,7 @@ import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import FloatingInput from '../components/FloatingInput';
-import OtpVerification from '../components/OtpVerification';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,12 +15,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
-  const [otpStep, setOtpStep] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
-  const [pendingPassword, setPendingPassword] = useState('');
-  const [verifying, setVerifying] = useState(false);
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, loginUser, resendSignupOtp, verifySignupOtp } = useAuthStore();
+  const { session, loginUser } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -67,52 +62,15 @@ const Login = () => {
     const password = formData.password;
 
     try {
-      // Login user via store (Email + Password only — NO OTP for verified users!)
       const fullUser = await loginUser({ email, password });
       showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
       navigate('/home', { replace: true });
     } catch (error) {
-      // If user is unverified, show OTP screen as fallback
-      if (
-        error.message?.toLowerCase().includes('email not confirmed') ||
-        error.message?.toLowerCase().includes('not confirmed')
-      ) {
-        setPendingEmail(email);
-        setPendingPassword(password);
-        setOtpStep(true);
-        showToast('Please verify your email first.', 'info');
-        try {
-          await resendSignupOtp(email);
-        } catch (resendError) {
-          console.error('Auto OTP resend failed:', resendError);
-        }
-        setLoading(false);
-        return;
-      }
       setErrorMsg(error.message || 'Invalid email or password.');
       showToast(error.message || 'Login failed.', 'error');
     } finally {
       setLoading(false);
     }
-  };
-
-  // ── OTP handlers (for login-flow email re-verification) ──────────────────
-  const handleVerifyOtp = async (token) => {
-    setVerifying(true);
-    try {
-      const fullUser = await verifySignupOtp(pendingEmail, token, pendingPassword);
-      showToast(`Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
-      setVerifying(false);
-      navigate('/home', { replace: true });
-    } catch (err) {
-      setVerifying(false);
-      throw err;
-    }
-  };
-
-  const handleResendOtp = async () => {
-    await resendSignupOtp(pendingEmail);
-    showToast('A new verification code has been sent.', 'info');
   };
 
   const [oauthLoading, setOauthLoading] = useState('');
@@ -124,7 +82,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/`,
         }
       });
       if (error) throw error;
@@ -192,17 +150,7 @@ const Login = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
-            {otpStep ? (
-              <OtpVerification
-                key="otp"
-                email={pendingEmail}
-                onVerify={handleVerifyOtp}
-                onResend={handleResendOtp}
-                onBack={() => setOtpStep(false)}
-                loading={verifying}
-              />
-            ) : (
-              <div>
+            <div>
             
             {/* Header */}
             <div className="text-center mb-6">
@@ -343,11 +291,10 @@ const Login = () => {
               </Link>
             </div>
           </div>
-        )}
-      </div>
-    </motion.div>
+        </div>
+      </motion.div>
+    </div>
   </div>
-</div>
   );
 };
 

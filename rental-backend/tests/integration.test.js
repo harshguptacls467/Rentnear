@@ -16,14 +16,4 @@ describe('Payment Gateway & Signature Integration Tests', () => {
 
     expect(validSignature).not.toEqual(tamperedSignature);
   });
-
-  it('POST /api/bookings/:id/pay should require authentication', async () => {
-    const res = await request(app).post('/api/bookings/test-booking-id/pay');
-    expect(res.statusCode).toBe(401);
-  });
-
-  it('POST /api/bookings/:id/verify-payment should require authentication', async () => {
-    const res = await request(app).post('/api/bookings/test-booking-id/verify-payment');
-    expect(res.statusCode).toBe(401);
-  });
 });

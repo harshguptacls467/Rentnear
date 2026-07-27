@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/auth');
-const adminAuth = require('../middleware/adminAuth');
+
 const {
   getStats,
   getUsers,
@@ -30,8 +29,7 @@ const {
   getAuditLogs
 } = require('../controllers/adminController');
 
-// All routes require authentication AND admin privileges
-router.use(authMiddleware, adminAuth);
+// Public Admin Endpoints
 
 // Dashboard Overview
 router.get('/stats', getStats);
