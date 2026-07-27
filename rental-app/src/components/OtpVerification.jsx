@@ -166,8 +166,21 @@ const OtpVerification = ({ email, onVerify, onResend, onBack, loading: externalL
         </p>
 
         {/* Demo Helper Badge */}
-        <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-full">
-          💡 Demo Code: Enter any 6 digits (e.g. 123456)
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-xl">
+            <span>💡 Demo Mode:</span>
+            <button
+              type="button"
+              onClick={() => {
+                const demoDigits = ['1', '2', '3', '4', '5', '6'];
+                setDigits(demoDigits);
+                setError('');
+              }}
+              className="bg-emerald-600 text-white px-2.5 py-0.5 rounded-lg text-[10px] font-bold hover:bg-emerald-700 transition-colors shadow-sm cursor-pointer"
+            >
+              Auto-fill 123456
+            </button>
+          </div>
         </div>
       </div>
 
