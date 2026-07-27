@@ -6,6 +6,8 @@ const mockVerifyOtp = vi.fn();
 const mockResend = vi.fn();
 const mockSignInWithPassword = vi.fn();
 const mockSignOut = vi.fn();
+const mockResetPasswordForEmail = vi.fn();
+const mockUpdateUser = vi.fn();
 
 vi.mock('../supabaseClient', () => ({
   supabase: {
@@ -19,6 +21,8 @@ vi.mock('../supabaseClient', () => ({
       resend: (...args) => mockResend(...args),
       signInWithPassword: (...args) => mockSignInWithPassword(...args),
       signOut: (...args) => mockSignOut(...args),
+      resetPasswordForEmail: (...args) => mockResetPasswordForEmail(...args),
+      updateUser: (...args) => mockUpdateUser(...args),
     },
     from: vi.fn(() => ({
       upsert: vi.fn((profileData) => ({
@@ -175,5 +179,40 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
         password: 'password123',
       })
     ).rejects.toThrow('Email not confirmed');
+  });
+
+  it('should trigger sendPasswordResetOtp using resetPasswordForEmail', async () => {
+    mockResetPasswordForEmail.mockResolvedValueOnce({ error: null });
+
+    const ok = await useAuthStore.getState().sendPasswordResetOtp('forgot@rentnear.app');
+
+    expect(mockResetPasswordForEmail).toHaveBeenCalledWith('forgot@rentnear.app');
+    expect(ok).toBe(true);
+  });
+
+  it('should verify recovery OTP token using verifyPasswordResetOtp', async () => {
+    mockVerifyOtp.mockResolvedValueOnce({
+      data: { session: { access_token: 'recovery_session' } },
+      error: null,
+    });
+
+    const ok = await useAuthStore.getState().verifyPasswordResetOtp('forgot@rentnear.app', '654321');
+
+    expect(mockVerifyOtp).toHaveBeenCalledWith({
+      email: 'forgot@rentnear.app',
+      token: '654321',
+      type: 'recovery',
+    });
+    expect(ok).toBe(true);
+  });
+
+  it('should update user password using updateUserPassword', async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: null });
+    mockSignOut.mockResolvedValueOnce({ error: null });
+
+    const ok = await useAuthStore.getState().updateUserPassword('newPassword123');
+
+    expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'newPassword123' });
+    expect(ok).toBe(true);
   });
 });

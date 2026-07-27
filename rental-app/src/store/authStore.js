@@ -211,6 +211,56 @@ export const useAuthStore = create((set, get) => ({
     return fullUser;
   },
 
+  // Send Password Reset OTP Email
+  sendPasswordResetOtp: async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+    if (error) throw new Error(error.message || 'Failed to send password reset code.');
+    return true;
+  },
+
+  // Verify Password Reset OTP Token
+  verifyPasswordResetOtp: async (email, token) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanToken = (token || '').trim();
+
+    if (!cleanToken || cleanToken.length !== 6) {
+      throw new Error('Please enter a valid 6-digit verification code.');
+    }
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: cleanEmail,
+      token: cleanToken,
+      type: 'recovery',
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Invalid or expired verification code. Please request a new code.');
+    }
+
+    set({ session: data.session });
+    return true;
+  },
+
+  // Update User Password (After OTP verification)
+  updateUserPassword: async (newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Password must be at least 6 characters.');
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to update password.');
+    }
+
+    // Sign out active recovery session so user logs in with new password
+    await get().logout();
+    return true;
+  },
+
   // Logout Action
   logout: async () => {
     try {
