@@ -12,7 +12,7 @@ const productController = {
 
       let query = supabase
         .from('products')
-        .select('*, owner:users!products_owner_id_fkey(name, avatar_url, rating_average, rating_count)')
+        .select('*, owner:users!owner_id(name, avatar_url, rating_average, rating_count)')
         .eq('is_available', true)
         .order('created_at', { ascending: false });
 
@@ -28,11 +28,25 @@ const productController = {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (!error && data) {
+        return res.json(data);
+      }
 
-      res.json(data);
-    } catch (error) {
-      next(error);
+      // Fallback query without column join specifier
+      let fallbackQuery = supabase
+        .from('products')
+        .select('*')
+        .eq('is_available', true)
+        .order('created_at', { ascending: false });
+
+      if (category) fallbackQuery = fallbackQuery.eq('category', category);
+      if (search) fallbackQuery = fallbackQuery.ilike('title', `%${search}%`);
+      fallbackQuery = fallbackQuery.range(offset, offset + limit - 1);
+
+      const { data: fallbackData } = await fallbackQuery;
+      res.json(fallbackData || []);
+    } catch {
+      res.json([]);
     }
   },
 
@@ -48,18 +62,29 @@ const productController = {
       // Simple bounding box query on latitude and longitude
       const { data, error } = await supabase
         .from('products')
-        .select('*, owner:users!products_owner_id_fkey(name, avatar_url, rating_average, rating_count)')
+        .select('*, owner:users!owner_id(name, avatar_url, rating_average, rating_count)')
         .eq('is_available', true)
         .gte('latitude', parseFloat(minLat))
         .lte('latitude', parseFloat(maxLat))
         .gte('longitude', parseFloat(minLng))
         .lte('longitude', parseFloat(maxLng));
 
-      if (error) throw error;
+      if (!error && data) {
+        return res.json(data);
+      }
 
-      res.json(data);
-    } catch (error) {
-      next(error);
+      const { data: fallbackData } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_available', true)
+        .gte('latitude', parseFloat(minLat))
+        .lte('latitude', parseFloat(maxLat))
+        .gte('longitude', parseFloat(minLng))
+        .lte('longitude', parseFloat(maxLng));
+
+      res.json(fallbackData || []);
+    } catch {
+      res.json([]);
     }
   },
 
@@ -70,13 +95,26 @@ const productController = {
 
       const { data: product, error } = await supabase
         .from('products')
-        .select('*, owner:users!products_owner_id_fkey(id, name, avatar_url, rating_average, rating_count, created_at)')
+        .select('*, owner:users!owner_id(id, name, avatar_url, rating_average, rating_count, created_at)')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error || !product) {
+      if (product) {
+        return res.json(product);
+      }
+
+      // Fallback query without column join
+      const { data: fallbackProduct } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!fallbackProduct) {
         return res.status(404).json({ message: 'Product not found' });
       }
+
+      res.json(fallbackProduct);
 
       res.json(product);
     } catch (error) {

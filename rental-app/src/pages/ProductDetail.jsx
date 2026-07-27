@@ -83,10 +83,10 @@ const ProductDetail = () => {
         let ownerData = null;
 
         if (!isMock) {
-          const { data: productData, error: productError } = await supabase.from('products').select('*').eq('id', id).single();
+          const { data: productData } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
           if (productData) {
             foundProduct = productData;
-            const { data: userData } = await supabase.from('users').select('name, avatar_url, created_at, rating_average, rating_count, phone').eq('id', productData.owner_id).single();
+            const { data: userData } = await supabase.from('users').select('name, avatar_url, created_at, rating_average, rating_count, phone').eq('id', productData.owner_id).maybeSingle();
             if (userData) ownerData = userData;
           }
         }

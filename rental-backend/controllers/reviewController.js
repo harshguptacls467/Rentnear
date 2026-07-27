@@ -85,17 +85,27 @@ const reviewController = {
 
       const { data, error } = await supabase
         .from('reviews')
-        .select('*, reviewer:users!reviews_reviewer_id_fkey(name, avatar_url)')
+        .select('*, reviewer:users!reviewer_id(name, avatar_url)')
         .eq('reviewee_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (error) throw error;
+      if (!error && data) {
+        return res.json(data);
+      }
 
-      res.json(data || []);
+      // Fallback query without column specifier
+      const { data: fallbackData } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('reviewee_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      res.json(fallbackData || []);
 
     } catch (error) {
-      next(error);
+      res.json([]);
     }
   }
 

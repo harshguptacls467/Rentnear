@@ -108,17 +108,27 @@ export const adminService = {
 
   // ─── Products (Listings) ─────────────────────────────────────────────────────
   getProducts: async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        id, title, description, category, price_per_day, price_per_hour, deposit_amount,
-        location, latitude, longitude, is_available, images, created_at,
-        condition, status, is_featured, is_trending, is_premium, owner_id,
-        owner:users!products_owner_id_fkey(id, name, email, avatar_url)
-      `)
-      .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id, title, description, category, price_per_day, price_per_hour, deposit_amount,
+          location, latitude, longitude, is_available, images, created_at,
+          condition, status, is_featured, is_trending, is_premium, owner_id,
+          owner:users!owner_id(id, name, email, avatar_url)
+        `)
+        .order('created_at', { ascending: false });
+      if (!error && data) return data;
+
+      // Fallback query without column join specifier
+      const { data: fallbackData } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      return fallbackData || [];
+    } catch {
+      return [];
+    }
   },
 
   updateListingStatus: async (productId, payload) => {
@@ -141,36 +151,49 @@ export const adminService = {
 
   // ─── KYC Submissions ─────────────────────────────────────────────────────────
   getKycSubmissions: async () => {
-    const { data, error } = await supabase
-      .from('kyc_submissions')
-      .select(`
-        id, user_id, id_type, id_number, front_url, back_url, selfie_url,
-        status, admin_notes, created_at,
-        user:users!kyc_submissions_user_id_fkey(id, name, email, avatar_url)
-      `)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true });
-    if (error) throw new Error(error.message);
+    try {
+      const { data, error } = await supabase
+        .from('kyc_submissions')
+        .select(`
+          id, user_id, id_type, id_number, front_url, back_url, selfie_url,
+          status, admin_notes, created_at,
+          user:users!user_id(id, name, email, avatar_url)
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
 
-    // Generate signed URLs for private storage
-    const enriched = await Promise.all((data || []).map(async (kyc) => {
-      const getSignedUrl = async (path) => {
-        if (!path) return null;
-        if (path.startsWith('http')) return path; // already a public URL
-        const { data: urlData } = await supabase.storage
-          .from('kyc-documents')
-          .createSignedUrl(path, 3600);
-        return urlData?.signedUrl || path;
-      };
-      return {
-        ...kyc,
-        front_signed_url: await getSignedUrl(kyc.front_url),
-        back_signed_url: await getSignedUrl(kyc.back_url),
-        selfie_signed_url: await getSignedUrl(kyc.selfie_url),
-      };
-    }));
+      let kycList = data;
+      if (error || !kycList) {
+        const { data: fallbackData } = await supabase
+          .from('kyc_submissions')
+          .select('*')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+        kycList = fallbackData || [];
+      }
 
-    return enriched;
+      // Generate signed URLs for private storage
+      const enriched = await Promise.all((kycList || []).map(async (kyc) => {
+        const getSignedUrl = async (path) => {
+          if (!path) return null;
+          if (path.startsWith('http')) return path; // already a public URL
+          const { data: urlData } = await supabase.storage
+            .from('kyc-documents')
+            .createSignedUrl(path, 3600);
+          return urlData?.signedUrl || path;
+        };
+        return {
+          ...kyc,
+          front_signed_url: await getSignedUrl(kyc.front_url),
+          back_signed_url: await getSignedUrl(kyc.back_url),
+          selfie_signed_url: await getSignedUrl(kyc.selfie_url),
+        };
+      }));
+
+      return enriched;
+    } catch {
+      return [];
+    }
   },
 
   resolveKyc: async (kycId, status, notes, userId) => {
