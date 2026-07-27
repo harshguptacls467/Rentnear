@@ -7,6 +7,7 @@ import usePresence from './hooks/usePresence'
 // Components
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import GuestRoute from './components/GuestRoute'
 import Skeleton from './components/Skeleton'
 import { ToastProvider } from './context/ToastContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -61,16 +62,20 @@ const AnimatedRoutes = () => {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Layout />}>
-          {/* Public Routes */}
+          {/* Public & Guest-Only Routes */}
           <Route index element={<Landing />} />
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductDetail />} />
           <Route path="map" element={<MapSearch />} />
           <Route path="support" element={<Support />} />
           <Route path="admin-login" element={<AdminLogin />} />
+
+          {/* Guest-Only Auth Routes (Logged-in users redirected to /home) */}
+          <Route element={<GuestRoute />}>
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+          </Route>
           
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
