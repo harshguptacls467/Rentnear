@@ -116,7 +116,7 @@ const DeleteModal = ({ onClose, onConfirm }) => {
 };
 
 // ─── Logout Confirm Modal ─────────────────────────────────────────────────────
-const LogoutModal = ({ onClose, onConfirm }) => (
+const LogoutModal = ({ onClose, onConfirm, onConfirmAll }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
       <div className="p-6 text-center">
@@ -125,14 +125,17 @@ const LogoutModal = ({ onClose, onConfirm }) => (
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">Sign Out</h3>
         <p className="text-gray-500 text-sm mb-6">
-          Are you sure you want to sign out of your RentNear account?
+          Would you like to sign out of this device or sign out from all active devices?
         </p>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-            Stay Signed In
+        <div className="space-y-2.5">
+          <button onClick={() => onConfirm('local')} className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">
+            Sign Out (This Device)
           </button>
-          <button onClick={onConfirm} className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">
-            Sign Out
+          <button onClick={() => onConfirmAll('global')} className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-colors">
+            Sign Out (All Devices)
+          </button>
+          <button onClick={onClose} className="w-full py-2.5 border border-gray-200 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+            Cancel
           </button>
         </div>
       </div>
@@ -180,9 +183,10 @@ const Settings = () => {
     showToast('Password updated successfully!', 'success');
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (scope = 'local') => {
     setShowLogoutModal(false);
-    await logout();
+    await logout({ scope });
+    showToast(scope === 'global' ? 'Signed out from all devices.' : 'Signed out successfully.', 'info');
     navigate('/login');
   };
 
@@ -225,7 +229,11 @@ const Settings = () => {
         <DeleteModal onClose={() => setShowDeleteModal(false)} onConfirm={handleDeleteAccount} />
       )}
       {showLogoutModal && (
-        <LogoutModal onClose={() => setShowLogoutModal(false)} onConfirm={handleLogout} />
+        <LogoutModal
+          onClose={() => setShowLogoutModal(false)}
+          onConfirm={(scope) => handleLogout(scope)}
+          onConfirmAll={(scope) => handleLogout(scope)}
+        />
       )}
 
       <div className="max-w-3xl mx-auto">

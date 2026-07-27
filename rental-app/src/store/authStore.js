@@ -87,11 +87,11 @@ export const useAuthStore = create((set, get) => ({
 
     // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') && session?.user) {
         const fullUser = await get().syncUserProfile(session.user);
         set({ user: fullUser, session, initialized: true });
       } else if (event === 'SIGNED_OUT') {
-        set({ user: null, session: null, initialized: true });
+        set({ user: null, session: null, pendingUser: null, initialized: true });
       }
     });
 
@@ -274,10 +274,27 @@ export const useAuthStore = create((set, get) => ({
     return true;
   },
 
-  // Logout Action
-  logout: async () => {
+  // Refresh Session Manually
+  refreshSession: async () => {
     try {
-      await supabase.auth.signOut();
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      if (error) throw error;
+      if (session?.user) {
+        const fullUser = await get().syncUserProfile(session.user);
+        set({ user: fullUser, session, initialized: true });
+        return session;
+      }
+    } catch (err) {
+      console.warn('Session refresh notice:', err.message);
+    }
+    return null;
+  },
+
+  // Logout Action (Supports scope: 'local' | 'global')
+  logout: async (options = {}) => {
+    const scope = options?.scope || 'local';
+    try {
+      await supabase.auth.signOut({ scope });
     } catch {
       // Fail silently
     }

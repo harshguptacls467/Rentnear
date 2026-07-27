@@ -80,6 +80,23 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
 
     await useAuthStore.getState().logout();
     
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.session).toBeNull();
+  });
+
+  it('should support global logout scope to revoke sessions across all devices', async () => {
+    mockSignOut.mockResolvedValueOnce({ error: null });
+    useAuthStore.setState({
+      session: { access_token: 'valid-token-123' },
+      user: { id: 'user-id-abc', name: 'Real User', email: 'real@rentnear.app' },
+      initialized: true,
+    });
+
+    await useAuthStore.getState().logout({ scope: 'global' });
+    
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: 'global' });
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.session).toBeNull();
