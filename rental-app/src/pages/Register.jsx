@@ -6,7 +6,8 @@ import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import FloatingInput from '../components/FloatingInput';
 import PasswordStrength from '../components/PasswordStrength';
-import { motion } from 'framer-motion';
+import OtpVerification from '../components/OtpVerification';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -14,7 +15,10 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const { session, signUpUser } = useAuthStore();
+  const [otpStep, setOtpStep] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const { session, signUpUser, verifySignupOtp, resendSignupOtp } = useAuthStore();
 
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNum, setPhoneNum] = useState('');
@@ -82,7 +86,7 @@ const Register = () => {
     const fullPhone = phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '';
 
     try {
-      await signUpUser({
+      const authResult = await signUpUser({
         email,
         password,
         name,
@@ -90,14 +94,45 @@ const Register = () => {
         role: formData.role,
       });
 
-      showToast(`Welcome to RentNear, ${name}!`, 'success');
-      navigate('/home', { replace: true });
+      // If Supabase already issued a session (auto-confirmation enabled), log in directly.
+      if (authResult?.session) {
+        showToast(`Welcome to RentNear, ${name}!`, 'success');
+        navigate('/home', { replace: true });
+        return;
+      }
+
+      // Email OTP verification required — show OTP screen
+      setPendingEmail(email);
+      setOtpStep(true);
+      showToast('We sent a 6-digit verification code to your email.', 'info');
     } catch (error) {
       setErrorMsg(error.message || 'Registration failed. Please try again.');
       showToast(error.message || 'Registration failed.', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  // OTP Verification Handlers
+  const handleVerifyOtp = async (token) => {
+    setVerifying(true);
+    try {
+      const fullUser = await verifySignupOtp(pendingEmail, token, {
+        name: formData.name.trim(),
+        phone: phoneNum.trim() ? `${countryCode} ${phoneNum.trim()}` : '',
+        role: formData.role,
+      });
+      showToast(`Email verified! Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
+      navigate('/home', { replace: true });
+    } catch (err) {
+      setVerifying(false);
+      throw err;
+    }
+  };
+
+  const handleResendOtp = async () => {
+    await resendSignupOtp(pendingEmail);
+    showToast('A new 6-digit code has been sent to your email.', 'info');
   };
 
   return (
@@ -156,208 +191,219 @@ const Register = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
-            <div>
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
-                <span className="text-white text-xl font-black">R</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                Create Account
-              </h2>
-              <p className="text-xs text-gray-400 font-medium mt-1">
-                Already have an account?{' '}
-                <Link to="/login" className="font-semibold text-primary hover:text-primary-dark transition-colors">
-                  Sign in here
-                </Link>
-              </p>
-            </div>
-
-            {/* Success Alert */}
-            {successMsg && (
-              <div className="mb-4 bg-green-50 border border-green-200/50 p-4 rounded-2xl flex items-start text-green-700 text-xs animate-fadeIn">
-                <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="font-medium">{successMsg}</p>
-              </div>
-            )}
-
-            {/* Error Alert */}
-            {errorMsg && (
-              <div className="mb-4 bg-red-50 border border-red-200/50 p-4 rounded-2xl flex items-start text-red-700 text-xs animate-fadeIn">
-                <AlertCircle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="font-medium">{errorMsg}</p>
-              </div>
-            )}
-
-            {/* Form */}
-            <form className="space-y-3" onSubmit={handleRegister}>
-              {/* Full Name */}
-              <FloatingInput
-                label="Full Name"
-                name="name"
-                required
-                value={formData.name}
-                onChange={handleChange}
-                icon={User}
-                error={validationErrors.name}
-                disabled={loading}
+            {otpStep ? (
+              <OtpVerification
+                key="otp"
+                email={pendingEmail}
+                onVerify={handleVerifyOtp}
+                onResend={handleResendOtp}
+                onChangeEmail={() => setOtpStep(false)}
+                loading={verifying}
               />
-
-              {/* Email Address */}
-              <FloatingInput
-                label="Email Address"
-                type="email"
-                name="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                icon={Mail}
-                error={validationErrors.email}
-                disabled={loading}
-              />
-
-              {/* Phone Number Selector Row */}
-              <div className="flex gap-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-2.5 border border-gray-200 rounded-xl bg-white/50 text-xs font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-gray-800 cursor-pointer h-[50px]"
-                  disabled={loading}
-                >
-                  <option value="+91">+91 (IN)</option>
-                  <option value="+1">+1 (US)</option>
-                  <option value="+44">+44 (UK)</option>
-                  <option value="+61">+61 (AU)</option>
-                </select>
-                <div className="flex-1">
-                  <FloatingInput
-                    label="Mobile Number (Optional)"
-                    type="tel"
-                    name="phone"
-                    value={phoneNum}
-                    onChange={(e) => {
-                      setPhoneNum(e.target.value);
-                      if (validationErrors.phone) {
-                        setValidationErrors({ ...validationErrors, phone: '' });
-                      }
-                    }}
-                    icon={Smartphone}
-                    error={validationErrors.phone}
-                    disabled={loading}
-                  />
+            ) : (
+              <div>
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
+                    <span className="text-white text-xl font-black">R</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+                    Create Account
+                  </h2>
+                  <p className="text-xs text-gray-400 font-medium mt-1">
+                    Already have an account?{' '}
+                    <Link to="/login" className="font-semibold text-primary hover:text-primary-dark transition-colors">
+                      Sign in here
+                    </Link>
+                  </p>
                 </div>
-              </div>
 
-              {/* Password */}
-              <FloatingInput
-                label="Create Password"
-                type="password"
-                name="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                icon={Lock}
-                error={validationErrors.password}
-                disabled={loading}
-              />
-
-              {/* Confirm Password */}
-              <FloatingInput
-                label="Confirm Password"
-                type="password"
-                name="confirmPassword"
-                required
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                icon={Lock}
-                error={validationErrors.confirmPassword}
-                disabled={loading}
-              />
-
-              {/* Password Strength Checklist */}
-              <PasswordStrength password={formData.password} />
-
-              {/* Role Toggle Selector (Low Profile) */}
-              <div className="flex items-center justify-between bg-gray-50/70 border border-gray-100 p-2 rounded-xl text-xs mt-1">
-                <span className="text-gray-500 font-semibold pl-1 uppercase tracking-wider text-[10px]">Workspace Role</span>
-                <div className="flex gap-1.5">
-                  {[
-                    { value: 'renter', label: 'Renter' },
-                    { value: 'owner', label: 'Owner' },
-                    { value: 'both', label: 'Both' }
-                  ].map((roleItem) => (
-                    <button
-                      key={roleItem.value}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, role: roleItem.value })}
-                      disabled={loading}
-                      className={`px-3 py-1 rounded-lg font-bold transition-all text-[11px] cursor-pointer ${
-                        formData.role === roleItem.value
-                          ? 'bg-primary text-white shadow-sm'
-                          : 'bg-white text-gray-500 border border-gray-150 hover:bg-gray-100'
-                      }`}
-                    >
-                      {roleItem.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Terms Checkbox */}
-              <div className="pt-1">
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs select-none">
-                  <input
-                    type="checkbox"
-                    checked={agreeTerms}
-                    onChange={(e) => {
-                      setAgreeTerms(e.target.checked);
-                      if (validationErrors.terms) {
-                        setValidationErrors({ ...validationErrors, terms: '' });
-                      }
-                    }}
-                    disabled={loading}
-                    className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 cursor-pointer mt-0.5 accent-primary"
-                  />
-                  <span className="text-gray-500 leading-tight">
-                    I agree to the{' '}
-                    <a href="/support#terms" className="font-semibold text-primary hover:text-primary-dark transition-colors">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="/support#privacy" className="font-semibold text-primary hover:text-primary-dark transition-colors">
-                      Privacy Policy
-                    </a>.
-                  </span>
-                </label>
-                {validationErrors.terms && (
-                  <span className="text-[10px] text-red-500 font-semibold pl-1 mt-1 block">
-                    {validationErrors.terms}
-                  </span>
+                {/* Success Alert */}
+                {successMsg && (
+                  <div className="mb-4 bg-green-50 border border-green-200/50 p-4 rounded-2xl flex items-start text-green-700 text-xs animate-fadeIn">
+                    <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <p className="font-medium">{successMsg}</p>
+                  </div>
                 )}
-              </div>
 
-              {/* Submit Button */}
-              <div className="pt-2">
-                <Button type="submit" className="w-full py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/20" disabled={loading}>
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Creating Account...</span>
+                {/* Error Alert */}
+                {errorMsg && (
+                  <div className="mb-4 bg-red-50 border border-red-200/50 p-4 rounded-2xl flex items-start text-red-700 text-xs animate-fadeIn">
+                    <AlertCircle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <p className="font-medium">{errorMsg}</p>
+                  </div>
+                )}
+
+                {/* Form */}
+                <form className="space-y-3" onSubmit={handleRegister}>
+                  {/* Full Name */}
+                  <FloatingInput
+                    label="Full Name"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleChange}
+                    icon={User}
+                    error={validationErrors.name}
+                    disabled={loading}
+                  />
+
+                  {/* Email Address */}
+                  <FloatingInput
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleChange}
+                    icon={Mail}
+                    error={validationErrors.email}
+                    disabled={loading}
+                  />
+
+                  {/* Phone Number Selector Row */}
+                  <div className="flex gap-2">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="px-2.5 border border-gray-200 rounded-xl bg-white/50 text-xs font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-gray-800 cursor-pointer h-[50px]"
+                      disabled={loading}
+                    >
+                      <option value="+91">+91 (IN)</option>
+                      <option value="+1">+1 (US)</option>
+                      <option value="+44">+44 (UK)</option>
+                      <option value="+61">+61 (AU)</option>
+                    </select>
+                    <div className="flex-1">
+                      <FloatingInput
+                        label="Mobile Number (Optional)"
+                        type="tel"
+                        name="phone"
+                        value={phoneNum}
+                        onChange={(e) => {
+                          setPhoneNum(e.target.value);
+                          if (validationErrors.phone) {
+                            setValidationErrors({ ...validationErrors, phone: '' });
+                          }
+                        }}
+                        icon={Smartphone}
+                        error={validationErrors.phone}
+                        disabled={loading}
+                      />
                     </div>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      Create Account
-                      <ArrowRight size={16} />
-                    </span>
-                  )}
-                </Button>
+                  </div>
+
+                  {/* Password */}
+                  <FloatingInput
+                    label="Create Password"
+                    type="password"
+                    name="password"
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
+                    icon={Lock}
+                    error={validationErrors.password}
+                    disabled={loading}
+                  />
+
+                  {/* Confirm Password */}
+                  <FloatingInput
+                    label="Confirm Password"
+                    type="password"
+                    name="confirmPassword"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    icon={Lock}
+                    error={validationErrors.confirmPassword}
+                    disabled={loading}
+                  />
+
+                  {/* Password Strength Checklist */}
+                  <PasswordStrength password={formData.password} />
+
+                  {/* Role Toggle Selector (Low Profile) */}
+                  <div className="flex items-center justify-between bg-gray-50/70 border border-gray-100 p-2 rounded-xl text-xs mt-1">
+                    <span className="text-gray-500 font-semibold pl-1 uppercase tracking-wider text-[10px]">Workspace Role</span>
+                    <div className="flex gap-1.5">
+                      {[
+                        { value: 'renter', label: 'Renter' },
+                        { value: 'owner', label: 'Owner' },
+                        { value: 'both', label: 'Both' }
+                      ].map((roleItem) => (
+                        <button
+                          key={roleItem.value}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, role: roleItem.value })}
+                          disabled={loading}
+                          className={`px-3 py-1 rounded-lg font-bold transition-all text-[11px] cursor-pointer ${
+                            formData.role === roleItem.value
+                              ? 'bg-primary text-white shadow-sm'
+                              : 'bg-white text-gray-500 border border-gray-150 hover:bg-gray-100'
+                          }`}
+                        >
+                          {roleItem.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Terms Checkbox */}
+                  <div className="pt-1">
+                    <label className="flex items-start gap-2.5 cursor-pointer text-xs select-none">
+                      <input
+                        type="checkbox"
+                        checked={agreeTerms}
+                        onChange={(e) => {
+                          setAgreeTerms(e.target.checked);
+                          if (validationErrors.terms) {
+                            setValidationErrors({ ...validationErrors, terms: '' });
+                          }
+                        }}
+                        disabled={loading}
+                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2 cursor-pointer mt-0.5 accent-primary"
+                      />
+                      <span className="text-gray-500 leading-tight">
+                        I agree to the{' '}
+                        <a href="/support#terms" className="font-semibold text-primary hover:text-primary-dark transition-colors">
+                          Terms of Service
+                        </a>{' '}
+                        and{' '}
+                        <a href="/support#privacy" className="font-semibold text-primary hover:text-primary-dark transition-colors">
+                          Privacy Policy
+                        </a>.
+                      </span>
+                    </label>
+                    {validationErrors.terms && (
+                      <span className="text-[10px] text-red-500 font-semibold pl-1 mt-1 block">
+                        {validationErrors.terms}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-2">
+                    <Button type="submit" className="w-full py-3.5 rounded-2xl font-bold shadow-lg shadow-primary/20" disabled={loading}>
+                      {loading ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Creating Account...</span>
+                        </div>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          Create Account
+                          <ArrowRight size={16} />
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </form>
               </div>
-            </form>
+            )}
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
-  </div>
   );
 };
 

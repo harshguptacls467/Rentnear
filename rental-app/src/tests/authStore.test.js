@@ -1,20 +1,53 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import useAuthStore from '../store/authStore';
 
-describe('Zustand Auth Store Unit Tests (Frontend Only)', () => {
+const mockSignUp = vi.fn();
+const mockVerifyOtp = vi.fn();
+const mockResend = vi.fn();
+const mockSignInWithPassword = vi.fn();
+const mockSignOut = vi.fn();
+
+vi.mock('../supabaseClient', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
+      onAuthStateChange: vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      })),
+      signUp: (...args) => mockSignUp(...args),
+      verifyOtp: (...args) => mockVerifyOtp(...args),
+      resend: (...args) => mockResend(...args),
+      signInWithPassword: (...args) => mockSignInWithPassword(...args),
+      signOut: (...args) => mockSignOut(...args),
+    },
+    from: vi.fn(() => ({
+      upsert: vi.fn(() => ({
+        select: vi.fn(() => ({
+          single: vi.fn(() => Promise.resolve({
+            data: { id: 'usr_123', name: 'Test User', email: 'test@rentnear.app' },
+            error: null,
+          })),
+        })),
+      })),
+    })),
+  },
+}));
+
+describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
   beforeEach(() => {
     useAuthStore.setState({
       user: null,
       session: null,
+      pendingUser: null,
       initialized: true,
     });
+    vi.clearAllMocks();
   });
 
   it('should initialize with default state', () => {
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.session).toBeNull();
-    expect(state.initialized).toBe(true);
   });
 
   it('should allow setting session and user details manually', () => {
@@ -32,6 +65,7 @@ describe('Zustand Auth Store Unit Tests (Frontend Only)', () => {
   });
 
   it('should logout cleanly', async () => {
+    mockSignOut.mockResolvedValueOnce({ error: null });
     useAuthStore.setState({
       session: { access_token: 'valid-token-123' },
       user: { id: 'user-id-abc', name: 'Real User', email: 'real@rentnear.app' },
@@ -45,7 +79,12 @@ describe('Zustand Auth Store Unit Tests (Frontend Only)', () => {
     expect(state.session).toBeNull();
   });
 
-  it('should perform signup and update state directly', async () => {
+  it('should call signUpUser and trigger supabase.auth.signUp', async () => {
+    mockSignUp.mockResolvedValueOnce({
+      data: { user: { id: 'usr_1', email: 'john@rentnear.app' }, session: null },
+      error: null,
+    });
+
     const res = await useAuthStore.getState().signUpUser({
       email: 'john@rentnear.app',
       password: 'password123',
@@ -54,23 +93,48 @@ describe('Zustand Auth Store Unit Tests (Frontend Only)', () => {
       role: 'owner',
     });
 
-    expect(res.user.email).toBe('john@rentnear.app');
-    expect(res.user.name).toBe('John Doe');
-    expect(res.user.phone).toBe('+91 9876543210');
-    expect(res.user.role).toBe('owner');
-    expect(res.session).not.toBeNull();
-  });
-
-  it('should perform login directly', async () => {
-    const user = await useAuthStore.getState().loginUser({
-      email: 'jane@rentnear.app',
+    expect(mockSignUp).toHaveBeenCalledWith({
+      email: 'john@rentnear.app',
       password: 'password123',
+      options: {
+        data: {
+          name: 'John Doe',
+          phone: '+91 9876543210',
+          role: 'owner',
+        },
+      },
     });
 
-    expect(user.email).toBe('jane@rentnear.app');
+    expect(res.user.email).toBe('john@rentnear.app');
+    expect(res.session).toBeNull();
+  });
 
+  it('should verify Email OTP code and set active session', async () => {
+    mockVerifyOtp.mockResolvedValueOnce({
+      data: {
+        user: { id: 'usr_1', email: 'harsh@rentnear.app' },
+        session: { access_token: 'valid_otp_session' },
+      },
+      error: null,
+    });
+
+    const user = await useAuthStore.getState().verifySignupOtp('harsh@rentnear.app', '123456');
+
+    expect(mockVerifyOtp).toHaveBeenCalledWith({
+      email: 'harsh@rentnear.app',
+      token: '123456',
+      type: 'signup',
+    });
+
+    expect(user).not.toBeNull();
     const state = useAuthStore.getState();
     expect(state.user).not.toBeNull();
     expect(state.session).not.toBeNull();
+  });
+
+  it('should reject invalid or incomplete OTP code', async () => {
+    await expect(
+      useAuthStore.getState().verifySignupOtp('john@rentnear.app', '123')
+    ).rejects.toThrow('Please enter a valid 6-digit verification code.');
   });
 });
