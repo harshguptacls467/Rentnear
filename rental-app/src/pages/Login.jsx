@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Button from '../components/Button';
-import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Mail, Lock, AlertCircle, CheckCircle, ArrowRight, UserX, ShieldAlert } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import FloatingInput from '../components/FloatingInput';
+import OtpVerification from '../components/OtpVerification';
 import { motion } from 'framer-motion';
 
 const Login = () => {
@@ -14,9 +15,13 @@ const Login = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [accountNotFound, setAccountNotFound] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [otpStep, setOtpStep] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, loginUser } = useAuthStore();
+  const { session, loginUser, resendSignupOtp, verifySignupOtp } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -34,6 +39,9 @@ const Login = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrorMsg('');
+    setAccountNotFound(false);
+    setUnverifiedEmail('');
     if (validationErrors[e.target.name]) {
       setValidationErrors({ ...validationErrors, [e.target.name]: '' });
     }
@@ -51,12 +59,26 @@ const Login = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const startEmailVerification = async (emailToVerify) => {
+    const email = emailToVerify || formData.email.trim().toLowerCase();
+    setUnverifiedEmail(email);
+    setOtpStep(true);
+    showToast('Sending a 6-digit verification code to your email...', 'info');
+    try {
+      await resendSignupOtp(email);
+    } catch (err) {
+      console.warn('Resend OTP warning:', err.message);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!validate()) return;
     
     setLoading(true);
     setErrorMsg('');
+    setAccountNotFound(false);
+    setUnverifiedEmail('');
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
@@ -66,11 +88,53 @@ const Login = () => {
       showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
       navigate('/home', { replace: true });
     } catch (error) {
-      setErrorMsg(error.message || 'Invalid email or password.');
-      showToast(error.message || 'Login failed.', 'error');
+      const msg = (error.message || '').toLowerCase();
+
+      // Case 1: Unverified Email Error from Supabase
+      if (msg.includes('email not confirmed') || msg.includes('not confirmed') || msg.includes('unverified')) {
+        setUnverifiedEmail(email);
+        setErrorMsg('Your email is not verified yet.');
+        showToast('Your email is not verified yet.', 'warning');
+      }
+      // Case 2: Account Does Not Exist Error
+      else if (msg.includes('user not found') || msg.includes('no user') || msg.includes('user_not_found')) {
+        setAccountNotFound(true);
+        setErrorMsg('No account found with this email address.');
+        showToast('No account found. Please create an account first.', 'error');
+      }
+      // Case 3: Invalid Credentials / Wrong Password
+      else if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
+        // Distinguish if account exists or password is wrong
+        setErrorMsg('Invalid login details. Please check your email and password.');
+        showToast('Invalid email or password.', 'error');
+      }
+      // Generic Error
+      else {
+        setErrorMsg(error.message || 'Login failed. Please check your credentials.');
+        showToast(error.message || 'Login failed.', 'error');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  // OTP Handlers for Unverified Email Login Recovery
+  const handleVerifyOtp = async (token) => {
+    setVerifying(true);
+    try {
+      const fullUser = await verifySignupOtp(unverifiedEmail, token);
+      showToast(`Email verified! Welcome to RentNear, ${fullUser?.name || 'User'}!`, 'success');
+      setVerifying(false);
+      navigate('/home', { replace: true });
+    } catch (err) {
+      setVerifying(false);
+      throw err;
+    }
+  };
+
+  const handleResendOtp = async () => {
+    await resendSignupOtp(unverifiedEmail);
+    showToast('A new 6-digit verification code has been sent.', 'info');
   };
 
   const [oauthLoading, setOauthLoading] = useState('');
@@ -150,41 +214,91 @@ const Login = () => {
         >
           {/* Card Container */}
           <div className="bg-white/90 backdrop-blur-md border border-white/40 shadow-2xl rounded-[2rem] p-6 sm:p-8">
-            <div>
-            
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
-                <span className="text-white text-xl font-black">R</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                Welcome Back
-              </h2>
-              <p className="text-xs text-gray-400 font-medium mt-1">
-                Don't have an account?{' '}
-                <Link to="/register" className="font-semibold text-primary hover:text-primary-dark transition-colors">
-                  Sign up for free
-                </Link>
-              </p>
-            </div>
+            {otpStep ? (
+              <OtpVerification
+                key="login-otp"
+                email={unverifiedEmail || formData.email}
+                onVerify={handleVerifyOtp}
+                onResend={handleResendOtp}
+                onChangeEmail={() => setOtpStep(false)}
+                loading={verifying}
+              />
+            ) : (
+              <div>
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <div className="mx-auto w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 lg:hidden">
+                    <span className="text-white text-xl font-black">R</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+                    Welcome Back
+                  </h2>
+                  <p className="text-xs text-gray-400 font-medium mt-1">
+                    Don't have an account?{' '}
+                    <Link to="/register" className="font-semibold text-primary hover:text-primary-dark transition-colors">
+                      Sign up for free
+                    </Link>
+                  </p>
+                </div>
 
-            {/* Signup Success Alert */}
-            {signupSuccessMsg && (
-              <div className="mb-4 bg-green-50 border border-green-200/50 p-4 rounded-2xl flex items-start text-green-700 text-xs animate-fadeIn">
-                <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="font-medium">{signupSuccessMsg}</p>
-              </div>
-            )}
+                {/* Signup Success Alert */}
+                {signupSuccessMsg && (
+                  <div className="mb-4 bg-green-50 border border-green-200/50 p-4 rounded-2xl flex items-start text-green-700 text-xs animate-fadeIn">
+                    <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <p className="font-medium">{signupSuccessMsg}</p>
+                  </div>
+                )}
 
-            {/* Error Alert */}
-            {errorMsg && (
-              <div className="mb-4 bg-red-50 border border-red-200/50 p-4 rounded-2xl flex items-start text-red-700 text-xs animate-fadeIn">
-                <AlertCircle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="font-medium">{errorMsg}</p>
-              </div>
-            )}
+                {/* Unverified Email Warning Banner */}
+                {unverifiedEmail && (
+                  <div className="mb-4 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col gap-2.5 text-amber-800 text-xs animate-fadeIn">
+                    <div className="flex items-start gap-2">
+                      <ShieldAlert className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-900">Your email is not verified yet.</p>
+                        <p className="text-amber-700 text-[11px] mt-0.5">Please verify your email address to continue logging in.</p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => startEmailVerification(unverifiedEmail)}
+                      className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                    >
+                      Verify Email Now
+                    </Button>
+                  </div>
+                )}
 
-            {/* Form */}
+                {/* Account Not Found Banner */}
+                {accountNotFound && (
+                  <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-2xl flex flex-col gap-2.5 text-red-800 text-xs animate-fadeIn">
+                    <div className="flex items-start gap-2">
+                      <UserX className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-red-900">No account found with this email.</p>
+                        <p className="text-red-700 text-[11px] mt-0.5">Please check your email address or create a new account.</p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => navigate('/register')}
+                      className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <span>Create Account</span>
+                      <ArrowRight size={14} />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Standard Error Alert (when not unverified/not-found) */}
+                {errorMsg && !unverifiedEmail && !accountNotFound && (
+                  <div className="mb-4 bg-red-50 border border-red-200/50 p-4 rounded-2xl flex items-start text-red-700 text-xs animate-fadeIn">
+                    <AlertCircle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <p className="font-medium">{errorMsg}</p>
+                  </div>
+                )}
+
+                {/* Form */}
             <form className="space-y-4" onSubmit={handleLogin}>
               {/* Email */}
               <FloatingInput
@@ -291,10 +405,11 @@ const Login = () => {
               </Link>
             </div>
           </div>
-        </div>
-      </motion.div>
-    </div>
+        )}
+      </div>
+    </motion.div>
   </div>
+</div>
   );
 };
 

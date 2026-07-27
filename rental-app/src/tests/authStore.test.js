@@ -21,10 +21,10 @@ vi.mock('../supabaseClient', () => ({
       signOut: (...args) => mockSignOut(...args),
     },
     from: vi.fn(() => ({
-      upsert: vi.fn(() => ({
+      upsert: vi.fn((profileData) => ({
         select: vi.fn(() => ({
           single: vi.fn(() => Promise.resolve({
-            data: { id: 'usr_123', name: 'Test User', email: 'test@rentnear.app' },
+            data: profileData,
             error: null,
           })),
         })),
@@ -136,5 +136,44 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
     await expect(
       useAuthStore.getState().verifySignupOtp('john@rentnear.app', '123')
     ).rejects.toThrow('Please enter a valid 6-digit verification code.');
+  });
+
+  it('should perform loginUser successfully for verified account', async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: {
+        user: { id: 'usr_verified', email: 'verified@rentnear.app' },
+        session: { access_token: 'login_token_123' },
+      },
+      error: null,
+    });
+
+    const user = await useAuthStore.getState().loginUser({
+      email: 'verified@rentnear.app',
+      password: 'password123',
+    });
+
+    expect(mockSignInWithPassword).toHaveBeenCalledWith({
+      email: 'verified@rentnear.app',
+      password: 'password123',
+    });
+
+    expect(user.email).toBe('verified@rentnear.app');
+    const state = useAuthStore.getState();
+    expect(state.user).not.toBeNull();
+    expect(state.session).not.toBeNull();
+  });
+
+  it('should propagate unverified email error on loginUser', async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: { message: 'Email not confirmed' },
+    });
+
+    await expect(
+      useAuthStore.getState().loginUser({
+        email: 'unverified@rentnear.app',
+        password: 'password123',
+      })
+    ).rejects.toThrow('Email not confirmed');
   });
 });
