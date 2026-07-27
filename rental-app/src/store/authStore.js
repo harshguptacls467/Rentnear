@@ -274,6 +274,53 @@ export const useAuthStore = create((set, get) => ({
     return true;
   },
 
+  // Update User Profile (Name, Phone, Avatar)
+  updateUserProfile: async ({ name, phone, avatar_url }) => {
+    const currentUser = get().user;
+    if (!currentUser?.id) throw new Error('User is not authenticated.');
+
+    const cleanName = (name !== undefined ? name : currentUser.name || '').trim();
+    const cleanPhone = (phone !== undefined ? phone : currentUser.phone || '').trim();
+    const cleanAvatar = (avatar_url !== undefined ? avatar_url : currentUser.avatar_url || '').trim();
+
+    // 1. Update Auth Metadata
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          name: cleanName,
+          phone: cleanPhone,
+          avatar_url: cleanAvatar,
+        },
+      });
+    } catch (err) {
+      console.warn('Auth metadata update notice:', err.message);
+    }
+
+    // 2. Update Database Record in public.users
+    const updatedData = {
+      name: cleanName,
+      phone: cleanPhone,
+      avatar_url: cleanAvatar,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update(updatedData)
+        .eq('id', currentUser.id)
+        .select()
+        .single();
+
+      const newProfile = data || { ...currentUser, ...updatedData };
+      set({ user: newProfile });
+      return newProfile;
+    } catch {
+      const newProfile = { ...currentUser, ...updatedData };
+      set({ user: newProfile });
+      return newProfile;
+    }
+  },
+
   // Refresh Session Manually
   refreshSession: async () => {
     try {

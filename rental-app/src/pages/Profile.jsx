@@ -52,7 +52,7 @@ const profileSchema = z.object({
 });
 
 const Profile = () => {
-  const { user, session, isMock, initialize } = useAuthStore();
+  const { user, session, isMock, initialize, updateUserProfile } = useAuthStore();
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);
@@ -65,6 +65,7 @@ const Profile = () => {
   const [editForm, setEditForm] = useState({ 
     name: '', 
     phone: '',
+    avatar_url: '',
     location: '',
     upi_id: '',
     bio: '',
@@ -212,6 +213,7 @@ const Profile = () => {
       const updateData = {
         name: editForm.name,
         phone: fullPhone,
+        avatar_url: editForm.avatar_url,
         location: editForm.location,
         upi_id: editForm.upi_id,
         bio: editForm.bio,
@@ -232,11 +234,25 @@ const Profile = () => {
         return;
       }
       
-      const { error: updateError } = await supabase.from('users').update(updateData).eq('id', user.id);
+      const updatedUser = await updateUserProfile({
+        name: editForm.name,
+        phone: fullPhone,
+        avatar_url: editForm.avatar_url,
+      });
+
+      // Also update extra profile fields in public.users table
+      const { error: updateError } = await supabase.from('users').update({
+        location: editForm.location,
+        upi_id: editForm.upi_id,
+        bio: editForm.bio,
+        role: editForm.role,
+        emergency_contact: editForm.emergency_contact,
+      }).eq('id', user.id);
+
       if (updateError) throw updateError;
       
-      setProfile({ ...profile, ...updateData });
-      useAuthStore.setState({ user: { ...user, ...updateData } });
+      const mergedProfile = { ...profile, ...updateData, ...updatedUser };
+      setProfile(mergedProfile);
       setIsEditing(false);
     } catch (err) { 
       setError("Failed to update profile: " + err.message); 
@@ -486,6 +502,37 @@ const Profile = () => {
                           <option value="owner">Owner Only</option>
                         </select>
                       </div>
+                    </div>
+
+                    {/* Avatar Preset Picker */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Choose Avatar Avatar Style</label>
+                      <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                        {[
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'user1'}`,
+                          `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.email || 'user2'}`,
+                          `https://api.dicebear.com/7.x/micah/svg?seed=${user?.email || 'user3'}`,
+                          `https://api.dicebear.com/7.x/lorelei/svg?seed=${user?.email || 'user4'}`,
+                        ].map((avatarUrl, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setEditForm({ ...editForm, avatar_url: avatarUrl })}
+                            className={`w-12 h-12 rounded-full border-2 p-0.5 overflow-hidden flex-shrink-0 transition-all ${
+                              editForm.avatar_url === avatarUrl ? 'border-primary ring-2 ring-primary/20 scale-105' : 'border-gray-200 hover:border-gray-400'
+                            }`}
+                          >
+                            <img src={avatarUrl} alt={`Avatar ${idx}`} className="w-full h-full object-cover rounded-full" />
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="url"
+                        placeholder="Or enter custom avatar image URL..."
+                        value={editForm.avatar_url || ''}
+                        onChange={(e) => setEditForm({ ...editForm, avatar_url: e.target.value })}
+                        className="w-full border border-gray-200 rounded-xl py-2 px-3 text-xs focus:ring-primary focus:border-primary mt-2"
+                      />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

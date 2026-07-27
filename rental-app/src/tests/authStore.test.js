@@ -251,4 +251,32 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
     });
     expect(res.provider).toBe('google');
   });
+
+  it('should update user profile details via updateUserProfile', async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: null });
+    useAuthStore.setState({
+      user: { id: 'usr_update', name: 'Old Name', phone: '+91 0000000000', email: 'user@rentnear.app' },
+      session: { access_token: 'token_123' },
+      initialized: true,
+    });
+
+    const updated = await useAuthStore.getState().updateUserProfile({
+      name: 'New Updated Name',
+      phone: '+91 9999988888',
+      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=new',
+    });
+
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: {
+        name: 'New Updated Name',
+        phone: '+91 9999988888',
+        avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=new',
+      },
+    });
+
+    expect(updated.name).toBe('New Updated Name');
+    expect(updated.phone).toBe('+91 9999988888');
+    const state = useAuthStore.getState();
+    expect(state.user.name).toBe('New Updated Name');
+  });
 });
