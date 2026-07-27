@@ -84,7 +84,7 @@ const Login = () => {
     const password = formData.password;
 
     try {
-      const fullUser = await loginUser({ email, password });
+      const fullUser = await loginUser({ email, password, rememberMe });
       showToast(`Welcome back, ${fullUser?.name || 'User'}!`, 'success');
       navigate('/home', { replace: true });
     } catch (error) {

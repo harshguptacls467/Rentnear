@@ -10,6 +10,20 @@ const mockResetPasswordForEmail = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockSignInWithOAuth = vi.fn();
 
+const storageStore = {};
+const localStorageMock = {
+  getItem: vi.fn((key) => storageStore[key] || null),
+  setItem: vi.fn((key, value) => { storageStore[key] = String(value); }),
+  removeItem: vi.fn((key) => { delete storageStore[key]; }),
+  clear: vi.fn(() => { Object.keys(storageStore).forEach(k => delete storageStore[k]); }),
+};
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
+} else {
+  Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+}
+
 vi.mock('../supabaseClient', () => ({
   supabase: {
     auth: {
@@ -68,6 +82,24 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
     expect(state.user.email).toBe('real@rentnear.app');
     expect(state.user.name).toBe('Real User');
     expect(state.session.access_token).toBe('valid-token-123');
+  });
+
+  it('should store rememberMe preference in localStorage when loginUser is called', async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: {
+        user: { id: 'usr_rem', email: 'remember@rentnear.app', user_metadata: { name: 'Remember User' } },
+        session: { access_token: 'rem_token_123' },
+      },
+      error: null,
+    });
+
+    await useAuthStore.getState().loginUser({
+      email: 'remember@rentnear.app',
+      password: 'password123',
+      rememberMe: false,
+    });
+
+    expect(localStorage.getItem('rentnear_remember_me')).toBe('false');
   });
 
   it('should logout cleanly', async () => {

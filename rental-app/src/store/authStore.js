@@ -202,8 +202,15 @@ export const useAuthStore = create((set, get) => ({
   },
 
   // Direct Email + Password Login (For verified users)
-  loginUser: async ({ email, password }) => {
+  loginUser: async ({ email, password, rememberMe = true }) => {
     const cleanEmail = (email || '').trim().toLowerCase();
+
+    // Store Remember Me preference for dynamic storage adapter
+    try {
+      localStorage.setItem('rentnear_remember_me', rememberMe ? 'true' : 'false');
+    } catch {
+      // Fail silently
+    }
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
