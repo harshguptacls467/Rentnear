@@ -25,6 +25,7 @@ export const useAuthStore = create((set, get) => ({
     const name = meta.name || authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0];
     const phone = meta.phone || authUser.user_metadata?.phone || '';
     const role = meta.role || authUser.user_metadata?.role || 'both';
+    const avatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`;
 
     const profileData = {
       id: authUser.id,
@@ -35,7 +36,7 @@ export const useAuthStore = create((set, get) => ({
       kyc_status: 'unverified',
       kyc_verified: false,
       is_admin: isAdmin,
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+      avatar_url: avatar,
     };
 
     try {
@@ -54,6 +55,18 @@ export const useAuthStore = create((set, get) => ({
     } catch {
       return profileData;
     }
+  },
+
+  // Google OAuth Login / Signup Action
+  loginWithGoogle: async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) throw new Error(error.message || 'Google authentication failed.');
+    return data;
   },
 
   // Initialize Session from Supabase on App Startup

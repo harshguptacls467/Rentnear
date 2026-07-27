@@ -21,7 +21,7 @@ const Login = () => {
   const [verifying, setVerifying] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const signupSuccessMsg = location.state?.successMsg || '';
-  const { session, loginUser, resendSignupOtp, verifySignupOtp } = useAuthStore();
+  const { session, loginUser, resendSignupOtp, verifySignupOtp, loginWithGoogle } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -137,24 +137,17 @@ const Login = () => {
     showToast('A new 6-digit verification code has been sent.', 'info');
   };
 
-  const [oauthLoading, setOauthLoading] = useState('');
+  const [oauthLoading, setOauthLoading] = useState(false);
 
-  const handleOAuthLogin = async (provider) => {
-    setOauthLoading(provider);
+  const handleGoogleSignIn = async () => {
+    setOauthLoading(true);
     setErrorMsg('');
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        }
-      });
-      if (error) throw error;
+      await loginWithGoogle();
     } catch (error) {
-      setErrorMsg(error.message);
-      showToast(error.message, 'error');
-    } finally {
-      setOauthLoading('');
+      setErrorMsg(error.message || 'Google Sign In failed. Please try again.');
+      showToast(error.message || 'Google Sign In failed.', 'error');
+      setOauthLoading(false);
     }
   };
 
@@ -377,11 +370,11 @@ const Login = () => {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => handleOAuthLogin('google')}
-                disabled={!!oauthLoading || loading}
+                onClick={handleGoogleSignIn}
+                disabled={oauthLoading || loading}
                 className="w-full py-3 px-4 bg-white text-gray-700 font-bold rounded-2xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all text-xs flex items-center justify-center gap-3 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
-                {oauthLoading === 'google' ? (
+                {oauthLoading ? (
                   <div className="w-4 h-4 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
                 ) : (
                   <svg className="w-4.5 h-4.5" viewBox="0 0 24 24">
@@ -391,7 +384,7 @@ const Login = () => {
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
                 )}
-                <span>Sign in with Google</span>
+                <span>Continue with Google</span>
               </button>
             </div>
 

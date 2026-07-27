@@ -8,6 +8,7 @@ const mockSignInWithPassword = vi.fn();
 const mockSignOut = vi.fn();
 const mockResetPasswordForEmail = vi.fn();
 const mockUpdateUser = vi.fn();
+const mockSignInWithOAuth = vi.fn();
 
 vi.mock('../supabaseClient', () => ({
   supabase: {
@@ -23,6 +24,7 @@ vi.mock('../supabaseClient', () => ({
       signOut: (...args) => mockSignOut(...args),
       resetPasswordForEmail: (...args) => mockResetPasswordForEmail(...args),
       updateUser: (...args) => mockUpdateUser(...args),
+      signInWithOAuth: (...args) => mockSignInWithOAuth(...args),
     },
     from: vi.fn(() => ({
       upsert: vi.fn((profileData) => ({
@@ -214,5 +216,22 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'newPassword123' });
     expect(ok).toBe(true);
+  });
+
+  it('should trigger Google OAuth login via loginWithGoogle', async () => {
+    mockSignInWithOAuth.mockResolvedValueOnce({
+      data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/v2/auth' },
+      error: null,
+    });
+
+    const res = await useAuthStore.getState().loginWithGoogle();
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    expect(res.provider).toBe('google');
   });
 });
