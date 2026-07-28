@@ -53,7 +53,7 @@ const ConditionCheck = () => {
           .from('bookings')
           .select('*, product:products(title, category)')
           .eq('id', id)
-          .single();
+          .maybeSingle();
 
         if (dbError) throw dbError;
         setBooking(data);

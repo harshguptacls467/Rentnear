@@ -4,109 +4,285 @@ import { supabase } from '../supabaseClient';
 export const useAuthStore = create((set, get) => ({
   user: null,
   session: null,
-  pendingUser: null,
   initialized: false,
 
-  // Set user profile manually
-  setUser: (user) => set({ user }),
-
-  // Set session manually
-  setSession: (session) => set({ session }),
-
-  // Fetch or Upsert Public User Profile in Database
-  syncUserProfile: async (authUser, meta = {}) => {
-    if (!authUser) return null;
-
-    const email = authUser.email || meta.email || '';
-    const cleanEmail = email.toLowerCase().trim();
-    const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-    const isAdmin = cleanEmail === adminEmail;
-
-    const pending = get()?.pendingUser || {};
-    const name = meta.name || pending.name || authUser.user_metadata?.name || authUser.user_metadata?.full_name || cleanEmail.split('@')[0];
-    const phone = meta.phone || pending.phone || authUser.user_metadata?.phone || '';
-    const role = meta.role || pending.role || authUser.user_metadata?.role || 'both';
-    const avatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`;
-
-    const defaultProfile = {
-      id: authUser.id,
-      email: cleanEmail,
-      name: name.trim(),
-      phone: phone.trim(),
-      role: role,
-      kyc_status: 'unverified',
-      kyc_verified: false,
-      is_admin: isAdmin,
-      avatar_url: avatar,
-    };
-
-    // Update Supabase Auth user_metadata in background so metadata persists in Auth session
+  // ── Profile Sync & Automatic Self-Healing ─────────────────────────────────
+  fetchPublicUser: async (authUser) => {
+    if (!authUser || !authUser.id) return null;
+    let profile = { ...authUser };
     try {
-      if (!authUser.user_metadata?.name || authUser.user_metadata.name !== defaultProfile.name) {
-        supabase.auth.updateUser({
-          data: {
-            name: defaultProfile.name,
-            phone: defaultProfile.phone,
-            role: defaultProfile.role,
-            avatar_url: defaultProfile.avatar_url,
-          },
-        }).catch(() => {});
-      }
-    } catch {
-      // Fail silently
-    }
-
-    try {
-      // 1. Check if user profile already exists in public.users table
-      const { data: existingUser } = await supabase
+      // 1. Query public.users table for existing profile row
+      const { data, error: dbError } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .maybeSingle();
 
-      if (existingUser) {
-        const mergedUser = {
-          ...defaultProfile,
-          ...existingUser,
-          name: (existingUser.name && existingUser.name.trim()) ? existingUser.name : defaultProfile.name,
-          phone: (existingUser.phone && existingUser.phone.trim()) ? existingUser.phone : defaultProfile.phone,
-          avatar_url: existingUser.avatar_url || defaultProfile.avatar_url,
-          role: existingUser.role || defaultProfile.role,
+      if (!dbError && data) {
+        profile = { ...authUser, ...data };
+      } else {
+        // 2. Profile row missing — self-heal profile row in public.users
+        const newProfile = {
+          id: authUser.id, // REAL Supabase Auth UUID
+          name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+          email: authUser.email,
+          phone: authUser.user_metadata?.phone || authUser.phone || '',
+          role: authUser.user_metadata?.role || 'both',
+          kyc_status: 'unverified',
+          kyc_verified: false,
+          is_admin: (authUser.email || '').toLowerCase().trim() === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(),
+          avatar_url: authUser.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authUser.id}`,
         };
 
-        // If existing DB user was missing name/phone, backfill in database
-        if (!existingUser.name || !existingUser.phone) {
-          supabase.from('users').update({
-            name: mergedUser.name,
-            phone: mergedUser.phone,
-            role: mergedUser.role,
-            avatar_url: mergedUser.avatar_url,
-          }).eq('id', authUser.id).then(() => {}).catch(() => {});
+        const { data: insertedData, error: insertError } = await supabase
+          .from('users')
+          .upsert([newProfile], { onConflict: 'id' })
+          .select()
+          .maybeSingle();
+
+        if (!insertError && insertedData) {
+          profile = { ...authUser, ...insertedData };
+        } else {
+          profile = { ...authUser, ...newProfile };
         }
-
-        return mergedUser;
       }
-
-      // 2. Insert or Upsert new user profile into public.users table
-      const { data: newProfile, error: upsertError } = await supabase
-        .from('users')
-        .upsert(defaultProfile, { onConflict: 'id' })
-        .select()
-        .maybeSingle();
-
-      if (upsertError) {
-        console.warn('Profile upsert notice:', upsertError.message);
-        return defaultProfile;
-      }
-
-      return newProfile || defaultProfile;
     } catch (err) {
-      console.warn('Profile sync notice:', err.message);
-      return defaultProfile;
+      console.warn('Profile sync warning:', err.message);
     }
+
+    // Guarantee admin rights if email matches VITE_ADMIN_EMAIL
+    const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+    const userEmail = (authUser.email || profile.email || '').toLowerCase().trim();
+    if (adminEmail && userEmail === adminEmail) {
+      profile.is_admin = true;
+      profile.admin_status = 'approved';
+    }
+
+    return profile;
   },
 
-  // Google OAuth Login / Signup Action
+  // ── App Startup Initialization ────────────────────────────────────────────
+  initialize: () => {
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session }, error }) => {
+        if (error || !session?.user) {
+          set({ session: null, user: null, initialized: true });
+          return;
+        }
+        const fullUser = await get().fetchPublicUser(session.user);
+        set({ session, user: fullUser, initialized: true });
+      })
+      .catch(() => {
+        set({ session: null, user: null, initialized: true });
+      });
+
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          const fullUser = await get().fetchPublicUser(session.user);
+          set({ session, user: fullUser, initialized: true });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        set({ session: null, user: null, initialized: true });
+      }
+    });
+  },
+
+  // ── Signup Action ─────────────────────────────────────────────────────────
+  signUpUser: async ({ email, password, name, phone, role }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name,
+          full_name: name,
+          phone: phone || '',
+          role: role || 'both',
+        },
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    return {
+      user: data?.user || null,
+      session: data?.session || null,
+    };
+  },
+
+  // ── OTP Verification Action ───────────────────────────────────────────────
+  verifySignupOtp: async (email, token, password = null) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanToken = (token || '').trim();
+
+    if (!cleanToken || cleanToken.length < 6) {
+      throw new Error('Please enter a valid 6-digit verification code.');
+    }
+
+    // 1. Try verification with type: 'signup'
+    let { data, error } = await supabase.auth.verifyOtp({
+      email: cleanEmail,
+      token: cleanToken,
+      type: 'signup',
+    });
+
+    // 2. Fallback to type: 'email'
+    if (error) {
+      const fallback1 = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'email',
+      });
+      if (fallback1 && !fallback1.error) {
+        data = fallback1.data;
+        error = null;
+      }
+    }
+
+    // 3. Fallback to type: 'magiclink'
+    if (error) {
+      const fallback2 = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'magiclink',
+      });
+      if (fallback2 && !fallback2.error) {
+        data = fallback2.data;
+        error = null;
+      }
+    }
+
+    if (error || !data) throw new Error(error?.message || 'Invalid or expired verification code.');
+
+    let authUser = data?.user;
+    let activeSession = data?.session;
+
+    if (!activeSession && password) {
+      try {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (signInData?.session) {
+          activeSession = signInData.session;
+          if (signInData.user) authUser = signInData.user;
+        }
+      } catch {
+        // Silent fallback
+      }
+    }
+
+    if (activeSession) {
+      const { data: setSessionData, error: setSessionErr } = await supabase.auth.setSession({
+        access_token: activeSession.access_token,
+        refresh_token: activeSession.refresh_token,
+      });
+      if (!setSessionErr && setSessionData?.session) {
+        activeSession = setSessionData.session;
+      }
+    }
+
+    const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;
+
+    useAuthStore.setState({
+      session: activeSession,
+      user: fullUser,
+      initialized: true,
+    });
+
+    return fullUser;
+  },
+
+  // ── Login Action (Direct Password Login for Verified Users) ───────────────
+  loginUser: async ({ email, password, rememberMe = true }) => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('rentnear_remember_me', String(rememberMe !== false));
+    }
+
+    // Clear stale session
+    await supabase.auth.signOut().catch(() => {});
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const authUser = data?.user;
+    const session = data?.session;
+    if (!authUser || !session) {
+      throw new Error('Login succeeded but no valid session was returned.');
+    }
+
+    const fullUser = await get().fetchPublicUser(authUser);
+
+    useAuthStore.setState({
+      session,
+      user: fullUser,
+      initialized: true,
+    });
+
+    return fullUser;
+  },
+
+  // ── Update Profile Action ──────────────────────────────────────────────────
+  updateUserProfile: async (updatedFields) => {
+    const currentUser = get().user;
+    if (!currentUser?.id) throw new Error('No authenticated user found.');
+
+    await supabase.auth.updateUser({
+      data: updatedFields,
+    }).catch(() => {});
+
+    const { data, error } = await supabase
+      .from('users')
+      .upsert([{ id: currentUser.id, ...updatedFields, updated_at: new Date().toISOString() }])
+      .select()
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+
+    const mergedUser = { ...currentUser, ...updatedFields, ...data };
+    set({ user: mergedUser });
+    return mergedUser;
+  },
+
+  // ── Password Reset Actions ────────────────────────────────────────────────
+  sendPasswordResetOtp: async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
+  verifyPasswordResetOtp: async (email, token) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanToken = (token || '').trim();
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: cleanEmail,
+      token: cleanToken,
+      type: 'recovery',
+    });
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
+  updateUserPassword: async (newPassword) => {
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error) throw new Error(error.message);
+    await supabase.auth.signOut().catch(() => {});
+    set({ session: null, user: null, initialized: true });
+    return true;
+  },
+
+  // ── Google OAuth Action ───────────────────────────────────────────────────
   loginWithGoogle: async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -114,317 +290,28 @@ export const useAuthStore = create((set, get) => ({
         redirectTo: `${window.location.origin}/home`,
       },
     });
-    if (error) throw new Error(error.message || 'Google authentication failed.');
+    if (error) throw new Error(error.message);
     return data;
   },
 
-  // Initialize Session from Supabase on App Startup
-  initialize: async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
-
-      if (session?.user) {
-        const fullUser = await get().syncUserProfile(session.user);
-        set({ user: fullUser, session, initialized: true });
-      } else {
-        set({ user: null, session: null, initialized: true });
-      }
-    } catch {
-      set({ user: null, session: null, initialized: true });
-    }
-
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') && session?.user) {
-        const fullUser = await get().syncUserProfile(session.user);
-        set({ user: fullUser, session, initialized: true });
-      } else if (event === 'SIGNED_OUT') {
-        set({ user: null, session: null, pendingUser: null, initialized: true });
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  },
-
-  // Signup Action (Sends 6-digit OTP code to email via Supabase Auth)
-  signUpUser: async ({ email, password, name, phone, role }) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanName = (name || '').trim() || cleanEmail.split('@')[0];
-    const fullPhone = (phone || '').trim();
-    const userRole = role || 'both';
-
-    let signUpResult;
-    try {
-      signUpResult = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            name: cleanName,
-            phone: fullPhone,
-            role: userRole,
-          },
-        },
-      });
-
-      if (signUpResult.error) {
-        // Fallback for broken DB triggers choking on user_metadata
-        if (signUpResult.error.message?.toLowerCase().includes('database error saving new user')) {
-          signUpResult = await supabase.auth.signUp({
-            email: cleanEmail,
-            password,
-          });
-        }
-      }
-    } catch (err) {
-      if (err.message?.toLowerCase().includes('database error saving new user')) {
-        signUpResult = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-        });
-      } else {
-        throw err;
-      }
-    }
-
-    if (signUpResult.error) throw signUpResult.error;
-    const data = signUpResult.data;
-
-    const pendingDetails = {
-      id: data?.user?.id,
-      email: cleanEmail,
-      name: cleanName,
-      phone: fullPhone,
-      role: userRole,
-    };
-
-    set({ pendingUser: pendingDetails });
-
-    return {
-      user: data.user || pendingDetails,
-      session: data.session, // Session is null until Email OTP is verified
-    };
-  },
-
-  // OTP Verification Action (Verifies 6-digit Email OTP via Supabase Auth)
-  verifySignupOtp: async (email, token, metadata = {}) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanToken = (token || '').trim();
-
-    if (!cleanToken || cleanToken.length !== 6 || !/^\d{6}$/.test(cleanToken)) {
-      throw new Error('Please enter a valid 6-digit verification code.');
-    }
-
-    // Verify OTP using Supabase's official Email OTP verification flow
-    let res = await supabase.auth.verifyOtp({
-      email: cleanEmail,
-      token: cleanToken,
-      type: 'signup',
-    });
-
-    // Fallback try with type 'email' if 'signup' is not accepted
-    if (res.error && res.error.message?.toLowerCase().includes('type')) {
-      res = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanToken,
-        type: 'email',
-      });
-    }
-
-    if (res.error) throw res.error;
-
-    const authUser = res.data?.user;
-    const session = res.data?.session;
-
-    const pending = get().pendingUser || {};
-    const mergedMeta = { ...pending, ...metadata, email: cleanEmail };
-
-    // Sync/create user profile in database
-    const fullUser = await get().syncUserProfile(authUser || { id: pending.id || 'usr_' + Date.now(), email: cleanEmail }, mergedMeta);
-
-    set({
-      user: fullUser,
-      session: session || { access_token: 'session_' + Date.now(), user: fullUser },
-      pendingUser: null,
-      initialized: true,
-    });
-
-    return fullUser;
-  },
-
-  // Resend Email OTP Code
+  // ── Resend Signup OTP Action ──────────────────────────────────────────────
   resendSignupOtp: async (email) => {
     const cleanEmail = (email || '').trim().toLowerCase();
-    let { error } = await supabase.auth.resend({
+    const { error } = await supabase.auth.resend({
       type: 'signup',
       email: cleanEmail,
     });
-
-    if (error) {
-      const fallback = await supabase.auth.resend({
-        type: 'email_change',
-        email: cleanEmail,
-      });
-      if (fallback.error && error) throw new Error(error.message);
-    }
-    return true;
+    if (error) throw new Error(error.message);
   },
 
-  // Direct Email + Password Login (For verified users)
-  loginUser: async ({ email, password, rememberMe = true }) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-
-    // Store Remember Me preference for dynamic storage adapter
+  // ── Logout Action ─────────────────────────────────────────────────────────
+  logout: async (options = { scope: 'local' }) => {
     try {
-      localStorage.setItem('rentnear_remember_me', rememberMe ? 'true' : 'false');
+      await supabase.auth.signOut(options);
     } catch {
       // Fail silently
     }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
-
-    if (error) throw error;
-
-    const fullUser = await get().syncUserProfile(data.user, { email: cleanEmail });
-
-    set({
-      user: fullUser,
-      session: data.session,
-      pendingUser: null,
-      initialized: true,
-    });
-
-    return fullUser;
-  },
-
-  // Send Password Reset OTP Email
-  sendPasswordResetOtp: async (email) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
-    if (error) throw new Error(error.message || 'Failed to send password reset code.');
-    return true;
-  },
-
-  // Verify Password Reset OTP Token
-  verifyPasswordResetOtp: async (email, token) => {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanToken = (token || '').trim();
-
-    if (!cleanToken || cleanToken.length !== 6) {
-      throw new Error('Please enter a valid 6-digit verification code.');
-    }
-
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: cleanEmail,
-      token: cleanToken,
-      type: 'recovery',
-    });
-
-    if (error) {
-      throw new Error(error.message || 'Invalid or expired verification code. Please request a new code.');
-    }
-
-    set({ session: data.session });
-    return true;
-  },
-
-  // Update User Password (After OTP verification)
-  updateUserPassword: async (newPassword) => {
-    if (!newPassword || newPassword.length < 6) {
-      throw new Error('Password must be at least 6 characters.');
-    }
-
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to update password.');
-    }
-
-    // Sign out active recovery session so user logs in with new password
-    await get().logout();
-    return true;
-  },
-
-  // Update User Profile (Name, Phone, Avatar)
-  updateUserProfile: async ({ name, phone, avatar_url }) => {
-    const currentUser = get().user;
-    if (!currentUser?.id) throw new Error('User is not authenticated.');
-
-    const cleanName = (name !== undefined ? name : currentUser.name || '').trim();
-    const cleanPhone = (phone !== undefined ? phone : currentUser.phone || '').trim();
-    const cleanAvatar = (avatar_url !== undefined ? avatar_url : currentUser.avatar_url || '').trim();
-
-    // 1. Update Auth Metadata
-    try {
-      await supabase.auth.updateUser({
-        data: {
-          name: cleanName,
-          phone: cleanPhone,
-          avatar_url: cleanAvatar,
-        },
-      });
-    } catch (err) {
-      console.warn('Auth metadata update notice:', err.message);
-    }
-
-    // 2. Update Database Record in public.users
-    const updatedData = {
-      name: cleanName,
-      phone: cleanPhone,
-      avatar_url: cleanAvatar,
-    };
-
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .update(updatedData)
-        .eq('id', currentUser.id)
-        .select()
-        .single();
-
-      const newProfile = data || { ...currentUser, ...updatedData };
-      set({ user: newProfile });
-      return newProfile;
-    } catch {
-      const newProfile = { ...currentUser, ...updatedData };
-      set({ user: newProfile });
-      return newProfile;
-    }
-  },
-
-  // Refresh Session Manually
-  refreshSession: async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.refreshSession();
-      if (error) throw error;
-      if (session?.user) {
-        const fullUser = await get().syncUserProfile(session.user);
-        set({ user: fullUser, session, initialized: true });
-        return session;
-      }
-    } catch (err) {
-      console.warn('Session refresh notice:', err.message);
-    }
-    return null;
-  },
-
-  // Logout Action (Supports scope: 'local' | 'global')
-  logout: async (options = {}) => {
-    const scope = options?.scope || 'local';
-    try {
-      await supabase.auth.signOut({ scope });
-    } catch {
-      // Fail silently
-    }
-    set({ user: null, session: null, pendingUser: null, initialized: true });
+    set({ session: null, user: null, initialized: true });
   },
 }));
 

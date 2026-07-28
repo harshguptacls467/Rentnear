@@ -36,7 +36,7 @@ const Payment = () => {
           .from('bookings')
           .select('*, product:products(title, images)')
           .eq('id', id)
-          .single();
+          .maybeSingle();
 
         if (dbError) throw dbError;
         setBooking(data);

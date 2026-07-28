@@ -45,7 +45,7 @@ const Home = () => {
       // User Profile Details
       let profileData = null;
       if (!isMock) {
-        const { data } = await supabase.from('users').select('*').eq('id', user.id).single();
+        const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
         if (data) profileData = data;
       }
       if (!profileData) {
@@ -80,8 +80,7 @@ const Home = () => {
 
         const { data: reqData } = await supabase.from('bookings').select(`
           *,
-          product:products(*),
-          renter:users!bookings_renter_id_fkey(name, avatar_url)
+          product:products(*)
         `).eq('owner_id', user.id).eq('status', 'pending');
         if (reqData) localRequests = reqData;
       } else {

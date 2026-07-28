@@ -30,9 +30,9 @@ const Handover = () => {
       try {
         const { data, error: dbError } = await supabase
           .from('bookings')
-          .select('*, product:products(title, images), renter:users!bookings_renter_id_fkey(name), owner:users!bookings_owner_id_fkey(name)')
+          .select('*, product:products(title, images)')
           .eq('id', id)
-          .single();
+          .maybeSingle();
 
         if (dbError) throw dbError;
         setBooking(data);

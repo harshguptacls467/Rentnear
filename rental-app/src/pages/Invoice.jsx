@@ -23,12 +23,10 @@ const Invoice = () => {
             .from('bookings')
             .select(`
               *,
-              product:products(*),
-              renter:users!bookings_renter_id_fkey(name, email),
-              owner:users!bookings_owner_id_fkey(name, email)
+              product:products(*)
             `)
             .eq('id', id)
-            .single();
+            .maybeSingle();
 
           if (fetchError || !data) throw fetchError || new Error('Booking not found');
           setBooking(data);

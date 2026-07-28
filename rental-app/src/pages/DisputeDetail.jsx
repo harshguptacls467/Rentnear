@@ -23,18 +23,18 @@ const DisputeDetail = () => {
         // 1. Fetch Booking
         const { data: bookingData, error: bookingError } = await supabase
           .from('bookings')
-          .select('*, product:products(title), renter:users!bookings_renter_id_fkey(name), owner:users!bookings_owner_id_fkey(name)')
+          .select('*, product:products(title)')
           .eq('id', id)
-          .single();
+          .maybeSingle();
         if (bookingError) throw bookingError;
         setBooking(bookingData);
 
         // 2. Fetch Dispute
         const { data: disputeData, error: disputeError } = await supabase
           .from('disputes')
-          .select('*, reporter:users!disputes_reported_by_fkey(name)')
+          .select('*')
           .eq('booking_id', id)
-          .single();
+          .maybeSingle();
         if (disputeError && disputeError.code !== 'PGRST116') throw disputeError; // ignore not found
         setDispute(disputeData);
 

@@ -5,7 +5,7 @@ const mockSignUp = vi.fn();
 const mockVerifyOtp = vi.fn();
 const mockResend = vi.fn();
 const mockSignInWithPassword = vi.fn();
-const mockSignOut = vi.fn();
+const mockSignOut = vi.fn(() => Promise.resolve({ error: null }));
 const mockResetPasswordForEmail = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockSignInWithOAuth = vi.fn();
@@ -39,12 +39,23 @@ vi.mock('../supabaseClient', () => ({
       resetPasswordForEmail: (...args) => mockResetPasswordForEmail(...args),
       updateUser: (...args) => mockUpdateUser(...args),
       signInWithOAuth: (...args) => mockSignInWithOAuth(...args),
+      setSession: vi.fn((params) => Promise.resolve({ data: { session: { access_token: params?.access_token || 'token' } }, error: null })),
     },
     from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        })),
+      })),
       upsert: vi.fn((profileData) => ({
         select: vi.fn(() => ({
+          maybeSingle: vi.fn(() => Promise.resolve({
+            data: Array.isArray(profileData) ? profileData[0] : profileData,
+            error: null,
+          })),
           single: vi.fn(() => Promise.resolve({
-            data: profileData,
+            data: Array.isArray(profileData) ? profileData[0] : profileData,
             error: null,
           })),
         })),
@@ -154,6 +165,7 @@ describe('Zustand Auth Store Unit Tests (Supabase Auth)', () => {
       options: {
         data: {
           name: 'John Doe',
+          full_name: 'John Doe',
           phone: '+91 9876543210',
           role: 'owner',
         },

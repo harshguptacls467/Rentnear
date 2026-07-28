@@ -100,7 +100,7 @@ const ListProduct = () => {
         if (isMock) {
           throw new Error('mock');
         }
-        const { data, error } = await supabase.from('products').select('*').eq('id', id).eq('owner_id', user.id).single();
+        const { data, error } = await supabase.from('products').select('*').eq('id', id).eq('owner_id', user.id).maybeSingle();
         if (error) throw error;
         setFormData({
           title: data.title || '', category: data.category || '', description: data.description || '',
