@@ -73,12 +73,10 @@ const ChatWindow = () => {
           .from('bookings')
           .select(`
             *,
-            product:products(*),
-            renter:users!bookings_renter_id_fkey(id, name, avatar_url),
-            owner:users!bookings_owner_id_fkey(id, name, avatar_url)
+            product:products(*)
           `)
           .eq('id', bookingId)
-          .single();
+          .maybeSingle();
 
         if (bookingError) throw bookingError;
         setBooking(bookingData);

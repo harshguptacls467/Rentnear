@@ -22,9 +22,9 @@ const Chat = () => {
           .select(`
             id,
             status,
-            product:products(title, images),
-            renter:users!bookings_renter_id_fkey(id, name, avatar_url),
-            owner:users!bookings_owner_id_fkey(id, name, avatar_url)
+            renter_id,
+            owner_id,
+            product:products(title, images)
           `)
           .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
           .order('created_at', { ascending: false });
@@ -73,8 +73,8 @@ const Chat = () => {
           ) : (
             <div className="divide-y divide-gray-100">
               {conversations.map((chat) => {
-                const isOwner = chat.owner.id === user.id;
-                const otherPerson = isOwner ? chat.renter : chat.owner;
+                const isOwner = chat.owner_id === user.id;
+                const otherPerson = (isOwner ? chat.renter : chat.owner) || { name: 'Neighbor', avatar_url: '' };
                 const roleLabel = isOwner ? 'Renter' : 'Owner';
 
                 return (
