@@ -15,6 +15,12 @@ import useRealtimeBookings from '../hooks/useRealtimeBookings';
 import { getLocalBookings, saveLocalBookings } from '../utils/localDb';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const safeFormatDate = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
+};
+
 const Bookings = () => {
   const navigate = useNavigate();
   const { user, isMock } = useAuthStore();
@@ -80,7 +86,10 @@ const Bookings = () => {
       // Supabase direct query fallback
       const { data: directData } = await supabase
         .from('bookings')
-        .select('*')
+        .select(`
+          *,
+          product:products(*)
+        `)
         .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
 
@@ -338,7 +347,7 @@ const Bookings = () => {
                           </div>
                           
                           <p className="text-xs text-gray-400 mt-1 font-medium">
-                            Reservation: {new Date(booking.start_date).toLocaleDateString()} - {new Date(booking.end_date).toLocaleDateString()}
+                            Reservation: {safeFormatDate(booking.start_date)} - {safeFormatDate(booking.end_date)}
                           </p>
                           
                           <div className="flex items-center gap-4 mt-3">
@@ -541,7 +550,7 @@ const Bookings = () => {
                       <div>
                         <h3 className="text-lg font-bold text-navy">Request: {booking.product?.title}</h3>
                         <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-1 font-medium">
-                          <Calendar size={13} /> {new Date(booking.start_date).toLocaleDateString()} - {new Date(booking.end_date).toLocaleDateString()}
+                          <Calendar size={13} /> {safeFormatDate(booking.start_date)} - {safeFormatDate(booking.end_date)}
                         </p>
                       </div>
                       <StatusBadge status={booking.status} />
@@ -569,7 +578,7 @@ const Bookings = () => {
 
                         {booking.extension_requested && (
                           <div className="mt-3 bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center justify-between text-xs text-amber-800">
-                            <span>Requested extension return date to: <strong>{new Date(booking.extension_requested).toLocaleDateString()}</strong></span>
+                            <span>Requested extension return date to: <strong>{safeFormatDate(booking.extension_requested)}</strong></span>
                             <button 
                               onClick={() => {
                                 // Accept Extension

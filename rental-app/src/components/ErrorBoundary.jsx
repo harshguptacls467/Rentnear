@@ -39,10 +39,10 @@ class ErrorBoundary extends Component {
               <RefreshCcw size={18} /> Reload Page
             </Button>
             
-            {/* For development/debugging, show error message */}
-            {import.meta.env.DEV && (
-              <div className="mt-6 p-4 bg-gray-100 rounded-lg text-left overflow-auto text-xs text-red-500">
-                <code>{this.state.error?.toString()}</code>
+            {this.state.error && (
+              <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-left overflow-auto text-xs text-red-600 max-h-40">
+                <p className="font-bold mb-1">Error details:</p>
+                <code>{this.state.error.message || this.state.error.toString()}</code>
               </div>
             )}
           </div>
