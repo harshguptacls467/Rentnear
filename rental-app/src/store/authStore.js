@@ -65,13 +65,22 @@ export const useAuthStore = create((set, get) => ({
   initialize: () => {
     supabase.auth
       .getSession()
-      .then(async ({ data: { session }, error }) => {
+      .then(async ({ data, error }) => {
+        const session = data?.session || null;
         if (error || !session?.user) {
           set({ session: null, user: null, initialized: true });
           return;
         }
-        const fullUser = await get().fetchPublicUser(session.user);
-        set({ session, user: fullUser, initialized: true });
+        // Set session and mark initialized immediately so routes render instantly
+        set({ session, user: session.user, initialized: true });
+
+        // Hydrate public user profile asynchronously without blocking initial render
+        try {
+          const fullUser = await get().fetchPublicUser(session.user);
+          if (fullUser) set({ user: fullUser });
+        } catch {
+          // Keep base auth user if DB sync fails
+        }
       })
       .catch(() => {
         set({ session: null, user: null, initialized: true });
@@ -80,8 +89,13 @@ export const useAuthStore = create((set, get) => ({
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
-          const fullUser = await get().fetchPublicUser(session.user);
-          set({ session, user: fullUser, initialized: true });
+          set({ session, user: session.user, initialized: true });
+          try {
+            const fullUser = await get().fetchPublicUser(session.user);
+            if (fullUser) set({ user: fullUser });
+          } catch {
+            // Keep base auth user
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         set({ session: null, user: null, initialized: true });

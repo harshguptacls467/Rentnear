@@ -117,13 +117,9 @@ function App() {
   usePresence(user, 'rentnear-global-presence');
 
   useEffect(() => {
-    const cleanup = initialize();
-    
-    // Initialize OneSignal
+    initialize();
     initOneSignal(user?.id);
-
-    return cleanup;
-  }, [initialize]);
+  }, []);
 
   useEffect(() => {
     // Sync OneSignal user id when auth state changes
