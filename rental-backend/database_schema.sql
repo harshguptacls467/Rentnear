@@ -285,11 +285,11 @@ CREATE POLICY "Users can update own notifications" ON notifications FOR UPDATE U
 CREATE TABLE kyc_submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  id_type TEXT NOT NULL,
+  id_type TEXT DEFAULT 'Aadhaar Card',
   front_url TEXT NOT NULL,
-  back_url TEXT NOT NULL,
-  selfie_url TEXT NOT NULL,
-  status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+  back_url TEXT DEFAULT '',
+  selfie_url TEXT DEFAULT '',
+  status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected', 'resubmission_required'
   admin_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

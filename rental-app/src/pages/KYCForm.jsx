@@ -59,6 +59,7 @@ const KYCForm = () => {
 
   // Single Document Upload state
   const [idType, setIdType] = useState('Aadhaar Card');
+  const [idNumber, setIdNumber] = useState('');
   const [idImage, setIdImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmission, setLastSubmission] = useState(null);
@@ -168,6 +169,10 @@ const KYCForm = () => {
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
+    if (!idNumber.trim()) {
+      showToast('Please enter your Document ID Number', 'error');
+      return;
+    }
     if (!idImage) {
       showToast('Please select your ID Document photo before submitting', 'error');
       return;
@@ -213,9 +218,11 @@ const KYCForm = () => {
           user_name: user?.name || user?.email?.split('@')[0] || 'User',
           user_email: user?.email || 'user@example.com',
           id_type: idType,
+          id_number: idNumber.trim(),
           front_url: idUrl,
           back_url: idUrl,
           selfie_url: idUrl,
+          document_url: idUrl,
           status: 'pending',
           created_at: new Date().toISOString()
         };
@@ -227,7 +234,7 @@ const KYCForm = () => {
           const fullPayload = {
             user_id: activeUserId,
             id_type: idType,
-            id_number: `DOC-${Date.now().toString().slice(-6)}`,
+            id_number: idNumber.trim(),
             front_url: idUrl,
             back_url: idUrl,
             selfie_url: idUrl,
@@ -244,6 +251,7 @@ const KYCForm = () => {
             const minimalPayload = {
               user_id: activeUserId,
               id_type: idType,
+              id_number: idNumber.trim(),
               front_url: idUrl,
               back_url: idUrl,
               selfie_url: idUrl,
@@ -290,7 +298,7 @@ const KYCForm = () => {
           <h1 className="text-2xl font-extrabold text-gray-900">Identity Verification (KYC)</h1>
         </div>
         <p className="text-gray-600 mb-8 leading-relaxed">
-          Upload 1 clear photo of your Government ID (Aadhaar, PAN, Driving License, or Passport) to verify your identity.
+          Enter your Document ID Number and upload 1 clear photo of your Government ID (Aadhaar, PAN, Driving License, or Passport).
         </p>
 
         {user?.kyc_status === 'resubmission_required' && (
@@ -319,19 +327,32 @@ const KYCForm = () => {
         )}
 
         <form onSubmit={handleManualSubmit} className="space-y-6">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
-            <select 
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium text-gray-900"
-              value={idType}
-              onChange={(e) => setIdType(e.target.value)}
-            >
-              <option value="Aadhaar Card">Aadhaar Card</option>
-              <option value="PAN Card">PAN Card</option>
-              <option value="Driving License">Driving License</option>
-              <option value="Voter ID">Voter ID</option>
-              <option value="Passport">Passport</option>
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
+              <select 
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium text-gray-900"
+                value={idType}
+                onChange={(e) => setIdType(e.target.value)}
+              >
+                <option value="Aadhaar Card">Aadhaar Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Driving License">Driving License</option>
+                <option value="Voter ID">Voter ID</option>
+                <option value="Passport">Passport</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document ID Number</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 1234-5678-9012 or ABCDE1234F"
+                required
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium text-gray-900"
+                value={idNumber}
+                onChange={(e) => setIdNumber(e.target.value)}
+              />
+            </div>
           </div>
 
           <FileUploadSlot label="Government ID Photo" file={idImage} onChange={(e) => handleFileChange(e, setIdImage)} />
