@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import Button from '../components/Button';
 import AnimatedPage from '../components/AnimatedPage';
-import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
+import { getLocalUsers, saveLocalUsers, getLocalKycSubmissions, saveLocalKycSubmissions } from '../utils/localDb';
 
 const FileUploadSlot = ({ label, file, onChange }) => {
   const slotId = `kyc-upload-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
@@ -195,6 +195,22 @@ const KYCForm = () => {
         }
 
         const idUrl = await uploadToSupabase(idImage, 'id_doc');
+
+        const newSubmission = {
+          id: `kyc_${Date.now()}`,
+          user_id: user?.id || `user_${Date.now()}`,
+          user_name: user?.name || user?.email?.split('@')[0] || 'User',
+          user_email: user?.email || 'user@example.com',
+          id_type: idType,
+          front_url: idUrl,
+          back_url: idUrl,
+          selfie_url: idUrl,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        };
+
+        const existingLocal = getLocalKycSubmissions();
+        saveLocalKycSubmissions([newSubmission, ...existingLocal]);
 
         if (user?.id) {
           try {

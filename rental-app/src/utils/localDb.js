@@ -130,3 +130,18 @@ export const saveLocalSavedSearches = (userId, searches) => {
   const key = `rentnear_saved_searches_${userId || 'anonymous'}`;
   safeSetItem(key, JSON.stringify(searches));
 };
+
+// KYC Submissions Helpers
+export const getLocalKycSubmissions = () => {
+  const data = safeGetItem('rentnear_local_kyc_submissions');
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+};
+
+export const saveLocalKycSubmissions = (submissions) => {
+  safeSetItem('rentnear_local_kyc_submissions', JSON.stringify(submissions));
+};
