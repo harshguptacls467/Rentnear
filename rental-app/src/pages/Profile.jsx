@@ -9,7 +9,7 @@ import TextArea from '../components/TextArea';
 import { 
   Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, 
   ShieldCheck, AlertCircle, Quote, MapPin, CreditCard, Shield, Lock, 
-  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp
+  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp, Sparkles
 } from 'lucide-react';
 import { MOCK_USER, MOCK_REVIEWS } from '../data/mockData';
 import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
