@@ -47,12 +47,7 @@ const Register = () => {
 
   const [validationErrors, setValidationErrors] = useState({});
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (session) {
-      navigate('/home', { replace: true });
-    }
-  }, [session, navigate]);
+  // Clear stale validation errors when form inputs change
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

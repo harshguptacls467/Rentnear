@@ -1,13 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-if (!import.meta.env.VITE_SUPABASE_URL) {
-  throw new Error('Missing VITE_SUPABASE_URL env variable');
-}
-if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  throw new Error('Missing VITE_SUPABASE_ANON_KEY env variable');
-}
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://cqjtoiwgeyttczvxzkad.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxanRvaXdnZXl0dGN6dnh6a2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNDI2MjgsImV4cCI6MjA5NDYxODYyOH0.m_2MLzpH103SpC8LBkkqk8N5zSoTa2u-GudWHMBrs5Y';
 
 /**
  * Dynamic Auth Storage Adapter:

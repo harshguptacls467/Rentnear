@@ -30,12 +30,7 @@ const Login = () => {
 
   const [validationErrors, setValidationErrors] = useState({});
 
-  // Already logged in → redirect
-  useEffect(() => {
-    if (session) {
-      navigate('/home', { replace: true });
-    }
-  }, [session, navigate]);
+  // Clear stale errors when form inputs change
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
