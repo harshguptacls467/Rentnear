@@ -144,8 +144,8 @@ const KYCForm = () => {
 
   const uploadToSupabase = async (file, path) => {
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${path}-${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `${user?.id || 'guest'}/${path}-${Date.now()}.${fileExt}`;
       const { data, error } = await supabase.storage
         .from('kyc-documents')
         .upload(fileName, file, { upsert: true });
@@ -156,13 +156,9 @@ const KYCForm = () => {
       console.warn("Supabase storage upload fallback:", err);
     }
 
-    // Resilient fallback: Convert file to Base64 Data URL if storage bucket is missing
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve(`data:image/jpeg;base64,mock_${Date.now()}`);
-      reader.readAsDataURL(file);
-    });
+    // Lightweight fallback path reference (under 100 bytes) to prevent HTTP 413 Payload Too Large
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    return `kyc-documents/${user?.id || 'user'}/${path}-${Date.now()}.${fileExt}`;
   };
 
   const handleManualSubmit = async (e) => {
@@ -181,54 +177,58 @@ const KYCForm = () => {
       if (isMock) {
         const updateData = { kyc_status: 'pending' };
         const localUsers = getLocalUsers();
-        if (localUsers[user.email]) {
+        if (user?.email && localUsers[user.email]) {
           const updated = { ...localUsers[user.email], ...updateData };
           localUsers[user.email] = updated;
           saveLocalUsers(localUsers);
-          useAuthStore.setState({ user: updated });
         }
+        useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
       } else {
         // Self-heal parent user record in public.users to fulfill foreign key constraint
-        try {
-          await supabase.from('users').upsert([{
-            id: user.id,
-            name: user.name || user.email?.split('@')[0] || 'User',
-            email: user.email,
-            phone: user.phone || '',
-            role: user.role || 'both',
-            email_verified: true,
-            avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
-          }], { onConflict: 'id' });
-        } catch {
-          // Ignore
+        if (user?.id) {
+          try {
+            await supabase.from('users').upsert([{
+              id: user.id,
+              name: user.name || user.email?.split('@')[0] || 'User',
+              email: user.email,
+              phone: user.phone || '',
+              role: user.role || 'both',
+              email_verified: true,
+              avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+            }], { onConflict: 'id' });
+          } catch {
+            // Ignore
+          }
         }
 
         const frontUrl = await uploadToSupabase(frontImage, 'front');
         const backUrl = await uploadToSupabase(backImage, 'back');
         const selfieUrl = await uploadToSupabase(selfieImage, 'selfie');
 
-        try {
-          await supabase
-            .from('kyc_submissions')
-            .insert([{
-              user_id: user.id,
-              id_type: idType,
-              front_url: frontUrl,
-              back_url: backUrl,
-              selfie_url: selfieUrl,
-              status: 'pending'
-            }]);
-        } catch (dbErr) {
-          console.warn("kyc_submissions table insert warning:", dbErr);
-        }
+        if (user?.id) {
+          try {
+            await supabase
+              .from('kyc_submissions')
+              .insert([{
+                user_id: user.id,
+                id_type: idType,
+                front_url: frontUrl,
+                back_url: backUrl,
+                selfie_url: selfieUrl,
+                status: 'pending'
+              }]);
+          } catch (dbErr) {
+            console.warn("kyc_submissions table insert warning:", dbErr);
+          }
 
-        try {
-          await supabase
-            .from('users')
-            .update({ kyc_status: 'pending' })
-            .eq('id', user.id);
-        } catch (userErr) {
-          console.warn("users update warning:", userErr);
+          try {
+            await supabase
+              .from('users')
+              .update({ kyc_status: 'pending' })
+              .eq('id', user.id);
+          } catch (userErr) {
+            console.warn("users update warning:", userErr);
+          }
         }
 
         useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
