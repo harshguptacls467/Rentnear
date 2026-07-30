@@ -157,6 +157,17 @@ const KYCForm = () => {
           useAuthStore.setState({ user: updated });
         }
       } else {
+        // Self-heal parent user record in public.users to fulfill foreign key constraint
+        await supabase.from('users').upsert([{
+          id: user.id,
+          name: user.name || user.email?.split('@')[0] || 'User',
+          email: user.email,
+          phone: user.phone || '',
+          role: user.role || 'both',
+          email_verified: true,
+          avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+        }], { onConflict: 'id' }).catch(() => {});
+
         const frontUrl = await uploadToSupabase(frontImage, 'front');
         const backUrl = await uploadToSupabase(backImage, 'back');
         const selfieUrl = await uploadToSupabase(selfieImage, 'selfie');
