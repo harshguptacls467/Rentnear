@@ -3,17 +3,6 @@
  * 
  * Subscribes to the `products` table for INSERT, UPDATE, DELETE events.
  * Returns a `status` string so pages can show a "🔴 Live" indicator.
- * 
- * How Supabase Realtime works here:
- * - We create a "channel" (a named WebSocket room)
- * - We listen for `postgres_changes` events on the `products` table
- * - When Postgres commits an INSERT/UPDATE/DELETE, Supabase broadcasts it
- *   to all subscribers of that channel
- * - RLS still applies: Supabase checks the user's JWT before broadcasting
- * 
- * Memory leak prevention:
- * - Returns a cleanup function that calls `supabase.removeChannel`
- * - React calls this cleanup when the component unmounts
  */
 import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
@@ -27,10 +16,7 @@ import { useToast } from '../context/ToastContext';
  * @param {string} sortBy - Current sort ('newest' | 'price_asc' | 'price_desc')
  */
 const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest') => {
-
   const { showToast } = useToast();
-  const { setProductsFeedStatus, setProductsChannelName, addNewProduct } = useRealtimeStore();
-
   const filtersRef = useRef(filters);
   const sortByRef = useRef(sortBy);
 
@@ -63,12 +49,10 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
     // Never subscribe in mock/demo mode
     if (isMock) return;
 
-    setProductsFeedStatus('connecting');
+    useRealtimeStore.getState().setProductsFeedStatus('connecting');
 
-    // Unique channel name prevents collisions if the same hook
-    // is mounted multiple times (e.g. Home + Products both open)
     const channelName = `realtime-products-${Date.now()}`;
-      setProductsChannelName(channelName);
+    useRealtimeStore.getState().setProductsChannelName(channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -78,13 +62,12 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
         async (payload) => {
           const newProduct = payload.new;
           
-          // Fetch owner details to populate owner join object
           try {
             const { data: ownerData } = await supabase
               .from('users')
               .select('id, name, avatar_url, rating_average, rating_count, phone')
               .eq('id', newProduct.owner_id)
-              .single();
+              .maybeSingle();
               
             if (ownerData) {
               newProduct.owner = ownerData;
@@ -93,21 +76,18 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
             console.error("Failed to fetch owner details for live product:", err);
           }
 
-          // Mark as "new" for badge display
-          addNewProduct(newProduct.id);
+          useRealtimeStore.getState().addNewProduct(newProduct.id);
           
-          // Check filters using ref to avoid effect dependency issues
           const currentFilters = filtersRef.current;
           const filterCategory = currentFilters?.category || 'All';
           const filterSearch = currentFilters?.searchQuery || '';
           
           let matches = true;
           if (filterCategory !== 'All' && newProduct.category !== filterCategory) matches = false;
-          if (filterSearch.trim() && !newProduct.title.toLowerCase().includes(filterSearch.toLowerCase())) matches = false;
+          if (filterSearch.trim() && !newProduct.title?.toLowerCase().includes(filterSearch.toLowerCase())) matches = false;
 
-          // Only add to list if matches current filters
-          if (matches) {
-            setProducts(prev => insertSorted(prev, newProduct));
+          if (matches && typeof setProducts === 'function') {
+            setProducts(prev => insertSorted(prev || [], newProduct));
             showToast(`🆕 New item listed: "${newProduct.title}"`, 'info');
           }
         }
@@ -116,56 +96,60 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'products' },
         (payload) => {
-            const updated = payload.new;
-            const currentFilters = filtersRef.current;
-            const matchesFilters = (product) => {
-              const filterCategory = currentFilters?.category || 'All';
-              const filterSearch = currentFilters?.searchQuery || '';
-              const filterOwnerId = currentFilters?.ownerId;
-              const filterStatus = currentFilters?.status;
-              let ok = true;
-              if (filterCategory !== 'All' && product.category !== filterCategory) ok = false;
-              if (filterSearch && !product.title?.toLowerCase().includes(filterSearch.toLowerCase())) ok = false;
-              if (filterOwnerId && product.owner_id !== filterOwnerId) ok = false;
-              if (filterStatus && product.status !== filterStatus) ok = false;
-              if (!filterStatus && (product.status === 'hidden' || product.status === 'rejected')) ok = false;
-              return ok;
-            };
+          const updated = payload.new;
+          const currentFilters = filtersRef.current;
+          const matchesFilters = (product) => {
+            const filterCategory = currentFilters?.category || 'All';
+            const filterSearch = currentFilters?.searchQuery || '';
+            const filterOwnerId = currentFilters?.ownerId;
+            const filterStatus = currentFilters?.status;
+            let ok = true;
+            if (filterCategory !== 'All' && product.category !== filterCategory) ok = false;
+            if (filterSearch && !product.title?.toLowerCase().includes(filterSearch.toLowerCase())) ok = false;
+            if (filterOwnerId && product.owner_id !== filterOwnerId) ok = false;
+            if (filterStatus && product.status !== filterStatus) ok = false;
+            if (!filterStatus && (product.status === 'hidden' || product.status === 'rejected')) ok = false;
+            return ok;
+          };
+          if (typeof setProducts === 'function') {
             setProducts(prev => {
-              const exists = prev.some(p => p.id === updated.id);
+              const currentList = Array.isArray(prev) ? prev : [];
+              const exists = currentList.some(p => p.id === updated.id);
               const matches = matchesFilters(updated);
               if (!matches) {
-                return prev.filter(p => p.id !== updated.id);
+                return currentList.filter(p => p.id !== updated.id);
               }
               if (exists) {
-                return prev.map(p => p.id === updated.id ? { ...p, ...updated } : p);
+                return currentList.map(p => p.id === updated.id ? { ...p, ...updated } : p);
               }
-              return insertSorted(prev, updated);
+              return insertSorted(currentList, updated);
             });
           }
+        }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'products' },
         (payload) => {
           const deleted = payload.old;
-          setProducts(prev => prev.filter(p => p.id !== deleted.id));
+          if (typeof setProducts === 'function') {
+            setProducts(prev => (Array.isArray(prev) ? prev : []).filter(p => p.id !== deleted.id));
+          }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          setProductsFeedStatus('connected');
+          useRealtimeStore.getState().setProductsFeedStatus('connected');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setProductsFeedStatus('disconnected');
+          useRealtimeStore.getState().setProductsFeedStatus('disconnected');
         }
       });
 
-    // Cleanup: CRITICAL — prevents WebSocket memory leaks
     return () => {
-      setProductsFeedStatus('disconnected');
+      useRealtimeStore.getState().setProductsFeedStatus('disconnected');
       supabase.removeChannel(channel);
     };
-  }, [isMock, insertSorted, addNewProduct, setProducts, setProductsFeedStatus, setProductsChannelName, showToast]);
+  }, [isMock, insertSorted, setProducts, showToast]);
 };
 
 export default useRealtimeProducts;

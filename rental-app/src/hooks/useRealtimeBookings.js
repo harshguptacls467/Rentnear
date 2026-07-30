@@ -2,19 +2,6 @@
  * useRealtimeBookings.js
  * 
  * Subscribes to the `bookings` table for UPDATE events relevant to the current user.
- * When a booking's status changes, it:
- *   1. Patches the booking in local state (no full refetch needed)
- *   2. Shows a toast notification with the appropriate message
- * 
- * How channels work:
- * - Supabase allows a `filter` parameter on postgres_changes listeners
- * - We use TWO listeners on the same channel: one for renter, one for owner
- * - Both share the same WebSocket connection (efficient)
- * 
- * Optimistic UI:
- * - When owner approves/rejects, the state is already updated optimistically
- *   by the Bookings page. This hook catches the DB-confirmed UPDATE and
- *   ensures the UI stays in sync even if optimistic update was wrong.
  */
 import { useEffect } from 'react';
 import { supabase } from '../supabaseClient';
@@ -38,19 +25,15 @@ const STATUS_MESSAGES = {
  * @param {boolean} isMock - Skip in mock mode
  */
 const useRealtimeBookings = (setBookings, user, isMock) => {
-  const { setBookingsFeedStatus } = useRealtimeStore();
   const { showToast } = useToast();
 
   useEffect(() => {
     if (isMock || !user?.id) return;
 
-    setBookingsFeedStatus('connecting');
+    useRealtimeStore.getState().setBookingsFeedStatus('connecting');
 
     const channel = supabase
       .channel(`realtime-bookings-${user.id}`)
-      // Listen for updates where current user is the RENTER
-
-      // Listen for updates where current user is the OWNER
       .on(
         'postgres_changes',
         {
@@ -63,13 +46,13 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
           const updated = payload.new;
           const prev = payload.old;
 
-          // Patch the specific booking in state
-          setBookings(prev_list =>
-            prev_list.map(b => b.id === updated.id ? { ...b, ...updated } : b)
-          );
+          if (typeof setBookings === 'function') {
+            setBookings(prev_list =>
+              (Array.isArray(prev_list) ? prev_list : []).map(b => b.id === updated.id ? { ...b, ...updated } : b)
+            );
+          }
 
-          // Show toast only when status actually changed
-          if (updated.status !== prev.status && STATUS_MESSAGES[updated.status]) {
+          if (updated.status !== prev?.status && STATUS_MESSAGES[updated.status]) {
             const successStatuses = ['approved', 'completed', 'active', 'return_approved'];
             const toastType = successStatuses.includes(updated.status) ? 'success' : 'error';
             showToast(STATUS_MESSAGES[updated.status], toastType);
@@ -88,9 +71,11 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
           const updated = payload.new;
           const prev_status = payload.old?.status;
 
-          setBookings(prev_list =>
-            prev_list.map(b => b.id === updated.id ? { ...b, ...updated } : b)
-          );
+          if (typeof setBookings === 'function') {
+            setBookings(prev_list =>
+              (Array.isArray(prev_list) ? prev_list : []).map(b => b.id === updated.id ? { ...b, ...updated } : b)
+            );
+          }
 
           if (updated.status !== prev_status && STATUS_MESSAGES[updated.status]) {
             const successStatuses = ['approved', 'completed', 'active', 'return_approved'];
@@ -99,7 +84,6 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
           }
         }
       )
-      // Listen for new booking INSERTS (new rental requests) for owner
       .on(
         'postgres_changes',
         {
@@ -111,12 +95,11 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
         (payload) => {
           const newBooking = payload.new;
           showToast('🔔 New booking request received!', 'info');
-          // Prepend the new booking (it won't have joined data, so we use a flag
-          // to trigger a background refresh on next focus)
-          setBookings(prev => [newBooking, ...prev]);
+          if (typeof setBookings === 'function') {
+            setBookings(prev => [newBooking, ...(Array.isArray(prev) ? prev : [])]);
+          }
         }
       )
-      // Listen for new booking INSERTS created by the renter
       .on(
         'postgres_changes',
         {
@@ -128,10 +111,11 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
         (payload) => {
           const newBooking = payload.new;
           showToast('🔔 New booking created!', 'info');
-          setBookings(prev => [newBooking, ...prev]);
+          if (typeof setBookings === 'function') {
+            setBookings(prev => [newBooking, ...(Array.isArray(prev) ? prev : [])]);
+          }
         }
       )
-      // Listen for DELETE events where current user is the renter
       .on(
         'postgres_changes',
         {
@@ -142,10 +126,11 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
         },
         (payload) => {
           const deletedId = payload.old.id;
-          setBookings(prev => prev.filter(b => b.id !== deletedId));
+          if (typeof setBookings === 'function') {
+            setBookings(prev => (Array.isArray(prev) ? prev : []).filter(b => b.id !== deletedId));
+          }
         }
       )
-      // Listen for DELETE events where current user is the owner
       .on(
         'postgres_changes',
         {
@@ -156,19 +141,21 @@ const useRealtimeBookings = (setBookings, user, isMock) => {
         },
         (payload) => {
           const deletedId = payload.old.id;
-          setBookings(prev => prev.filter(b => b.id !== deletedId));
+          if (typeof setBookings === 'function') {
+            setBookings(prev => (Array.isArray(prev) ? prev : []).filter(b => b.id !== deletedId));
+          }
         }
       )
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setBookingsFeedStatus('connected');
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setBookingsFeedStatus('disconnected');
+        if (status === 'SUBSCRIBED') useRealtimeStore.getState().setBookingsFeedStatus('connected');
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') useRealtimeStore.getState().setBookingsFeedStatus('disconnected');
       });
 
     return () => {
-      setBookingsFeedStatus('disconnected');
+      useRealtimeStore.getState().setBookingsFeedStatus('disconnected');
       supabase.removeChannel(channel);
     };
-  }, [isMock, user?.id, setBookings, setBookingsFeedStatus, showToast]);
+  }, [isMock, user?.id, setBookings, showToast]);
 };
 
 export default useRealtimeBookings;
