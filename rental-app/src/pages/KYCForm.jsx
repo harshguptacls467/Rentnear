@@ -177,20 +177,23 @@ const KYCForm = () => {
         }
         useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
       } else {
-        // Self-heal parent user record in public.users to fulfill foreign key constraint
-        if (user?.id) {
+        const { data: authUserRes } = await supabase.auth.getUser();
+        const activeUserId = authUserRes?.user?.id || session?.user?.id || user?.id;
+
+        // 1. Self-heal parent user record in public.users to fulfill foreign key constraint
+        if (activeUserId) {
           try {
             await supabase.from('users').upsert([{
-              id: user.id,
-              name: user.name || user.email?.split('@')[0] || 'User',
-              email: user.email,
-              phone: user.phone || '',
-              role: user.role || 'both',
+              id: activeUserId,
+              name: user?.name || user?.email?.split('@')[0] || 'User',
+              email: user?.email || authUserRes?.user?.email,
+              phone: user?.phone || '',
+              role: user?.role || 'both',
               email_verified: true,
-              avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+              avatar_url: user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeUserId}`,
             }], { onConflict: 'id' });
-          } catch {
-            // Ignore
+          } catch (upsertErr) {
+            console.warn("User self-heal upsert warning:", upsertErr);
           }
         }
 
@@ -198,7 +201,7 @@ const KYCForm = () => {
 
         const newSubmission = {
           id: `kyc_${Date.now()}`,
-          user_id: user?.id || `user_${Date.now()}`,
+          user_id: activeUserId || `user_${Date.now()}`,
           user_name: user?.name || user?.email?.split('@')[0] || 'User',
           user_email: user?.email || 'user@example.com',
           id_type: idType,
@@ -212,29 +215,29 @@ const KYCForm = () => {
         const existingLocal = getLocalKycSubmissions();
         saveLocalKycSubmissions([newSubmission, ...existingLocal]);
 
-        if (user?.id) {
-          try {
-            await supabase
-              .from('kyc_submissions')
-              .insert([{
-                user_id: user.id,
-                id_type: idType,
-                front_url: idUrl,
-                back_url: idUrl,
-                selfie_url: idUrl,
-                status: 'pending'
-              }]);
-          } catch (dbErr) {
-            console.warn("kyc_submissions table insert warning:", dbErr);
+        if (activeUserId) {
+          const { error: insertErr } = await supabase
+            .from('kyc_submissions')
+            .insert([{
+              user_id: activeUserId,
+              id_type: idType,
+              front_url: idUrl,
+              back_url: idUrl,
+              selfie_url: idUrl,
+              status: 'pending'
+            }]);
+
+          if (insertErr) {
+            console.warn("kyc_submissions table insert error:", insertErr.message);
           }
 
-          try {
-            await supabase
-              .from('users')
-              .update({ kyc_status: 'pending' })
-              .eq('id', user.id);
-          } catch (userErr) {
-            console.warn("users update warning:", userErr);
+          const { error: userUpdateErr } = await supabase
+            .from('users')
+            .update({ kyc_status: 'pending' })
+            .eq('id', activeUserId);
+
+          if (userUpdateErr) {
+            console.warn("users table update error:", userUpdateErr.message);
           }
         }
 
