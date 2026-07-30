@@ -48,6 +48,9 @@ vi.mock('../supabaseClient', () => ({
           single: vi.fn(() => Promise.resolve({ data: null, error: null })),
         })),
       })),
+      update: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+      })),
       upsert: vi.fn((profileData) => ({
         select: vi.fn(() => ({
           maybeSingle: vi.fn(() => Promise.resolve({

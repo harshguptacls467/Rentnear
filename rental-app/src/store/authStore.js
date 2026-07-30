@@ -28,6 +28,7 @@ export const useAuthStore = create((set, get) => ({
           email: authUser.email,
           phone: authUser.user_metadata?.phone || authUser.phone || '',
           role: authUser.user_metadata?.role || 'both',
+          email_verified: true,
           kyc_status: 'unverified',
           kyc_verified: false,
           is_admin: (authUser.email || '').toLowerCase().trim() === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(),
@@ -196,6 +197,10 @@ export const useAuthStore = create((set, get) => ({
       if (!setSessionErr && setSessionData?.session) {
         activeSession = setSessionData.session;
       }
+    }
+
+    if (authUser?.id) {
+      await supabase.from('users').update({ email_verified: true }).eq('id', authUser.id).catch(() => {});
     }
 
     const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;

@@ -635,12 +635,12 @@ const Profile = () => {
                         <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-2">{profile.name}</h1>
                         <div className="flex flex-wrap items-center gap-3">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                            profile.email_verified 
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                            profile.email_verified !== false
+                              ? 'bg-green-50 text-green-700 border border-green-200' 
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
                           }`}>
                             <Mail size={12} />
-                            {profile.email_verified ? 'Email Verified' : 'Email Unverified'}
+                            {profile.email_verified !== false ? 'Email Verified' : 'Email Unverified'}
                           </span>
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                             <ShieldCheck size={12} /> Trusted Peer
