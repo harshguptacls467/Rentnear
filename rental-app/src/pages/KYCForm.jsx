@@ -11,32 +11,46 @@ import Button from '../components/Button';
 import AnimatedPage from '../components/AnimatedPage';
 import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
 
-const FileUploadSlot = ({ label, file, onChange }) => (
-  <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center hover:bg-gray-50 transition-colors">
-    <input 
-      type="file" 
-      accept="image/*" 
-      id={label}
-      className="hidden" 
-      onChange={onChange}
-    />
-    <label htmlFor={label} className="cursor-pointer flex flex-col items-center">
-      {file ? (
-        <>
-          <FileImage className="text-primary mb-2" size={32} />
-          <span className="text-sm font-medium text-gray-900">{file.name}</span>
-          <span className="text-xs text-gray-500 mt-1">Click to change</span>
-        </>
-      ) : (
-        <>
-          <UploadCloud className="text-gray-400 mb-2" size={32} />
-          <span className="text-sm font-medium text-gray-900">Upload {label}</span>
-          <span className="text-xs text-gray-500 mt-1">JPEG/PNG up to 5MB</span>
-        </>
-      )}
-    </label>
-  </div>
-);
+const FileUploadSlot = ({ label, file, onChange }) => {
+  const slotId = `kyc-upload-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  return (
+    <div 
+      onClick={(e) => {
+        if (e.target.tagName !== 'INPUT') {
+          document.getElementById(slotId)?.click();
+        }
+      }}
+      className="border-2 border-dashed border-gray-200 hover:border-primary/40 rounded-2xl p-6 text-center hover:bg-primary/5 transition-all cursor-pointer group"
+    >
+      <input 
+        type="file" 
+        accept="image/*" 
+        id={slotId}
+        className="hidden" 
+        onChange={onChange}
+      />
+      <div className="flex flex-col items-center">
+        {file ? (
+          <>
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2 text-primary">
+              <FileImage size={24} />
+            </div>
+            <span className="text-sm font-bold text-gray-900 truncate max-w-xs">{file.name}</span>
+            <span className="text-xs text-primary font-semibold mt-1">✓ Photo Attached (Click to change)</span>
+          </>
+        ) : (
+          <>
+            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-2 text-gray-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
+              <UploadCloud size={24} />
+            </div>
+            <span className="text-sm font-bold text-gray-900 group-hover:text-primary transition-colors">Upload {label}</span>
+            <span className="text-xs text-gray-500 mt-1">JPEG, PNG, WEBP up to 5MB</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const KYCForm = () => {
   const { user, session, isMock } = useAuthStore();
