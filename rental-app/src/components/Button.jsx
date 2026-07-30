@@ -1,10 +1,11 @@
 import PropTypes from 'prop-types';
+import { Loader2 } from 'lucide-react';
 
-const Button = ({ variant = 'primary', size = 'md', children, className = '', ...props }) => {
+const Button = ({ variant = 'primary', size = 'md', children, className = '', loading = false, disabled = false, ...props }) => {
   // Base classes applied to all buttons
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
 
-  // Variant specific classes using our custom theme colors
+  // Variant specific classes using custom theme colors
   const variants = {
     primary: 'bg-primary text-white hover:bg-[#0b8260] focus:ring-primary',
     secondary: 'bg-secondary text-white hover:bg-[#8e8884] focus:ring-secondary',
@@ -20,35 +21,29 @@ const Button = ({ variant = 'primary', size = 'md', children, className = '', ..
 
   return (
     <button
+      disabled={disabled || loading}
       className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
-      {children}
+      {loading ? (
+        <span className="flex items-center gap-2">
+          <Loader2 size={18} className="animate-spin" />
+          <span>Processing...</span>
+        </span>
+      ) : (
+        children
+      )}
     </button>
   );
 };
 
-// PropTypes help document and validate the props passed to the component
 Button.propTypes = {
-  /**
-   * The visual style variant of the button
-   */
   variant: PropTypes.oneOf(['primary', 'secondary', 'danger']),
-  
-  /**
-   * How large should the button be?
-   */
   size: PropTypes.oneOf(['sm', 'md', 'lg']),
-  
-  /**
-   * The content rendered inside the button
-   */
   children: PropTypes.node.isRequired,
-  
-  /**
-   * Additional custom classes
-   */
   className: PropTypes.string,
+  loading: PropTypes.bool,
+  disabled: PropTypes.bool,
 };
 
 export default Button;

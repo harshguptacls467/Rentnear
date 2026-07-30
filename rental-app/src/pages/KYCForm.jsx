@@ -154,7 +154,11 @@ const KYCForm = () => {
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     if (!frontImage || !backImage || !selfieImage) {
-      showToast('Please upload all required images', 'error');
+      const missing = [];
+      if (!frontImage) missing.push('Front of ID');
+      if (!backImage) missing.push('Back of ID');
+      if (!selfieImage) missing.push('Selfie holding ID');
+      showToast(`Please upload: ${missing.join(', ')}`, 'error');
       return;
     }
 
@@ -296,9 +300,8 @@ const KYCForm = () => {
 
           <Button 
             type="submit" 
-            className="w-full py-4 text-base rounded-2xl"
+            className="w-full py-4 text-base rounded-2xl cursor-pointer"
             loading={isSubmitting}
-            disabled={!frontImage || !backImage || !selfieImage}
           >
             Submit Documents Securely
           </Button>
