@@ -63,7 +63,7 @@ const AdminLogin = () => {
       const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
       const isSuperAdminEmail = email === adminEmail;
 
-      const isAdmin = fullUser?.is_admin === true && isSuperAdminEmail;
+      const isAdmin = fullUser?.is_admin === true || isSuperAdminEmail;
       const isApproved = fullUser?.admin_status === 'approved' || isSuperAdminEmail;
 
       if (!isAdmin) {
