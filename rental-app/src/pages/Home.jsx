@@ -39,58 +39,73 @@ const Home = () => {
   useRealtimeProducts(setRecentProducts, isMock);
 
   const fetchDashboardData = async () => {
-    if (!user?.id) {
+    const currentUser = user || useAuthStore.getState().user;
+    if (!currentUser?.id) {
       setLoading(false);
       return;
     }
+
+    setProfile(currentUser);
+    setViewMode(currentUser.role === 'owner' ? 'owner' : 'renter');
     setError('');
 
     try {
       if (isMock) {
-        setProfile(user);
-        setViewMode(user.role === 'owner' ? 'owner' : 'renter');
         setRecentProducts(getLocalProducts().slice(0, 4));
-        setOwnerListings(getLocalProducts().filter(p => p.owner_id === user.id));
-        setOwnerRequests(getLocalBookings().filter(b => b.owner_id === user.id && b.status === 'pending'));
-        setRenterActive(getLocalBookings().filter(b => b.renter_id === user.id && ['approved', 'awaiting_handover', 'active'].includes(b.status)));
+        setOwnerListings(getLocalProducts().filter(p => p.owner_id === currentUser.id));
+        setOwnerRequests(getLocalBookings().filter(b => b.owner_id === currentUser.id && b.status === 'pending'));
+        setRenterActive(getLocalBookings().filter(b => b.renter_id === currentUser.id && ['approved', 'awaiting_handover', 'active'].includes(b.status)));
         setLoading(false);
         return;
       }
 
-      // Parallel execution for ultra-fast load speed
+      // Promise.allSettled prevents 1 single network error from breaking the entire page load
       const [
         userRes,
         recentProdsRes,
         ownerProdsRes,
         ownerReqsRes,
         renterActiveRes
-      ] = await Promise.all([
-        supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
+      ] = await Promise.allSettled([
+        supabase.from('users').select('*').eq('id', currentUser.id).maybeSingle(),
         supabase.from('products').select('*').limit(4).order('created_at', { ascending: false }),
-        supabase.from('products').select('*').eq('owner_id', user.id),
-        supabase.from('bookings').select('*, product:products(*)').eq('owner_id', user.id).eq('status', 'pending'),
-        supabase.from('bookings').select('*, product:products(*)').eq('renter_id', user.id).in('status', ['approved', 'awaiting_handover', 'active'])
+        supabase.from('products').select('*').eq('owner_id', currentUser.id),
+        supabase.from('bookings').select('*, product:products(*)').eq('owner_id', currentUser.id).eq('status', 'pending'),
+        supabase.from('bookings').select('*, product:products(*)').eq('renter_id', currentUser.id).in('status', ['approved', 'awaiting_handover', 'active'])
       ]);
 
-      const profileData = userRes?.data || user;
-      setProfile(profileData);
-      setViewMode(profileData.role === 'owner' ? 'owner' : 'renter');
+      if (userRes.status === 'fulfilled' && userRes.value?.data) {
+        setProfile(userRes.value.data);
+      }
 
-      const recentList = recentProdsRes?.data?.length ? recentProdsRes.data : getLocalProducts().slice(0, 4);
-      setRecentProducts(recentList);
+      if (recentProdsRes.status === 'fulfilled' && recentProdsRes.value?.data?.length) {
+        setRecentProducts(recentProdsRes.value.data);
+      } else {
+        setRecentProducts(getLocalProducts().slice(0, 4));
+      }
 
-      setOwnerListings(ownerProdsRes?.data || getLocalProducts().filter(p => p.owner_id === user.id));
-      setOwnerRequests(ownerReqsRes?.data || []);
-      setRenterActive(renterActiveRes?.data || []);
+      if (ownerProdsRes.status === 'fulfilled' && ownerProdsRes.value?.data) {
+        setOwnerListings(ownerProdsRes.value.data);
+      } else {
+        setOwnerListings(getLocalProducts().filter(p => p.owner_id === currentUser.id));
+      }
+
+      if (ownerReqsRes.status === 'fulfilled' && ownerReqsRes.value?.data) {
+        setOwnerRequests(ownerReqsRes.value.data);
+      }
+
+      if (renterActiveRes.status === 'fulfilled' && renterActiveRes.value?.data) {
+        setRenterActive(renterActiveRes.value.data);
+      }
 
       // Local wishlist & saved searches
-      const wishIds = getLocalWishlist(user.id);
+      const wishIds = getLocalWishlist(currentUser.id);
       const allLocalProds = getLocalProducts();
       setWishlistItems(allLocalProds.filter(p => wishIds.includes(p.id)).slice(0, 3));
-      setSavedSearches(getLocalSavedSearches(user.id).slice(0, 4));
+      setSavedSearches(getLocalSavedSearches(currentUser.id).slice(0, 4));
 
     } catch (err) {
-      console.error(err);
+      console.error('Dashboard load warning:', err);
     } finally {
       setLoading(false);
     }
