@@ -90,7 +90,13 @@ export const useAuthStore = create((set, get) => ({
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
-          set({ session, user: session.user, initialized: true });
+          const currentFullUser = get().user;
+          const mergedUser = currentFullUser && currentFullUser.id === session.user.id
+            ? { ...session.user, ...currentFullUser }
+            : session.user;
+
+          set({ session, user: mergedUser, initialized: true });
+
           try {
             const fullUser = await get().fetchPublicUser(session.user);
             if (fullUser) set({ user: fullUser });
@@ -327,14 +333,22 @@ export const useAuthStore = create((set, get) => ({
     if (error) throw new Error(error.message);
   },
 
-  // ── Logout Action ─────────────────────────────────────────────────────────
+  // ── Logout Action (Instant Local Reset + Async Network Signout) ───────────
   logout: async (options = { scope: 'local' }) => {
+    // 1. Instant local reset so UI responds in 0ms
+    set({ session: null, user: null, initialized: true });
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('rentnear_mock_session');
+      localStorage.removeItem('rentnear_mock_session_email');
+    }
+
+    // 2. Perform network signout asynchronously in background
     try {
       await supabase.auth.signOut(options);
     } catch {
       // Fail silently
     }
-    set({ session: null, user: null, initialized: true });
   },
 }));
 
