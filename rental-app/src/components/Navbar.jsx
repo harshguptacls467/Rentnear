@@ -8,19 +8,11 @@ import NotificationBell from './NotificationBell';
 import LogoutConfirmModal from './LogoutConfirmModal';
 
 const Navbar = () => {
-  const { session, user, logout } = useAuthStore();
+  const { session, user } = useAuthStore();
   const unreadMessageCount = useRealtimeStore(s => s.unreadMessageCount);
-  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuRef = useRef(null);
-
-  const handleConfirmLogout = async () => {
-    await logout();
-    setShowLogoutConfirm(false);
-    setMobileMenuOpen(false);
-    navigate('/login');
-  };
 
   const closeMenu = () => setMobileMenuOpen(false);
 
@@ -88,15 +80,15 @@ const Navbar = () => {
                   <Link to="/admin" className="text-yellow-400 hover:text-yellow-300 font-bold transition-colors">Admin Panel</Link>
                 )}
                 
-                {/* Redesigned Premium Desktop Logout Button */}
+                {/* Modern Redesigned Logout Button */}
                 <button 
                   type="button"
-                  onClick={() => setShowLogoutConfirm(true)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-white bg-red-500/10 hover:bg-red-600 border border-red-500/20 hover:border-red-600 px-3.5 py-1.5 rounded-xl transition-all shadow-sm active:scale-95 ml-2"
-                  title="Logout from account"
+                  onClick={() => setShowLogoutModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm active:scale-95 ml-2 cursor-pointer"
+                  title="Log out of your account"
                 >
                   <LogOut size={14} />
-                  Logout
+                  <span>Logout</span>
                 </button>
               </>
             ) : (
@@ -170,14 +162,16 @@ const Navbar = () => {
                         <Link to="/admin" onClick={closeMenu} className="text-yellow-400 hover:text-yellow-300 text-lg font-bold">Admin Panel</Link>
                       )}
                       
-                      {/* Redesigned Premium Mobile Logout Button */}
                       <button 
                         type="button"
-                        onClick={() => setShowLogoutConfirm(true)}
-                        className="mt-4 flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white px-5 py-3 rounded-xl font-bold w-full text-center transition-all active:scale-98"
+                        onClick={() => {
+                          closeMenu();
+                          setShowLogoutModal(true);
+                        }}
+                        className="mt-4 flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl font-bold w-full text-center hover:bg-red-500 hover:text-white transition-all text-sm active:scale-98 cursor-pointer"
                       >
-                        <LogOut size={18} />
-                        Logout
+                        <LogOut size={16} />
+                        <span>Logout</span>
                       </button>
                     </>
                   ) : (
@@ -200,11 +194,10 @@ const Navbar = () => {
         </AnimatePresence>
       </nav>
 
-      {/* Confirmation Modal */}
+      {/* Reusable Logout Confirmation Dialog */}
       <LogoutConfirmModal 
-        isOpen={showLogoutConfirm}
-        onClose={() => setShowLogoutConfirm(false)}
-        onConfirm={handleConfirmLogout}
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
       />
     </>
   );

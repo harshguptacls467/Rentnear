@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useToast } from '../context/ToastContext';
+import LogoutConfirmModal from '../components/LogoutConfirmModal';
 
 // ─── Toggle Switch ────────────────────────────────────────────────────────────
 const Toggle = ({ enabled, onChange }) => (
@@ -228,13 +229,10 @@ const Settings = () => {
       {showDeleteModal && (
         <DeleteModal onClose={() => setShowDeleteModal(false)} onConfirm={handleDeleteAccount} />
       )}
-      {showLogoutModal && (
-        <LogoutModal
-          onClose={() => setShowLogoutModal(false)}
-          onConfirm={(scope) => handleLogout(scope)}
-          onConfirmAll={(scope) => handleLogout(scope)}
-        />
-      )}
+      <LogoutConfirmModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+      />
 
       <div className="max-w-3xl mx-auto">
         {/* Page Header */}

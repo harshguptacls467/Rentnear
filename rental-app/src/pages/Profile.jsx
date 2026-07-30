@@ -9,12 +9,13 @@ import TextArea from '../components/TextArea';
 import { 
   Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, 
   ShieldCheck, AlertCircle, Quote, MapPin, CreditCard, Shield, Lock, 
-  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp, Sparkles
+  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp, Sparkles, LogOut
 } from 'lucide-react';
 import { MOCK_USER, MOCK_REVIEWS } from '../data/mockData';
 import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
 import AnimatedPage from '../components/AnimatedPage';
 import ProfileAnalytics from '../components/profile/ProfileAnalytics';
+import LogoutConfirmModal from '../components/LogoutConfirmModal';
 
 const parsePhone = (fullPhone) => {
   if (!fullPhone) return { countryCode: '+91', phoneNum: '' };
@@ -82,6 +83,7 @@ const Profile = () => {
   
   // Email verification states
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [emailOtp, setEmailOtp] = useState('');
   const [emailInputOtp, setEmailInputOtp] = useState('');
   const [emailVerifying, setEmailVerifying] = useState(false);
@@ -92,25 +94,21 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user?.id) {
-        if (isMock) {
-          setProfile(MOCK_USER);
-          const parsed = parsePhone(MOCK_USER.phone);
-          setCountryCode(parsed.countryCode);
-          setPhoneNum(parsed.phoneNum);
-          setEditForm({ 
-            name: MOCK_USER.name, 
-            phone: MOCK_USER.phone,
-            avatar_url: MOCK_USER.avatar_url || '',
-            location: MOCK_USER.location || 'New Delhi, India',
-            upi_id: MOCK_USER.upi_id || 'demo@upi',
-            bio: MOCK_USER.bio || 'Hi neighbors! I believe in the power of sharing.',
-            role: MOCK_USER.role || 'both',
-            emergency_contact: MOCK_USER.emergency_contact || ''
-          });
-          setReviews(MOCK_REVIEWS);
-        } else {
-          setProfile(null);
-        }
+        setProfile(MOCK_USER);
+        const parsed = parsePhone(MOCK_USER.phone);
+        setCountryCode(parsed.countryCode);
+        setPhoneNum(parsed.phoneNum);
+        setEditForm({ 
+          name: MOCK_USER.name, 
+          phone: MOCK_USER.phone,
+          avatar_url: MOCK_USER.avatar_url || '',
+          location: MOCK_USER.location || 'New Delhi, India',
+          upi_id: MOCK_USER.upi_id || 'demo@upi',
+          bio: MOCK_USER.bio || 'Hi neighbors! I believe in the power of sharing.',
+          role: MOCK_USER.role || 'both',
+          emergency_contact: MOCK_USER.emergency_contact || ''
+        });
+        setReviews(MOCK_REVIEWS);
         setLoading(false);
         return;
       }
@@ -654,6 +652,21 @@ const Profile = () => {
                           </span>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button onClick={() => setIsEditing(true)} variant="secondary" className="flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl text-xs py-2 px-3">
+                          <Edit2 size={14} /> Edit Profile
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setShowLogoutModal(true)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-red-500 bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm active:scale-95 cursor-pointer"
+                          title="Log out"
+                        >
+                          <LogOut size={14} />
+                          <span>Logout</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* About Me Bio Text */}
@@ -931,6 +944,12 @@ const Profile = () => {
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Dialog */}
+      <LogoutConfirmModal 
+        isOpen={showLogoutModal} 
+        onClose={() => setShowLogoutModal(false)} 
+      />
 
     </AnimatedPage>
   );

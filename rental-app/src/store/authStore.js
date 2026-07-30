@@ -330,12 +330,7 @@ export const useAuthStore = create((set, get) => ({
     } catch {
       // Fail silently
     }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('rentnear_mock_session');
-      localStorage.removeItem('rentnear_mock_session_email');
-      localStorage.removeItem('rentnear_remember_me');
-    }
-    set({ session: null, user: null, isMock: false, initialized: true });
+    set({ session: null, user: null, initialized: true });
   },
 }));
 
