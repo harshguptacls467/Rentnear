@@ -108,7 +108,11 @@ const Payment = () => {
             if (!verifyRes.ok) throw new Error(verifyData.message);
             
           } catch (err) {
-            await supabase.from('bookings').update({ status: 'approved' }).eq('id', id).catch(() => {});
+            try {
+              await supabase.from('bookings').update({ status: 'approved' }).eq('id', id);
+            } catch {
+              // Ignore
+            }
             navigate('/bookings?payment=success');
           }
         },

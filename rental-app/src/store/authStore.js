@@ -200,7 +200,11 @@ export const useAuthStore = create((set, get) => ({
     }
 
     if (authUser?.id) {
-      await supabase.from('users').update({ email_verified: true }).eq('id', authUser.id).catch(() => {});
+      try {
+        await supabase.from('users').update({ email_verified: true }).eq('id', authUser.id);
+      } catch {
+        // Ignore
+      }
     }
 
     const fullUser = authUser ? await get().fetchPublicUser(authUser) : null;

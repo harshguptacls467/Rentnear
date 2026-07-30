@@ -24,6 +24,7 @@ const Home = () => {
   
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('renter');
 
   // Dashboard specific data
