@@ -92,21 +92,25 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user?.id) {
-        setProfile(MOCK_USER);
-        const parsed = parsePhone(MOCK_USER.phone);
-        setCountryCode(parsed.countryCode);
-        setPhoneNum(parsed.phoneNum);
-        setEditForm({ 
-          name: MOCK_USER.name, 
-          phone: MOCK_USER.phone,
-          avatar_url: MOCK_USER.avatar_url || '',
-          location: MOCK_USER.location || 'New Delhi, India',
-          upi_id: MOCK_USER.upi_id || 'demo@upi',
-          bio: MOCK_USER.bio || 'Hi neighbors! I believe in the power of sharing.',
-          role: MOCK_USER.role || 'both',
-          emergency_contact: MOCK_USER.emergency_contact || ''
-        });
-        setReviews(MOCK_REVIEWS);
+        if (isMock) {
+          setProfile(MOCK_USER);
+          const parsed = parsePhone(MOCK_USER.phone);
+          setCountryCode(parsed.countryCode);
+          setPhoneNum(parsed.phoneNum);
+          setEditForm({ 
+            name: MOCK_USER.name, 
+            phone: MOCK_USER.phone,
+            avatar_url: MOCK_USER.avatar_url || '',
+            location: MOCK_USER.location || 'New Delhi, India',
+            upi_id: MOCK_USER.upi_id || 'demo@upi',
+            bio: MOCK_USER.bio || 'Hi neighbors! I believe in the power of sharing.',
+            role: MOCK_USER.role || 'both',
+            emergency_contact: MOCK_USER.emergency_contact || ''
+          });
+          setReviews(MOCK_REVIEWS);
+        } else {
+          setProfile(null);
+        }
         setLoading(false);
         return;
       }
