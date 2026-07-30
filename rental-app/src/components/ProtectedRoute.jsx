@@ -27,8 +27,9 @@ const ProtectedRoute = ({ adminOnly = false }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 3. Admin-only route guard
-  if (adminOnly && !user?.is_admin) {
+  // 3. Admin-only route guard (resilient against hydration timing)
+  const isAdmin = user?.is_admin || (session?.user?.email || '').toLowerCase().trim() === (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
+  if (adminOnly && !isAdmin) {
     return <Navigate to="/home" replace />;
   }
 

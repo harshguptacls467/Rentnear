@@ -335,15 +335,30 @@ export const useAuthStore = create((set, get) => ({
 
   // ── Logout Action (Instant Local Reset + Async Network Signout) ───────────
   logout: async (options = { scope: 'local' }) => {
-    // 1. Instant local reset so UI responds in 0ms
+    // 1. Unsubscribe all active Supabase realtime WebSocket channels immediately
+    try {
+      if (typeof supabase.removeAllChannels === 'function') {
+        supabase.removeAllChannels();
+      }
+    } catch {
+      // Ignore
+    }
+
+    // 2. Instant local state reset so UI responds in 0ms
     set({ session: null, user: null, initialized: true });
 
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('rentnear_mock_session');
       localStorage.removeItem('rentnear_mock_session_email');
+      localStorage.removeItem('rentnear_remember_me');
+      try {
+        sessionStorage.clear();
+      } catch {
+        // Ignore
+      }
     }
 
-    // 2. Perform network signout asynchronously in background
+    // 3. Perform network signout asynchronously in background
     try {
       await supabase.auth.signOut(options);
     } catch {

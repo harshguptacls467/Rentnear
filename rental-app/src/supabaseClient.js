@@ -10,30 +10,24 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIU
 const dynamicAuthStorage = {
   getItem: (key) => {
     try {
-      const isRemembered = localStorage.getItem('rentnear_remember_me') !== 'false';
-      return isRemembered
-        ? localStorage.getItem(key)
-        : (sessionStorage.getItem(key) || localStorage.getItem(key));
+      if (typeof window === 'undefined') return null;
+      return localStorage.getItem(key) || sessionStorage.getItem(key);
     } catch {
       return null;
     }
   },
   setItem: (key, value) => {
     try {
-      const isRemembered = localStorage.getItem('rentnear_remember_me') !== 'false';
-      if (isRemembered) {
-        localStorage.setItem(key, value);
-        sessionStorage.removeItem(key);
-      } else {
-        sessionStorage.setItem(key, value);
-        localStorage.removeItem(key);
-      }
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(key, value);
+      sessionStorage.setItem(key, value);
     } catch {
       // Fail silently
     }
   },
   removeItem: (key) => {
     try {
+      if (typeof window === 'undefined') return;
       localStorage.removeItem(key);
       sessionStorage.removeItem(key);
     } catch {
