@@ -62,6 +62,7 @@ const KYCForm = () => {
   const [idImage, setIdImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmission, setLastSubmission] = useState(null);
+  const [forceResubmit, setForceResubmit] = useState(false);
 
   useEffect(() => {
     if ((user?.kyc_status === 'rejected' || user?.kyc_status === 'resubmission_required') && user?.id) {
@@ -100,7 +101,7 @@ const KYCForm = () => {
     );
   }
 
-  if (user?.kyc_status === 'pending') {
+  if (user?.kyc_status === 'pending' && !forceResubmit) {
     return (
       <AnimatedPage className="max-w-md mx-auto p-4 py-16 text-center">
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 space-y-6">
@@ -113,6 +114,13 @@ const KYCForm = () => {
           </div>
           <div className="flex flex-col gap-2 pt-4">
             <Button onClick={() => navigate('/home')} className="w-full">Go to Home</Button>
+            <Button 
+              onClick={() => setForceResubmit(true)} 
+              variant="secondary" 
+              className="w-full bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100"
+            >
+              🔄 Re-upload / Submit New ID Photo
+            </Button>
           </div>
         </div>
       </AnimatedPage>

@@ -769,15 +769,23 @@ const Profile = () => {
                             <CheckCircle2 size={14} /> KYC Verified
                           </span>
                         ) : profile.kyc_status === 'pending' ? (
-                          <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-bold bg-amber-50 px-3.5 py-1.5 rounded-full border border-amber-200">
-                            <AlertCircle size={14} /> Pending Review
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-bold bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200">
+                              <AlertCircle size={14} /> Pending
+                            </span>
+                            <button 
+                              onClick={() => navigate('/kyc')}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs px-3 py-1.5 rounded-xl transition-all border border-gray-200 flex items-center gap-1"
+                            >
+                              🔄 Re-submit <ChevronRight size={14} />
+                            </button>
+                          </div>
                         ) : (
                           <button 
                             onClick={() => navigate('/kyc')}
                             className="bg-primary text-white font-bold text-xs px-4 py-2 rounded-xl hover:bg-primary-dark transition-all flex items-center gap-1 shadow-md shadow-primary/20"
                           >
-                            Verify KYC <ChevronRight size={14} />
+                            {profile.kyc_status === 'rejected' || profile.kyc_status === 'resubmission_required' ? 'Re-submit KYC' : 'Verify KYC'} <ChevronRight size={14} />
                           </button>
                         )}
                       </div>
