@@ -24,7 +24,7 @@ const FileUploadSlot = ({ label, file, onChange }) => {
     >
       <input 
         type="file" 
-        accept="image/*" 
+        accept="image/jpeg,image/png,image/jpg,image/webp" 
         id={slotId}
         className="hidden" 
         onChange={onChange}
@@ -220,8 +220,6 @@ const KYCForm = () => {
           id_type: idType,
           id_number: idNumber.trim(),
           front_url: idUrl,
-          back_url: idUrl,
-          selfie_url: idUrl,
           document_url: idUrl,
           status: 'pending',
           created_at: new Date().toISOString()
@@ -231,30 +229,26 @@ const KYCForm = () => {
         saveLocalKycSubmissions([newSubmission, ...existingLocal]);
 
         if (activeUserId) {
-          const fullPayload = {
+          const cleanPayload = {
             user_id: activeUserId,
             id_type: idType,
             id_number: idNumber.trim(),
             front_url: idUrl,
-            back_url: idUrl,
-            selfie_url: idUrl,
             document_url: idUrl,
             status: 'pending'
           };
 
           const { error: insertErr } = await supabase
             .from('kyc_submissions')
-            .insert([fullPayload]);
+            .insert([cleanPayload]);
 
           if (insertErr) {
-            console.warn("Full payload insert warning:", insertErr.message);
+            console.warn("Clean payload insert warning:", insertErr.message);
             const minimalPayload = {
               user_id: activeUserId,
               id_type: idType,
               id_number: idNumber.trim(),
               front_url: idUrl,
-              back_url: idUrl,
-              selfie_url: idUrl,
               status: 'pending'
             };
             const { error: fallbackErr } = await supabase

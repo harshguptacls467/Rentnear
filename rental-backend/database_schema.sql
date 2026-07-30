@@ -286,9 +286,8 @@ CREATE TABLE kyc_submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   id_type TEXT DEFAULT 'Aadhaar Card',
+  id_number TEXT NOT NULL,
   front_url TEXT NOT NULL,
-  back_url TEXT DEFAULT '',
-  selfie_url TEXT DEFAULT '',
   status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected', 'resubmission_required'
   admin_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()

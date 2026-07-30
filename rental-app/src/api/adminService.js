@@ -156,7 +156,7 @@ export const adminService = {
       const { data, error } = await supabase
         .from('kyc_submissions')
         .select(`
-          id, user_id, id_type, id_number, front_url, back_url, selfie_url,
+          id, user_id, id_type, id_number, front_url, document_url,
           status, admin_notes, created_at,
           user:users!user_id(id, name, email, avatar_url)
         `)
@@ -177,17 +177,20 @@ export const adminService = {
       const enriched = await Promise.all((kycList || []).map(async (kyc) => {
         const getSignedUrl = async (path) => {
           if (!path) return null;
-          if (path.startsWith('http')) return path; // already a public URL
+          if (path.startsWith('http') || path.startsWith('data:')) return path; // public URL or data URI
           const { data: urlData } = await supabase.storage
             .from('kyc-documents')
             .createSignedUrl(path, 3600);
           return urlData?.signedUrl || path;
         };
+
+        const docPath = kyc.front_url || kyc.document_url || kyc.back_url || kyc.selfie_url;
+        const signedUrl = await getSignedUrl(docPath);
+
         return {
           ...kyc,
-          front_signed_url: await getSignedUrl(kyc.front_url),
-          back_signed_url: await getSignedUrl(kyc.back_url),
-          selfie_signed_url: await getSignedUrl(kyc.selfie_url),
+          document_signed_url: signedUrl,
+          front_signed_url: signedUrl,
         };
       }));
 

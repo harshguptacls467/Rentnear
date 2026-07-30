@@ -33,30 +33,20 @@ const AdminKYC = ({ kycSubmissions, onResolveKyc }) => {
           <div className="flex justify-between items-start mb-4">
             <div>
               <h3 className="text-lg font-bold text-gray-900">{kyc.user?.name || kyc.user_name || 'Applicant User'}</h3>
-              <p className="text-sm text-gray-500">{kyc.user?.email || kyc.user_email || 'User'} &bull; ID Type: {kyc.id_type || 'Government ID'}</p>
+              <p className="text-sm text-gray-500">{kyc.user?.email || kyc.user_email || 'User'} &bull; <span className="font-semibold text-gray-700">{kyc.id_type || 'Government ID'}</span> {kyc.id_number ? `(${kyc.id_number})` : ''}</p>
             </div>
             <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Pending</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase mb-2">ID Front</p>
-              <a href={kyc.front_signed_url} target="_blank" rel="noopener noreferrer">
-                <img src={kyc.front_signed_url} alt="ID Front" className="w-full h-48 object-cover rounded-xl border border-gray-200 hover:opacity-90 transition-opacity" />
-              </a>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase mb-2">ID Back</p>
-              <a href={kyc.back_signed_url} target="_blank" rel="noopener noreferrer">
-                <img src={kyc.back_signed_url} alt="ID Back" className="w-full h-48 object-cover rounded-xl border border-gray-200 hover:opacity-90 transition-opacity" />
-              </a>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Selfie</p>
-              <a href={kyc.selfie_signed_url} target="_blank" rel="noopener noreferrer">
-                <img src={kyc.selfie_signed_url} alt="Selfie" className="w-full h-48 object-cover rounded-xl border border-gray-200 hover:opacity-90 transition-opacity" />
-              </a>
-            </div>
+          <div className="mb-6">
+            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Government ID Document Photo</p>
+            <a href={kyc.document_signed_url || kyc.front_signed_url} target="_blank" rel="noopener noreferrer">
+              <img 
+                src={kyc.document_signed_url || kyc.front_signed_url} 
+                alt="Government ID Document" 
+                className="w-full max-w-md h-64 object-cover rounded-2xl border border-gray-200 hover:opacity-95 transition-opacity shadow-sm" 
+              />
+            </a>
           </div>
 
           <div className="bg-gray-50 p-4 rounded-2xl">
