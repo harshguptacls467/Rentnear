@@ -19,11 +19,13 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
   const { showToast } = useToast();
   const filtersRef = useRef(filters);
   const sortByRef = useRef(sortBy);
+  const setProductsRef = useRef(setProducts);
 
   useEffect(() => {
     filtersRef.current = filters;
     sortByRef.current = sortBy;
-  }, [filters, sortBy]);
+    setProductsRef.current = setProducts;
+  }, [filters, sortBy, setProducts]);
 
   // Helper: insert product into sorted list
   const insertSorted = useCallback((list, newProduct) => {
@@ -86,8 +88,8 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
           if (filterCategory !== 'All' && newProduct.category !== filterCategory) matches = false;
           if (filterSearch.trim() && !newProduct.title?.toLowerCase().includes(filterSearch.toLowerCase())) matches = false;
 
-          if (matches && typeof setProducts === 'function') {
-            setProducts(prev => insertSorted(prev || [], newProduct));
+          if (matches && typeof setProductsRef.current === 'function') {
+            setProductsRef.current(prev => insertSorted(prev || [], newProduct));
             showToast(`🆕 New item listed: "${newProduct.title}"`, 'info');
           }
         }
@@ -111,8 +113,8 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
             if (!filterStatus && (product.status === 'hidden' || product.status === 'rejected')) ok = false;
             return ok;
           };
-          if (typeof setProducts === 'function') {
-            setProducts(prev => {
+          if (typeof setProductsRef.current === 'function') {
+            setProductsRef.current(prev => {
               const currentList = Array.isArray(prev) ? prev : [];
               const exists = currentList.some(p => p.id === updated.id);
               const matches = matchesFilters(updated);
@@ -132,8 +134,8 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
         { event: 'DELETE', schema: 'public', table: 'products' },
         (payload) => {
           const deleted = payload.old;
-          if (typeof setProducts === 'function') {
-            setProducts(prev => (Array.isArray(prev) ? prev : []).filter(p => p.id !== deleted.id));
+          if (typeof setProductsRef.current === 'function') {
+            setProductsRef.current(prev => (Array.isArray(prev) ? prev : []).filter(p => p.id !== deleted.id));
           }
         }
       )
@@ -149,7 +151,7 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
       useRealtimeStore.getState().setProductsFeedStatus('disconnected');
       supabase.removeChannel(channel);
     };
-  }, [isMock, insertSorted, setProducts, showToast]);
+  }, [isMock, insertSorted, showToast]);
 };
 
 export default useRealtimeProducts;

@@ -143,14 +143,13 @@ const Products = () => {
   }, [fetchProducts]);
 
   // Real-time product feed handler
-  useRealtimeProducts(
-    (newProds) => {
-      if (newProds && newProds.length > 0) {
-        setAllProducts(newProds);
-      }
-    },
-    isMock
-  );
+  const handleRealtimeUpdate = useCallback((newProds) => {
+    if (newProds && newProds.length > 0) {
+      setAllProducts(newProds);
+    }
+  }, []);
+
+  useRealtimeProducts(handleRealtimeUpdate, isMock);
 
   const newProductIds = useRealtimeStore(s => s.newProductIds);
 
