@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, UploadCloud, FileImage, CheckCircle, AlertCircle, 
-  FileText, X 
+  FileText 
 } from 'lucide-react';
 import Button from '../components/Button';
 import AnimatedPage from '../components/AnimatedPage';
@@ -20,7 +20,7 @@ const FileUploadSlot = ({ label, file, onChange }) => {
           document.getElementById(slotId)?.click();
         }
       }}
-      className="border-2 border-dashed border-gray-200 hover:border-primary/40 rounded-2xl p-6 text-center hover:bg-primary/5 transition-all cursor-pointer group"
+      className="border-2 border-dashed border-gray-200 hover:border-primary/40 rounded-2xl p-8 text-center hover:bg-primary/5 transition-all cursor-pointer group"
     >
       <input 
         type="file" 
@@ -32,19 +32,19 @@ const FileUploadSlot = ({ label, file, onChange }) => {
       <div className="flex flex-col items-center">
         {file ? (
           <>
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2 text-primary">
-              <FileImage size={24} />
+            <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-3 text-primary">
+              <FileImage size={28} />
             </div>
-            <span className="text-sm font-bold text-gray-900 truncate max-w-xs">{file.name}</span>
-            <span className="text-xs text-primary font-semibold mt-1">✓ Photo Attached (Click to change)</span>
+            <span className="text-base font-bold text-gray-900 truncate max-w-xs">{file.name}</span>
+            <span className="text-xs text-primary font-semibold mt-1">✓ ID Photo Attached (Click to change)</span>
           </>
         ) : (
           <>
-            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-2 text-gray-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
-              <UploadCloud size={24} />
+            <div className="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center mb-3 text-gray-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
+              <UploadCloud size={28} />
             </div>
-            <span className="text-sm font-bold text-gray-900 group-hover:text-primary transition-colors">Upload {label}</span>
-            <span className="text-xs text-gray-500 mt-1">JPEG, PNG, WEBP up to 5MB</span>
+            <span className="text-base font-bold text-gray-900 group-hover:text-primary transition-colors">Upload {label}</span>
+            <span className="text-xs text-gray-500 mt-1">Single clear photo of Aadhaar, PAN, DL, or Passport (Max 5MB)</span>
           </>
         )}
       </div>
@@ -53,17 +53,14 @@ const FileUploadSlot = ({ label, file, onChange }) => {
 };
 
 const KYCForm = () => {
-  const { user, session, isMock } = useAuthStore();
+  const { user, isMock } = useAuthStore();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  // Document Upload state
+  // Single Document Upload state
   const [idType, setIdType] = useState('Aadhaar Card');
-  const [frontImage, setFrontImage] = useState(null);
-  const [backImage, setBackImage] = useState(null);
-  const [selfieImage, setSelfieImage] = useState(null);
+  const [idImage, setIdImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [lastSubmission, setLastSubmission] = useState(null);
 
   useEffect(() => {
@@ -112,7 +109,7 @@ const KYCForm = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Verification Pending</h2>
-            <p className="text-gray-500 mt-2">We are currently reviewing your documents. This usually takes 1-2 business days.</p>
+            <p className="text-gray-500 mt-2">We are currently reviewing your document. This usually takes 1-2 business days.</p>
           </div>
           <div className="flex flex-col gap-2 pt-4">
             <Button onClick={() => navigate('/home')} className="w-full">Go to Home</Button>
@@ -156,19 +153,15 @@ const KYCForm = () => {
       console.warn("Supabase storage upload fallback:", err);
     }
 
-    // Lightweight fallback path reference (under 100 bytes) to prevent HTTP 413 Payload Too Large
+    // Lightweight fallback path reference (under 100 bytes) to prevent HTTP payload timeouts
     const fileExt = file.name.split('.').pop() || 'jpg';
     return `kyc-documents/${user?.id || 'user'}/${path}-${Date.now()}.${fileExt}`;
   };
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
-    if (!frontImage || !backImage || !selfieImage) {
-      const missing = [];
-      if (!frontImage) missing.push('Front of ID');
-      if (!backImage) missing.push('Back of ID');
-      if (!selfieImage) missing.push('Selfie holding ID');
-      showToast(`Please upload: ${missing.join(', ')}`, 'error');
+    if (!idImage) {
+      showToast('Please select your ID Document photo before submitting', 'error');
       return;
     }
 
@@ -201,9 +194,7 @@ const KYCForm = () => {
           }
         }
 
-        const frontUrl = await uploadToSupabase(frontImage, 'front');
-        const backUrl = await uploadToSupabase(backImage, 'back');
-        const selfieUrl = await uploadToSupabase(selfieImage, 'selfie');
+        const idUrl = await uploadToSupabase(idImage, 'id_doc');
 
         if (user?.id) {
           try {
@@ -212,9 +203,9 @@ const KYCForm = () => {
               .insert([{
                 user_id: user.id,
                 id_type: idType,
-                front_url: frontUrl,
-                back_url: backUrl,
-                selfie_url: selfieUrl,
+                front_url: idUrl,
+                back_url: idUrl,
+                selfie_url: idUrl,
                 status: 'pending'
               }]);
           } catch (dbErr) {
@@ -234,10 +225,10 @@ const KYCForm = () => {
         useAuthStore.setState({ user: { ...user, kyc_status: 'pending' } });
       }
 
-      showToast('Documents submitted successfully! We will review within 1-2 business days.', 'success');
+      showToast('ID Document submitted successfully! We will review within 1-2 business days.', 'success');
       navigate('/home');
     } catch (error) {
-      showToast(error.message || 'Failed to submit documents', 'error');
+      showToast(error.message || 'Failed to submit document', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -253,7 +244,7 @@ const KYCForm = () => {
           <h1 className="text-2xl font-extrabold text-gray-900">Identity Verification (KYC)</h1>
         </div>
         <p className="text-gray-600 mb-8 leading-relaxed">
-          RentNear enforces verified identities to prevent theft and fraud. Please upload a clear photo of your government ID and a selfie holding it.
+          Upload 1 clear photo of your Government ID (Aadhaar, PAN, Driving License, or Passport) to verify your identity.
         </p>
 
         {user?.kyc_status === 'resubmission_required' && (
@@ -262,7 +253,7 @@ const KYCForm = () => {
             <div>
               <p className="font-bold">Action Required: Re-upload Document</p>
               <p className="text-sm mt-0.5">
-                The admin requested document re-upload: <span className="font-semibold">{lastSubmission?.admin_notes || 'Please upload clearer document images.'}</span>
+                The admin requested document re-upload: <span className="font-semibold">{lastSubmission?.admin_notes || 'Please upload a clearer document photo.'}</span>
               </p>
             </div>
           </div>
@@ -274,9 +265,9 @@ const KYCForm = () => {
             <div>
               <p className="font-bold">Your previous submission was rejected.</p>
               <p className="text-sm mt-0.5">
-                Reason: <span className="font-semibold">{lastSubmission?.admin_notes || 'Images were blurry or unreadable.'}</span>
+                Reason: <span className="font-semibold">{lastSubmission?.admin_notes || 'Image was blurry or unreadable.'}</span>
               </p>
-              <p className="text-xs text-red-600 mt-1">Please re-upload clear, unedited photos of your ID and selfie below.</p>
+              <p className="text-xs text-red-600 mt-1">Please re-upload a clear, unedited photo of your ID below.</p>
             </div>
           </div>
         )}
@@ -285,7 +276,7 @@ const KYCForm = () => {
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
             <select 
-              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium text-gray-900"
               value={idType}
               onChange={(e) => setIdType(e.target.value)}
             >
@@ -297,18 +288,13 @@ const KYCForm = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FileUploadSlot label="Front of ID" file={frontImage} onChange={(e) => handleFileChange(e, setFrontImage)} />
-            <FileUploadSlot label="Back of ID" file={backImage} onChange={(e) => handleFileChange(e, setBackImage)} />
-          </div>
-          
-          <FileUploadSlot label="Selfie holding ID" file={selfieImage} onChange={(e) => handleFileChange(e, setSelfieImage)} />
+          <FileUploadSlot label="Government ID Photo" file={idImage} onChange={(e) => handleFileChange(e, setIdImage)} />
 
           {/* Info box */}
           <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
             <FileText className="text-primary flex-shrink-0 mt-0.5" size={18} />
             <p className="text-xs text-blue-700 leading-relaxed font-medium">
-              Your documents are encrypted and stored securely. They are only used for identity verification and are never shared with third parties.
+              Your document is encrypted and stored securely. It is only used for identity verification and is never shared with third parties.
             </p>
           </div>
 
@@ -317,7 +303,7 @@ const KYCForm = () => {
             className="w-full py-4 text-base rounded-2xl cursor-pointer"
             loading={isSubmitting}
           >
-            Submit Documents Securely
+            Submit ID Document
           </Button>
         </form>
       </div>
