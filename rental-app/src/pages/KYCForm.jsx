@@ -224,19 +224,38 @@ const KYCForm = () => {
         saveLocalKycSubmissions([newSubmission, ...existingLocal]);
 
         if (activeUserId) {
+          const fullPayload = {
+            user_id: activeUserId,
+            id_type: idType,
+            id_number: `DOC-${Date.now().toString().slice(-6)}`,
+            front_url: idUrl,
+            back_url: idUrl,
+            selfie_url: idUrl,
+            document_url: idUrl,
+            status: 'pending'
+          };
+
           const { error: insertErr } = await supabase
             .from('kyc_submissions')
-            .insert([{
+            .insert([fullPayload]);
+
+          if (insertErr) {
+            console.warn("Full payload insert warning:", insertErr.message);
+            const minimalPayload = {
               user_id: activeUserId,
               id_type: idType,
               front_url: idUrl,
               back_url: idUrl,
               selfie_url: idUrl,
               status: 'pending'
-            }]);
+            };
+            const { error: fallbackErr } = await supabase
+              .from('kyc_submissions')
+              .insert([minimalPayload]);
 
-          if (insertErr) {
-            console.warn("kyc_submissions table insert error:", insertErr.message);
+            if (fallbackErr) {
+              console.warn("Fallback insert warning:", fallbackErr.message);
+            }
           }
 
           const { error: userUpdateErr } = await supabase

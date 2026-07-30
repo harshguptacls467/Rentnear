@@ -32,8 +32,8 @@ const AdminKYC = ({ kycSubmissions, onResolveKyc }) => {
         <div key={kyc.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">{kyc.user.name}</h3>
-              <p className="text-sm text-gray-500">{kyc.user.email} &bull; ID Type: {kyc.id_type}</p>
+              <h3 className="text-lg font-bold text-gray-900">{kyc.user?.name || kyc.user_name || 'Applicant User'}</h3>
+              <p className="text-sm text-gray-500">{kyc.user?.email || kyc.user_email || 'User'} &bull; ID Type: {kyc.id_type || 'Government ID'}</p>
             </div>
             <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Pending</span>
           </div>
