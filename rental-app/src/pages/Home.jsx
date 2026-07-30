@@ -98,7 +98,7 @@ const Home = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [user, isMock]);
+  }, [user?.id, isMock]);
 
   const handleApproveRequest = async (reqId) => {
     try {

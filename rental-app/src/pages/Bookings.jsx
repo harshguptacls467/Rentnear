@@ -89,7 +89,7 @@ const Bookings = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, isMock]);
+  }, [user?.id, isMock]);
 
   useEffect(() => {
     fetchBookings();

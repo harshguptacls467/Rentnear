@@ -48,6 +48,7 @@ const MyListings = () => {
           const allProducts = getLocalProducts();
           const myProducts = allProducts.filter(p => p.owner_id === user.id);
           setProducts(myProducts);
+          setLoading(false);
           return;
         }
 
@@ -81,7 +82,7 @@ const MyListings = () => {
       setProducts([]);
       setLoading(false);
     }
-  }, [user, isMock]);
+  }, [user?.id, isMock]);
 
   // Handle Availability Toggle (Optimistic UI Update)
   const toggleAvailability = async (productId, currentStatus) => {
