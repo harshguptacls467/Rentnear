@@ -38,73 +38,58 @@ const Home = () => {
   useRealtimeProducts(setRecentProducts, isMock);
 
   const fetchDashboardData = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    setError('');
+
     try {
-      setLoading(true);
-      
-      // User Profile Details
-      let profileData = null;
-      if (!isMock) {
-        const { data } = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
-        if (data) profileData = data;
+      if (isMock) {
+        setProfile(user);
+        setViewMode(user.role === 'owner' ? 'owner' : 'renter');
+        setRecentProducts(getLocalProducts().slice(0, 4));
+        setOwnerListings(getLocalProducts().filter(p => p.owner_id === user.id));
+        setOwnerRequests(getLocalBookings().filter(b => b.owner_id === user.id && b.status === 'pending'));
+        setRenterActive(getLocalBookings().filter(b => b.renter_id === user.id && ['approved', 'awaiting_handover', 'active'].includes(b.status)));
+        setLoading(false);
+        return;
       }
-      if (!profileData) {
-        profileData = user;
-      }
+
+      // Parallel execution for ultra-fast load speed
+      const [
+        userRes,
+        recentProdsRes,
+        ownerProdsRes,
+        ownerReqsRes,
+        renterActiveRes
+      ] = await Promise.all([
+        supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
+        supabase.from('products').select('*').limit(4).order('created_at', { ascending: false }),
+        supabase.from('products').select('*').eq('owner_id', user.id),
+        supabase.from('bookings').select('*, product:products(*)').eq('owner_id', user.id).eq('status', 'pending'),
+        supabase.from('bookings').select('*, product:products(*)').eq('renter_id', user.id).in('status', ['approved', 'awaiting_handover', 'active'])
+      ]);
+
+      const profileData = userRes?.data || user;
       setProfile(profileData);
       setViewMode(profileData.role === 'owner' ? 'owner' : 'renter');
 
-      // Fetch Recent Directory Listings
-      let productsData = [];
-      if (!isMock) {
-        const { data } = await supabase.from('products').select('*').limit(4).order('created_at', { ascending: false });
-        if (data) productsData = data;
-      }
-      if (productsData.length === 0) {
-        productsData = getLocalProducts().slice(0, 4);
-      }
-      setRecentProducts(productsData);
+      const recentList = recentProdsRes?.data?.length ? recentProdsRes.data : getLocalProducts().slice(0, 4);
+      setRecentProducts(recentList);
 
-      // Fetch User Wishlist, Saved Searches
+      setOwnerListings(ownerProdsRes?.data || getLocalProducts().filter(p => p.owner_id === user.id));
+      setOwnerRequests(ownerReqsRes?.data || []);
+      setRenterActive(renterActiveRes?.data || []);
+
+      // Local wishlist & saved searches
       const wishIds = getLocalWishlist(user.id);
       const allLocalProds = getLocalProducts();
       setWishlistItems(allLocalProds.filter(p => wishIds.includes(p.id)).slice(0, 3));
       setSavedSearches(getLocalSavedSearches(user.id).slice(0, 4));
 
-      // Fetch Owner Listings & Incoming Requests
-      let localListings = [];
-      let localRequests = [];
-      if (!isMock) {
-        const { data: listData } = await supabase.from('products').select('*').eq('owner_id', user.id);
-        if (listData) localListings = listData;
-
-        const { data: reqData } = await supabase.from('bookings').select(`
-          *,
-          product:products(*)
-        `).eq('owner_id', user.id).eq('status', 'pending');
-        if (reqData) localRequests = reqData;
-      } else {
-        localListings = getLocalProducts().filter(p => p.owner_id === user.id);
-        localRequests = getLocalBookings().filter(b => b.owner_id === user.id && b.status === 'pending');
-      }
-      setOwnerListings(localListings);
-      setOwnerRequests(localRequests);
-
-      // Fetch Active Renter Rentals
-      let localRenterRentals = [];
-      if (!isMock) {
-        const { data: rentData } = await supabase.from('bookings').select(`
-          *,
-          product:products(*)
-        `).eq('renter_id', user.id).in('status', ['approved', 'awaiting_handover', 'active']);
-        if (rentData) localRenterRentals = rentData;
-      } else {
-        localRenterRentals = getLocalBookings().filter(b => b.renter_id === user.id && ['approved', 'awaiting_handover', 'active'].includes(b.status));
-      }
-      setRenterActive(localRenterRentals);
-
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }

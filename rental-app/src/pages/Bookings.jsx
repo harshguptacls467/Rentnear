@@ -65,26 +65,8 @@ const Bookings = () => {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        try {
-          const res = await fetch(`${API_URL}/bookings/my`, {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              setBookings(data);
-              return;
-            }
-          }
-        } catch {
-          // Backend API offline — fall back to Supabase directly
-        }
-      }
-
-      // Supabase direct query fallback
-      const { data: directData } = await supabase
+      // Direct Supabase query executes in ~100ms (avoids 50s Render backend cold start delay)
+      const { data: directData, error: dbErr } = await supabase
         .from('bookings')
         .select(`
           *,
@@ -93,7 +75,7 @@ const Bookings = () => {
         .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
 
-      if (directData && directData.length > 0) {
+      if (!dbErr && directData) {
         setBookings(directData);
       } else {
         const localBookings = getLocalBookings().filter(b => b.renter_id === user.id || b.owner_id === user.id);
