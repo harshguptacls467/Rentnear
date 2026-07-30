@@ -14,34 +14,53 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { initOneSignal, setOneSignalUser } from './services/OneSignal'
 import GlobalErrorListener from './components/GlobalErrorListener'
 
-// Pages (Lazy Loaded)
-const Landing = lazy(() => import('./pages/Landing'));
-const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const Home = lazy(() => import('./pages/Home'));
-const Products = lazy(() => import('./pages/Products'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const ListProduct = lazy(() => import('./pages/ListProduct'));
-const Bookings = lazy(() => import('./pages/Bookings'));
-const Chat = lazy(() => import('./pages/Chat'));
-const Profile = lazy(() => import('./pages/Profile'));
-const KYCForm = lazy(() => import('./pages/KYCForm'));
-const Admin = lazy(() => import('./pages/Admin'));
-const AdminLogin = lazy(() => import('./pages/AdminLogin'));
-const MyListings = lazy(() => import('./pages/MyListings'));
-const MapSearch = lazy(() => import('./pages/MapSearch'));
-const Handover = lazy(() => import('./pages/Handover'));
-const ConditionCheck = lazy(() => import('./pages/ConditionCheck'));
-const ReturnCheck = lazy(() => import('./pages/ReturnCheck'));
-const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
-const Payment = lazy(() => import('./pages/Payment'));
-const Invoice = lazy(() => import('./pages/Invoice'));
-const ChatWindow = lazy(() => import('./pages/ChatWindow'));
-const DisputeForm = lazy(() => import('./pages/DisputeForm'));
-const DisputeDetail = lazy(() => import('./pages/DisputeDetail'));
-const Settings = lazy(() => import('./pages/Settings'));
-const Support = lazy(() => import('./pages/Support'));
+// Automatic retry helper for lazy loading pages when new code is deployed
+const lazyWithRetry = (componentImport) =>
+  lazy(async () => {
+    const pageHasBeenRefreshed = JSON.parse(
+      window.sessionStorage.getItem('page_has_been_refreshed') || 'false'
+    );
+    try {
+      const component = await componentImport();
+      window.sessionStorage.setItem('page_has_been_refreshed', 'false');
+      return component;
+    } catch (error) {
+      if (!pageHasBeenRefreshed) {
+        window.sessionStorage.setItem('page_has_been_refreshed', 'true');
+        window.location.reload();
+      }
+      throw error;
+    }
+  });
+
+// Pages (Lazy Loaded with deployment chunk retry safety)
+const Landing = lazyWithRetry(() => import('./pages/Landing'));
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const Register = lazyWithRetry(() => import('./pages/Register'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Products = lazyWithRetry(() => import('./pages/Products'));
+const ProductDetail = lazyWithRetry(() => import('./pages/ProductDetail'));
+const ListProduct = lazyWithRetry(() => import('./pages/ListProduct'));
+const Bookings = lazyWithRetry(() => import('./pages/Bookings'));
+const Chat = lazyWithRetry(() => import('./pages/Chat'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const KYCForm = lazyWithRetry(() => import('./pages/KYCForm'));
+const Admin = lazyWithRetry(() => import('./pages/Admin'));
+const AdminLogin = lazyWithRetry(() => import('./pages/AdminLogin'));
+const MyListings = lazyWithRetry(() => import('./pages/MyListings'));
+const MapSearch = lazyWithRetry(() => import('./pages/MapSearch'));
+const Handover = lazyWithRetry(() => import('./pages/Handover'));
+const ConditionCheck = lazyWithRetry(() => import('./pages/ConditionCheck'));
+const ReturnCheck = lazyWithRetry(() => import('./pages/ReturnCheck'));
+const ReturnComparison = lazyWithRetry(() => import('./pages/ReturnComparison'));
+const Payment = lazyWithRetry(() => import('./pages/Payment'));
+const Invoice = lazyWithRetry(() => import('./pages/Invoice'));
+const ChatWindow = lazyWithRetry(() => import('./pages/ChatWindow'));
+const DisputeForm = lazyWithRetry(() => import('./pages/DisputeForm'));
+const DisputeDetail = lazyWithRetry(() => import('./pages/DisputeDetail'));
+const Settings = lazyWithRetry(() => import('./pages/Settings'));
+const Support = lazyWithRetry(() => import('./pages/Support'));
 
 // Full-screen loading fallback for Suspense
 const PageLoader = () => (
