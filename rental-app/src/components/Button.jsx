@@ -22,6 +22,7 @@ const Button = ({ variant = 'primary', size = 'md', children, className = '', lo
   return (
     <button
       disabled={disabled || loading}
+      aria-busy={loading}
       className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >

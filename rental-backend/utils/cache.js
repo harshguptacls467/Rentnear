@@ -23,6 +23,15 @@ const cache = {
 
   set: async (key, value, ttlSeconds = DEFAULT_TTL_SECONDS) => {
     try {
+      // Memory leak guard: if memoryStore grows over 500 entries, prune expired items
+      if (memoryStore.size > 500) {
+        const now = Date.now();
+        for (const [k, item] of memoryStore.entries()) {
+          if (now > item.expiresAt) {
+            memoryStore.delete(k);
+          }
+        }
+      }
       const expiresAt = Date.now() + ttlSeconds * 1000;
       memoryStore.set(key, { value, expiresAt });
     } catch {

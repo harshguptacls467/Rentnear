@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, X } from 'lucide-react';
 import useAuthStore from '../store/authStore';
@@ -8,6 +8,16 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
   const { logout } = useAuthStore();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen && !isLoggingOut) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isLoggingOut, onClose]);
 
   if (!isOpen) return null;
 
@@ -26,7 +36,13 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
+        className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      >
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -48,7 +64,8 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
           <button
             onClick={onClose}
             disabled={isLoggingOut}
-            className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Close confirmation dialog"
+            className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-primary rounded-full transition-colors"
           >
             <X size={18} />
           </button>
@@ -59,11 +76,11 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
               <LogOut size={22} className="ml-0.5" />
             </div>
             
-            <h3 className="text-xl font-extrabold text-gray-900">
+            <h3 id="logout-dialog-title" className="text-xl font-extrabold text-gray-900">
               Log Out
             </h3>
             
-            <p className="text-sm font-medium text-gray-600 px-2 leading-relaxed">
+            <p id="logout-dialog-description" className="text-sm font-medium text-gray-600 px-2 leading-relaxed">
               Are you sure you want to log out?
             </p>
           </div>
@@ -74,7 +91,7 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
               type="button"
               onClick={onClose}
               disabled={isLoggingOut}
-              className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 active:bg-gray-100 transition-all text-sm disabled:opacity-50"
+              className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-2 focus-visible:ring-primary transition-all text-sm disabled:opacity-50"
             >
               Cancel
             </button>
@@ -83,7 +100,7 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
               type="button"
               onClick={handleConfirmLogout}
               disabled={isLoggingOut}
-              className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60"
+              className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold shadow-md shadow-red-500/20 focus-visible:ring-2 focus-visible:ring-red-400 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60"
             >
               {isLoggingOut ? (
                 <>

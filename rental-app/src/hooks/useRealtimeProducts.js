@@ -149,7 +149,13 @@ const useRealtimeProducts = (setProducts, isMock, filters = {}, sortBy = 'newest
 
     return () => {
       useRealtimeStore.getState().setProductsFeedStatus('disconnected');
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, [isMock, insertSorted, showToast]);
 };

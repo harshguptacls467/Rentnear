@@ -57,7 +57,10 @@ const generateAadharOtp = async (req, res, next) => {
 
 const verifyAadharOtp = async (req, res, next) => {
   try {
-    const { client_id, otp, isSimulated, simulatedOtp } = req.body;
+    // SECURITY: isSimulated and simulatedOtp are intentionally NOT read from req.body.
+    // Simulation mode is determined server-side only — by checking if SUREPASS_API_TOKEN
+    // is configured in the environment. A client cannot declare itself as simulated.
+    const { client_id, otp } = req.body;
     if (!client_id || !otp) {
       return res.status(400).json({ message: 'Client ID and OTP are required.' });
     }
@@ -65,9 +68,11 @@ const verifyAadharOtp = async (req, res, next) => {
     let aadharName = 'Verified User';
     let maskedAadhar = 'XXXX XXXX XXXX';
 
-    if (isSimulated || !process.env.SUREPASS_API_TOKEN) {
-      if (otp !== simulatedOtp) {
-        return res.status(400).json({ message: 'Invalid OTP code. Please enter the correct simulated OTP.' });
+    const isSimulatedMode = !process.env.SUREPASS_API_TOKEN;
+    if (isSimulatedMode) {
+      // Dev/staging only — any 6-digit numeric OTP accepted.
+      if (!/^\d{6}$/.test(String(otp))) {
+        return res.status(400).json({ message: 'Invalid OTP. Please enter a valid 6-digit code.' });
       }
       maskedAadhar = 'XXXX XXXX 9999';
     } else {

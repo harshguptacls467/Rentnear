@@ -139,7 +139,16 @@ const pluginController = {
   },
 
   // Dynamic execution runner helper
+  // SECURITY: Node's built-in `vm` module is NOT a security sandbox — it is possible
+  // to break out of the vm context using prototype chain attacks and other techniques
+  // (documented in Node.js security model). This function is retained ONLY for unit
+  // test compatibility. Live execution from HTTP routes is blocked in production.
+  // Future path: migrate to `isolated-vm` for true V8 process-level isolation.
   executeSandbox: (codeBundle, context) => {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Plugin sandbox execution is disabled in production. See audit finding CRIT-01.');
+    }
+
     const sandbox = {
       console: { log: () => {} },
       context: {

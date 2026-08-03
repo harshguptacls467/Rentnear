@@ -22,6 +22,12 @@ export default defineConfig({
             if (id.includes('lucide-react')) {
               return 'icons-vendor';
             }
+            if (id.includes('@tanstack') || id.includes('react-query')) {
+              return 'query-vendor';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase-vendor';
+            }
             return 'vendor';
           }
         }

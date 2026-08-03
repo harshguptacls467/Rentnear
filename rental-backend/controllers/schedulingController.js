@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { haversineKm } = require('../utils/geo');
 
 const TIME_SLOTS = [
   '09:00 - 11:00',
@@ -83,15 +84,7 @@ const schedulingController = {
       const endLng = schedule.handover_longitude || 77.6271;
 
       // Distance using Haversine
-      const R = 6371;
-      const dLat = (endLat - startLat) * (Math.PI / 180);
-      const dLon = (endLng - startLng) * (Math.PI / 180);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(startLat * (Math.PI / 180)) * Math.cos(endLat * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = parseFloat((R * c).toFixed(2));
+      const distance = haversineKm(startLat, startLng, endLat, endLng);
       const etaMinutes = Math.round(distance * 3); // Simple 3 min/km mock
 
       res.json({

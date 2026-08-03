@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import Navbar from './Navbar';
 import AIChatbot from './AIChatbot';
+import OfflineBanner from './OfflineBanner';
+import { ComponentErrorBoundary } from './ErrorBoundary';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../context/ToastContext';
 import useAuthStore from '../store/authStore';
@@ -13,31 +15,43 @@ const Layout = () => {
   useEffect(() => {
     // Subscribe to real-time additions of new products in public.products
     if (!isMock) {
-      const channel = supabase
-        .channel('public-products-changes')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'products' },
-          (payload) => {
-            const newProduct = payload.new;
-            if (newProduct && newProduct.title) {
-              showToast(
-                `🎉 New rental listed nearby: "${newProduct.title}" is now available!`,
-                'success'
-              );
+      let channel;
+      try {
+        channel = supabase
+          .channel('public-products-changes')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'products' },
+            (payload) => {
+              const newProduct = payload.new;
+              if (newProduct && newProduct.title) {
+                showToast(
+                  `🎉 New rental listed nearby: "${newProduct.title}" is now available!`,
+                  'success'
+                );
+              }
             }
-          }
-        )
-        .subscribe();
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Realtime subscription error in Layout:', err);
+      }
 
       return () => {
-        supabase.removeChannel(channel);
+        if (channel) {
+          try {
+            supabase.removeChannel(channel);
+          } catch {
+            // ignore channel removal error
+          }
+        }
       };
     }
   }, [showToast, isMock]);
 
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
+      <OfflineBanner />
       {isMock && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2.5 text-center text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 z-[9999] shadow-sm select-none">
           <span>⚠️ Running in simulated offline/mock mode. Data persists in browser storage only.</span>
@@ -90,8 +104,10 @@ const Layout = () => {
         </div>
       </footer>
 
-      {/* Floating AI Chatbot */}
-      <AIChatbot />
+      {/* Floating AI Chatbot protected by component error boundary */}
+      <ComponentErrorBoundary name="AI Rental Assistant">
+        <AIChatbot />
+      </ComponentErrorBoundary>
     </div>
   );
 };

@@ -92,7 +92,13 @@ const useRealtimeChat = (bookingId, user, setMessages, isMock) => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(messageChannel);
+      if (messageChannel) {
+        try {
+          supabase.removeChannel(messageChannel);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, [bookingId, user?.id, isMock, setMessages, incrementUnread]);
 
@@ -130,7 +136,13 @@ const useRealtimeChat = (bookingId, user, setMessages, isMock) => {
     return () => {
       clearTimeout(typingDebounceRef.current);
       clearTimeout(typingClearRef.current);
-      supabase.removeChannel(typingChannel);
+      if (typingChannel) {
+        try {
+          supabase.removeChannel(typingChannel);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, [bookingId, user?.id, isMock]);
 

@@ -89,29 +89,31 @@ const strictLimiter = rateLimit({
 // ── 5. Parse incoming JSON requests ──────────────────────────────────────────
 app.use(express.json({ limit: '2mb' })); // Limit body size to 2MB
 
-// ── 6. Routes ─────────────────────────────────────────────────────────────────
+// ── 6. Routes (Versioned /api/v1 & Backward-Compatible /api Mounts) ───────────
 app.use('/api', healthRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/bookings', strictLimiter, bookingRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/kyc', kycRoutes);
-app.use('/api/referrals', referralRoutes);
-app.use('/api/wishlist', wishlistRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/trust', trustRoutes);
-app.use('/api/rewards', rewardsRoutes);
-app.use('/api/pricing', pricingRoutes);
-app.use('/api/scheduling', schedulingRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/orgs', orgRoutes);
-app.use('/api/v1/developer', developerRoutes);
-app.use('/api/admin/risk', riskRoutes);
-app.use('/api/tenant', tenantRoutes);
-app.use('/api/v1/federation', federationRoutes);
-app.use('/api/plugins', pluginRoutes);
-app.use('/api/workflows', workflowRoutes);
+app.use('/api/v1/health', healthRoutes);
+
+app.use(['/api/products', '/api/v1/products'], productRoutes);
+app.use(['/api/bookings', '/api/v1/bookings'], strictLimiter, bookingRoutes);
+app.use(['/api/admin', '/api/v1/admin'], adminRoutes);
+app.use(['/api/reviews', '/api/v1/reviews'], reviewRoutes);
+app.use(['/api/kyc', '/api/v1/kyc'], kycRoutes);
+app.use(['/api/referrals', '/api/v1/referrals'], referralRoutes);
+app.use(['/api/wishlist', '/api/v1/wishlist'], wishlistRoutes);
+app.use(['/api/notifications', '/api/v1/notifications'], notificationRoutes);
+app.use(['/api/analytics', '/api/v1/analytics'], analyticsRoutes);
+app.use(['/api/trust', '/api/v1/trust'], trustRoutes);
+app.use(['/api/rewards', '/api/v1/rewards'], rewardsRoutes);
+app.use(['/api/pricing', '/api/v1/pricing'], pricingRoutes);
+app.use(['/api/scheduling', '/api/v1/scheduling'], schedulingRoutes);
+app.use(['/api/ai', '/api/v1/ai'], aiRoutes);
+app.use(['/api/orgs', '/api/v1/orgs'], orgRoutes);
+app.use(['/api/developer', '/api/v1/developer'], developerRoutes);
+app.use(['/api/admin/risk', '/api/v1/admin/risk'], riskRoutes);
+app.use(['/api/tenant', '/api/v1/tenant'], tenantRoutes);
+app.use(['/api/federation', '/api/v1/federation'], federationRoutes);
+app.use(['/api/plugins', '/api/v1/plugins'], pluginRoutes);
+app.use(['/api/workflows', '/api/v1/workflows'], workflowRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

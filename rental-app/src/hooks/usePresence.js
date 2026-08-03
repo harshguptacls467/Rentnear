@@ -31,43 +31,58 @@ const usePresence = (user, channelName = 'global-presence') => {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase.channel(channelName, {
-      config: {
-        presence: {
-          key: user.id,
+    let channel;
+    try {
+      channel = supabase.channel(channelName, {
+        config: {
+          presence: {
+            key: user.id,
+          },
         },
-      },
-    });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        // Sync event fires on join and whenever state changes
-        // Get all currently tracked keys (user IDs)
-        const state = channel.presenceState();
-        const onlineIds = Object.keys(state);
-        setOnlineUsers(onlineIds);
-      })
-      .on('presence', { event: 'join' }, ({ key }) => {
-        addOnlineUser(key);
-      })
-      .on('presence', { event: 'leave' }, ({ key }) => {
-        removeOnlineUser(key);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          // Track own presence — this broadcasts to all others in the channel
-          await channel.track({
-            user_id: user.id,
-            online_at: new Date().toISOString(),
-          });
-        }
       });
 
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          try {
+            const state = channel.presenceState();
+            const onlineIds = Object.keys(state || {});
+            setOnlineUsers(onlineIds);
+          } catch (err) {
+            console.debug('Presence sync error:', err);
+          }
+        })
+        .on('presence', { event: 'join' }, ({ key }) => {
+          if (key) addOnlineUser(key);
+        })
+        .on('presence', { event: 'leave' }, ({ key }) => {
+          if (key) removeOnlineUser(key);
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            try {
+              await channel.track({
+                user_id: user.id,
+                online_at: new Date().toISOString(),
+              });
+            } catch (err) {
+              console.debug('Presence track error:', err);
+            }
+          }
+        });
+    } catch (err) {
+      console.warn('Presence channel initialization failed:', err);
+    }
+
     // Cleanup: untrack presence before leaving
-    // This triggers a 'leave' event for other subscribers
     return () => {
-      channel.untrack();
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          channel.untrack();
+          supabase.removeChannel(channel);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, [user?.id, channelName, addOnlineUser, removeOnlineUser, setOnlineUsers]);
 

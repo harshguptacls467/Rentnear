@@ -171,7 +171,8 @@ CREATE TABLE disputes (
   status TEXT DEFAULT 'open', -- open, under_review, resolved, rejected
   resolution_notes TEXT,
   resolved_amount NUMERIC(10, 2),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_active_dispute_booking UNIQUE (booking_id)
 );
 CREATE INDEX idx_disputes_booking ON disputes(booking_id);
 
@@ -187,6 +188,12 @@ CREATE TABLE payouts (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_payouts_owner ON payouts(owner_id);
+
+-- HIGH-PERFORMANCE QUERY INDEXES
+CREATE INDEX IF NOT EXISTS idx_products_category_avail ON products(category, is_available) WHERE is_available = true;
+CREATE INDEX IF NOT EXISTS idx_products_lat_lng ON products(latitude, longitude) WHERE is_available = true;
+CREATE INDEX IF NOT EXISTS idx_bookings_date_conflict ON bookings(product_id, status, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_payments_razorpay ON payments(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
 
 -- TRIGGER FUNCTION FOR AVERAGE RATINGS
 CREATE OR REPLACE FUNCTION update_user_rating()
@@ -208,22 +215,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER after_review_insert
 AFTER INSERT ON reviews
 FOR EACH ROW EXECUTE FUNCTION update_user_rating();
-
--- 9. DISPUTES TABLE
-CREATE TABLE disputes (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  reported_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  reason TEXT NOT NULL,
-  description TEXT NOT NULL,
-  evidence_photos TEXT[] DEFAULT '{}',
-  status dispute_status DEFAULT 'open',
-  admin_notes TEXT,
-  resolution_amount NUMERIC(10, 2),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(booking_id) -- One active dispute per booking
-);
-CREATE INDEX idx_disputes_booking ON disputes(booking_id);
 
 -- 10. AUDIT LOGS (TIMELINE)
 CREATE TABLE audit_logs (

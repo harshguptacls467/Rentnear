@@ -51,36 +51,58 @@ const getStats = async (req, res, next) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let usersCount = { count: 120 }, productsCount = { count: 85 }, bookingsCount = { count: 8 }, disputesCount = { count: 2 };
+    // Default to 0 — do NOT use hardcoded fake numbers as fallback in production.
+    let usersCount = { count: 0 }, productsCount = { count: 0 }, bookingsCount = { count: 0 }, disputesCount = { count: 0 };
+    let liveCount = 0, completedCount = 0, cancelledCount = 0;
+    let revenueTotal = 0, refundTotal = 0;
 
     try {
-      const [u, p, b, d] = await Promise.all([
+      const [u, p, b, d, live, completed, cancelled, revenue, refunds] = await Promise.all([
         supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase.from('products').select('*', { count: 'exact', head: true }),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
-        supabase.from('disputes').select('*', { count: 'exact', head: true }).in('status', ['open', 'under_review'])
+        supabase.from('disputes').select('*', { count: 'exact', head: true }).in('status', ['open', 'under_review']),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
+        supabase.from('payments').select('amount').eq('status', 'captured'),
+        supabase.from('payments').select('amount').in('status', ['refunded', 'partially_refunded']),
       ]);
+
       if (u.count !== null) usersCount = u;
       if (p.count !== null) productsCount = p;
       if (b.count !== null) bookingsCount = b;
       if (d.count !== null) disputesCount = d;
+      if (live.count !== null) liveCount = live.count;
+      if (completed.count !== null) completedCount = completed.count;
+      if (cancelled.count !== null) cancelledCount = cancelled.count;
+      if (revenue.data) {
+        revenueTotal = parseFloat(
+          revenue.data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0).toFixed(2)
+        );
+      }
+      if (refunds.data) {
+        refundTotal = parseFloat(
+          refunds.data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0).toFixed(2)
+        );
+      }
     } catch {
-      // Graceful fallback to static counters
+      // DB unavailable — return zeros. Admin will see real signal (empty dashboard) not fake data.
     }
 
     res.json({
-      totalUsers: usersCount.count || 120,
-      totalProducts: productsCount.count || 85,
-      bookingsToday: bookingsCount.count || 8,
-      openDisputes: disputesCount.count || 2,
-      verifiedUsers: Math.floor((usersCount.count || 120) * 0.75),
-      activeListings: Math.floor((productsCount.count || 85) * 0.9),
-      liveRentals: 12,
-      completedRentals: 45,
-      cancelledRentals: 3,
-      revenue: 12450.50,
-      platformCommission: 1245.05,
-      refunds: 450.00,
+      totalUsers: usersCount.count || 0,
+      totalProducts: productsCount.count || 0,
+      bookingsToday: bookingsCount.count || 0,
+      openDisputes: disputesCount.count || 0,
+      verifiedUsers: Math.floor((usersCount.count || 0) * 0.75),
+      activeListings: Math.floor((productsCount.count || 0) * 0.9),
+      liveRentals: liveCount,
+      completedRentals: completedCount,
+      cancelledRentals: cancelledCount,
+      revenue: revenueTotal,
+      platformCommission: parseFloat((revenueTotal * 0.10).toFixed(2)),
+      refunds: refundTotal,
       systemHealth: 'Healthy'
     });
   } catch (err) {

@@ -28,8 +28,15 @@ const dynamicAuthStorage = {
   setItem: (key, value) => {
     try {
       if (typeof window === 'undefined') return;
-      localStorage.setItem(key, value);
-      sessionStorage.setItem(key, value);
+      // Read the rememberMe preference. Login page must set 'rentnear_remember_me'
+      // to 'true' in localStorage when the user checks "Remember me".
+      // If not set (or false), use sessionStorage only — session ends on tab close.
+      const rememberMe = localStorage.getItem('rentnear_remember_me') === 'true';
+      if (rememberMe) {
+        localStorage.setItem(key, value);
+      } else {
+        sessionStorage.setItem(key, value);
+      }
     } catch {
       // Fail silently
     }

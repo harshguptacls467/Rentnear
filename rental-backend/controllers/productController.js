@@ -1,16 +1,7 @@
 const supabase = require('../config/supabase');
 const { sendGlobalPushNotification } = require('../utils/notifications');
 const cache = require('../utils/cache');
-
-const haversineKm = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-};
+const { haversineKm } = require('../utils/geo');
 
 const productController = {
   // GET /api/products (Smart Search, Advanced Filters & Sorting)
@@ -73,6 +64,11 @@ const productController = {
       } else {
         query = query.order('created_at', { ascending: false });
       }
+
+      // Safety cap: never fetch more than 1000 rows from the DB into Node.js process memory.
+      // Without this, a table with 10,000+ products would be fully loaded on every request.
+      // Long-term fix: move all filtering/sorting/pagination to DB-level queries.
+      query = query.range(0, 999);
 
       const { data, error } = await query;
 

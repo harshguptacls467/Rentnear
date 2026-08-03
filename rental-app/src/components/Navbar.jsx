@@ -44,8 +44,10 @@ const Navbar = () => {
           
           {/* Hamburger Icon (Mobile Only) */}
           <button 
-            className="md:hidden text-white focus:outline-none p-2"
+            className="md:hidden text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg p-2 transition-all"
             onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={mobileMenuOpen}
           >
             <Menu size={28} />
           </button>

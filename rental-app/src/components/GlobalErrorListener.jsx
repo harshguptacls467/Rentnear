@@ -5,22 +5,31 @@ const GlobalErrorListener = () => {
   const { showToast } = useToast();
 
   useEffect(() => {
+    const sanitizeMessage = (msg) => {
+      if (!msg) return 'An unexpected background action failed.';
+      const str = String(msg);
+      // Mask stack traces, SQL, Supabase internal URLs, or object details
+      if (str.includes('PGRST') || str.includes('postgres') || str.includes('http') || str.includes('Error:') || str.length > 120) {
+        return 'Network or database action temporarily unavailable.';
+      }
+      return str;
+    };
+
     const handleUnhandledRejection = (event) => {
       console.error('[Global Promise Rejection Alert]', event.reason);
       
-      // Extract a user-friendly error message
       const errorObj = event.reason;
-      let message = 'An unexpected promise rejection occurred.';
+      let rawMsg = 'An unexpected background action failed.';
       
       if (errorObj) {
         if (typeof errorObj === 'string') {
-          message = errorObj;
+          rawMsg = errorObj;
         } else if (errorObj.message) {
-          message = errorObj.message;
+          rawMsg = errorObj.message;
         }
       }
 
-      showToast(`⚠️ Promise failure: ${message}`, 'error');
+      showToast(`⚠️ Operation failed: ${sanitizeMessage(rawMsg)}`, 'error');
     };
 
     const handleGlobalError = (event) => {
@@ -31,8 +40,8 @@ const GlobalErrorListener = () => {
         return;
       }
       
-      const message = event.error?.message || event.message || 'An unexpected error occurred.';
-      showToast(`❌ System error: ${message}`, 'error');
+      const rawMsg = event.error?.message || event.message || 'An unexpected error occurred.';
+      showToast(`❌ System alert: ${sanitizeMessage(rawMsg)}`, 'error');
     };
 
     const handleOnline = () => {

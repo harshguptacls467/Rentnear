@@ -49,6 +49,7 @@ const useRealtimeStore = create((set, get) => ({
 
   addOnlineUser: (userId) => {
     set((state) => {
+      if (state.onlineUsers.has(userId)) return state;
       const next = new Set(state.onlineUsers);
       next.add(userId);
       return { onlineUsers: next };
@@ -57,6 +58,7 @@ const useRealtimeStore = create((set, get) => ({
 
   removeOnlineUser: (userId) => {
     set((state) => {
+      if (!state.onlineUsers.has(userId)) return state;
       const next = new Set(state.onlineUsers);
       next.delete(userId);
       return { onlineUsers: next };

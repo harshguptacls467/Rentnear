@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const { sendNotification } = require('../utils/notifications');
 const rewardsController = require('./rewardsController');
+const { BOOKING_STATUS, MS_PER_DAY, MS_PER_HOUR, BOOKING_CONFIG } = require('../constants/booking');
 
 const bookingController = {
   
@@ -76,17 +77,19 @@ const bookingController = {
       // SECURITY: Calculate price server-side — never trust client input for money
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
-      const rentalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+      const rentalDays = Math.max(1, Math.ceil((endDate - startDate) / MS_PER_DAY));
       const rawTotal = parseFloat((rentalDays * product.price_per_day + (product.deposit_amount || 0)).toFixed(2));
 
-      // Wallet credit discount
+      // Wallet credit discount — uses atomic PostgreSQL RPC to prevent race conditions.
+      // The deduct_wallet_credit() function uses SELECT ... FOR UPDATE to lock the user
+      // row, ensuring two concurrent bookings cannot both read the same stale balance.
+      // SQL migration: rental-backend/database/deduct_wallet_credit.sql
       let walletDiscount = 0;
       if (req.body.apply_wallet_credit) {
-        const { data: renterUser } = await supabase.from('users').select('wallet_balance').eq('id', renter_id).single();
-        const currentBalance = parseFloat(renterUser?.wallet_balance || 0);
-        if (currentBalance > 0) {
-          walletDiscount = Math.min(currentBalance, rawTotal);
-          await supabase.from('users').update({ wallet_balance: currentBalance - walletDiscount }).eq('id', renter_id);
+        const { data: deducted, error: walletErr } = await supabase
+          .rpc('deduct_wallet_credit', { p_user_id: renter_id, p_amount: rawTotal });
+        if (!walletErr && deducted != null) {
+          walletDiscount = parseFloat(deducted) || 0;
         }
       }
 
@@ -191,6 +194,26 @@ const bookingController = {
         return res.status(403).json({ success: false, error: { message: 'Only the owner can approve or reject a booking.', status: 403 } });
       }
 
+      // State Machine: Enforce valid status transitions.
+      // Prevents jumping to 'completed' before payment/handover, or re-opening terminal states.
+      const VALID_TRANSITIONS = {
+        pending:           ['approved', 'rejected', 'cancelled'],
+        approved:          ['cancelled', 'awaiting_handover'],
+        awaiting_handover: ['active', 'cancelled'],
+        active:            ['completed', 'disputed'],
+        completed:         [],
+        rejected:          [],
+        cancelled:         [],
+        disputed:          ['completed', 'cancelled'],
+      };
+      const allowedNextStatuses = VALID_TRANSITIONS[booking.status] || [];
+      if (!allowedNextStatuses.includes(status)) {
+        return res.status(400).json({ success: false, error: {
+          message: `Invalid transition: a booking in '${booking.status}' status cannot be moved to '${status}'.`,
+          status: 400
+        }});
+      }
+
       // Expiration Lock: Pending bookings older than 24 hours cannot be approved/rejected
       if (booking.status === 'pending' && ['approved', 'rejected'].includes(status)) {
         const hoursSinceCreation = (new Date() - new Date(booking.created_at)) / (1000 * 60 * 60);
@@ -237,7 +260,8 @@ const bookingController = {
   // GET /api/bookings/my
   getMyBookings: async (req, res, next) => {
     try {
-      const userId = req.user?.id || req.query?.userId;
+      // SECURITY: userId must only come from the verified JWT — never from query params.
+      const userId = req.user.id;
       const { role } = req.query; // 'renter' or 'owner'
 
       if (!userId) {
@@ -777,7 +801,21 @@ const bookingController = {
         return res.status(400).json({ success: false, error: { message: `Claimed amount ($${claimAmount}) cannot exceed security deposit ($${booking.deposit_amount}).`, status: 400 } });
       }
 
-      // 5. Create dispute record
+      // 5. Guard against duplicate claims — only one active dispute allowed per booking
+      const { data: existingDispute } = await supabase
+        .from('disputes')
+        .select('id')
+        .eq('booking_id', id)
+        .maybeSingle();
+
+      if (existingDispute) {
+        return res.status(409).json({ success: false, error: {
+          message: 'A deposit claim already exists for this booking. Contact support to modify an existing claim.',
+          status: 409
+        }});
+      }
+
+      // 6. Create dispute record
       const evidence = Array.isArray(claim_evidence_urls) ? claim_evidence_urls : [];
       const { data: dispute, error: disputeErr } = await supabase
         .from('disputes')

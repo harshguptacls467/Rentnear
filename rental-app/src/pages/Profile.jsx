@@ -17,6 +17,7 @@ import AnimatedPage from '../components/AnimatedPage';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { trustService } from '../api/trustService';
 import RewardsDashboard from '../components/profile/RewardsDashboard';
+import SafeImg from '../components/SafeImg';
 
 const parsePhone = (fullPhone) => {
   if (!fullPhone) return { countryCode: '+91', phoneNum: '' };
@@ -434,13 +435,12 @@ const Profile = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end -mt-16 sm:-mt-24 mb-8 gap-4">
               <div className="relative group">
                 <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-[6px] border-white bg-gray-100 overflow-hidden shadow-xl relative">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
-                      <UserIcon size={64} className="md:w-20 md:h-20" />
-                    </div>
-                  )}
+                  <SafeImg 
+                    src={profile.avatar_url} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    fallbackType="avatar"
+                  />
                   <label className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity duration-300">
                     {uploading ? <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div> : <><Camera size={28} className="mb-2" /><span className="text-xs font-semibold">Change Photo</span></>}
                     <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" disabled={uploading}/>
@@ -903,6 +903,7 @@ const Profile = () => {
                 </div>
               </div>
             </div>
+          )}
         </div>
       </div>
 
@@ -911,6 +912,7 @@ const Profile = () => {
           <RewardsDashboard />
         </div>
       )}
+      </div>
 
       {/* =========================================================================
           EMAIL VERIFICATION OTP MODAL

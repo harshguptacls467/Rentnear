@@ -10,7 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import GuestRoute from './components/GuestRoute'
 import Skeleton from './components/Skeleton'
 import { ToastProvider } from './context/ToastContext'
-import ErrorBoundary from './components/ErrorBoundary'
+import GlobalErrorBoundary, { RouteErrorBoundary } from './components/ErrorBoundary'
 import { initOneSignal, setOneSignalUser } from './services/OneSignal'
 import GlobalErrorListener from './components/GlobalErrorListener'
 
@@ -85,6 +85,11 @@ const PageLoader = () => (
   </div>
 );
 
+// Helper wrapper to protect each route with a RouteErrorBoundary
+const RouteGuard = ({ name, children }) => (
+  <RouteErrorBoundary routeName={name}>{children}</RouteErrorBoundary>
+);
+
 const AnimatedRoutes = () => {
   const location = useLocation();
   
@@ -93,57 +98,57 @@ const AnimatedRoutes = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Layout />}>
           {/* Public & Guest-Only Routes */}
-          <Route index element={<Landing />} />
-          <Route path="products" element={<Products />} />
-          <Route path="products/:id" element={<ProductDetail />} />
-          <Route path="map" element={<MapSearch />} />
-          <Route path="support" element={<Support />} />
-          <Route path="admin-login" element={<AdminLogin />} />
+          <Route index element={<RouteGuard name="Landing"><Landing /></RouteGuard>} />
+          <Route path="products" element={<RouteGuard name="Products"><Products /></RouteGuard>} />
+          <Route path="products/:id" element={<RouteGuard name="ProductDetail"><ProductDetail /></RouteGuard>} />
+          <Route path="map" element={<RouteGuard name="MapSearch"><MapSearch /></RouteGuard>} />
+          <Route path="support" element={<RouteGuard name="Support"><Support /></RouteGuard>} />
+          <Route path="admin-login" element={<RouteGuard name="AdminLogin"><AdminLogin /></RouteGuard>} />
 
-          {/* Guest-Only Auth Routes (Logged-in users redirected to /home) */}
+          {/* Guest-Only Auth Routes */}
           <Route element={<GuestRoute />}>
-            <Route path="login" element={<Login />} />
-            <Route path="register" element={<Register />} />
-            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="login" element={<RouteGuard name="Login"><Login /></RouteGuard>} />
+            <Route path="register" element={<RouteGuard name="Register"><Register /></RouteGuard>} />
+            <Route path="forgot-password" element={<RouteGuard name="ForgotPassword"><ForgotPassword /></RouteGuard>} />
           </Route>
           
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
-            <Route path="home" element={<Home />} />
-            <Route path="list-product" element={<ListProduct />} />
-            <Route path="list-product/:id" element={<ListProduct />} />
-            <Route path="my-listings" element={<MyListings />} />
-            <Route path="bookings" element={<Bookings />} />
-            <Route path="bookings/:id/handover" element={<Handover />} />
-            <Route path="bookings/:id/condition" element={<ConditionCheck />} />
-            <Route path="bookings/:id/return" element={<ReturnCheck />} />
-            <Route path="bookings/:id/compare" element={<ReturnComparison />} />
-            <Route path="bookings/:id/pay" element={<Payment />} />
-            <Route path="bookings/:id/invoice" element={<Invoice />} />
-            <Route path="bookings/:id/dispute-form" element={<DisputeForm />} />
-            <Route path="bookings/:id/dispute" element={<DisputeDetail />} />
-            <Route path="chat" element={<Chat />} />
-            <Route path="chat/:bookingId" element={<ChatWindow />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="wishlist" element={<Wishlist />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="invite" element={<InviteEarn />} />
-            <Route path="kyc" element={<KYCForm />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="owner-dashboard" element={<OwnerDashboard />} />
-            <Route path="workspace" element={<OrgWorkspace />} />
-            <Route path="developer" element={<DevPortal />} />
+            <Route path="home" element={<RouteGuard name="Home"><Home /></RouteGuard>} />
+            <Route path="list-product" element={<RouteGuard name="ListProduct"><ListProduct /></RouteGuard>} />
+            <Route path="list-product/:id" element={<RouteGuard name="ListProductEdit"><ListProduct /></RouteGuard>} />
+            <Route path="my-listings" element={<RouteGuard name="MyListings"><MyListings /></RouteGuard>} />
+            <Route path="bookings" element={<RouteGuard name="Bookings"><Bookings /></RouteGuard>} />
+            <Route path="bookings/:id/handover" element={<RouteGuard name="Handover"><Handover /></RouteGuard>} />
+            <Route path="bookings/:id/condition" element={<RouteGuard name="ConditionCheck"><ConditionCheck /></RouteGuard>} />
+            <Route path="bookings/:id/return" element={<RouteGuard name="ReturnCheck"><ReturnCheck /></RouteGuard>} />
+            <Route path="bookings/:id/compare" element={<RouteGuard name="ReturnComparison"><ReturnComparison /></RouteGuard>} />
+            <Route path="bookings/:id/pay" element={<RouteGuard name="Payment"><Payment /></RouteGuard>} />
+            <Route path="bookings/:id/invoice" element={<RouteGuard name="Invoice"><Invoice /></RouteGuard>} />
+            <Route path="bookings/:id/dispute-form" element={<RouteGuard name="DisputeForm"><DisputeForm /></RouteGuard>} />
+            <Route path="bookings/:id/dispute" element={<RouteGuard name="DisputeDetail"><DisputeDetail /></RouteGuard>} />
+            <Route path="chat" element={<RouteGuard name="Chat"><Chat /></RouteGuard>} />
+            <Route path="chat/:bookingId" element={<RouteGuard name="ChatWindow"><ChatWindow /></RouteGuard>} />
+            <Route path="profile" element={<RouteGuard name="Profile"><Profile /></RouteGuard>} />
+            <Route path="wishlist" element={<RouteGuard name="Wishlist"><Wishlist /></RouteGuard>} />
+            <Route path="notifications" element={<RouteGuard name="Notifications"><Notifications /></RouteGuard>} />
+            <Route path="invite" element={<RouteGuard name="InviteEarn"><InviteEarn /></RouteGuard>} />
+            <Route path="kyc" element={<RouteGuard name="KYCForm"><KYCForm /></RouteGuard>} />
+            <Route path="settings" element={<RouteGuard name="Settings"><Settings /></RouteGuard>} />
+            <Route path="owner-dashboard" element={<RouteGuard name="OwnerDashboard"><OwnerDashboard /></RouteGuard>} />
+            <Route path="workspace" element={<RouteGuard name="OrgWorkspace"><OrgWorkspace /></RouteGuard>} />
+            <Route path="developer" element={<RouteGuard name="DevPortal"><DevPortal /></RouteGuard>} />
           </Route>
 
           {/* Admin Routes */}
           <Route element={<ProtectedRoute adminOnly={true} />}>
-            <Route path="admin" element={<Admin />} />
-            <Route path="dashboard" element={<Admin />} />
-            <Route path="admin/risk" element={<AdminRiskDashboard />} />
-            <Route path="super-admin" element={<SuperAdminConsole />} />
-            <Route path="federation" element={<GlobalFederationPortal />} />
-            <Route path="marketplace" element={<AppMarketplace />} />
-            <Route path="rental-os" element={<RentalOSDashboard />} />
+            <Route path="admin" element={<RouteGuard name="Admin"><Admin /></RouteGuard>} />
+            <Route path="dashboard" element={<RouteGuard name="AdminDashboard"><Admin /></RouteGuard>} />
+            <Route path="admin/risk" element={<RouteGuard name="AdminRisk"><AdminRiskDashboard /></RouteGuard>} />
+            <Route path="super-admin" element={<RouteGuard name="SuperAdminConsole"><SuperAdminConsole /></RouteGuard>} />
+            <Route path="federation" element={<RouteGuard name="GlobalFederationPortal"><GlobalFederationPortal /></RouteGuard>} />
+            <Route path="marketplace" element={<RouteGuard name="AppMarketplace"><AppMarketplace /></RouteGuard>} />
+            <Route path="rental-os" element={<RouteGuard name="RentalOSDashboard"><RentalOSDashboard /></RouteGuard>} />
           </Route>
         </Route>
       </Routes>
@@ -172,7 +177,7 @@ function App() {
   }, [user]);
 
   return (
-    <ErrorBoundary>
+    <GlobalErrorBoundary>
       <ToastProvider>
         <GlobalErrorListener />
         <BrowserRouter>
@@ -181,8 +186,9 @@ function App() {
           </Suspense>
         </BrowserRouter>
       </ToastProvider>
-    </ErrorBoundary>
+    </GlobalErrorBoundary>
   )
 }
 
 export default App
+

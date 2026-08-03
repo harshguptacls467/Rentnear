@@ -152,6 +152,23 @@ const paymentController = {
         return res.status(400).json({ message: 'No Razorpay payment found to refund' });
       }
 
+      // Atomic idempotency lock — prevents double-refund on concurrent or repeated calls.
+      // The UPDATE only succeeds if the payment is still 'captured'.
+      // If it's already 'refund_in_progress' or 'partially_refunded', this returns no row.
+      const { data: locked, error: lockErr } = await supabase
+        .from('payments')
+        .update({ status: 'refund_in_progress' })
+        .eq('id', payment.id)
+        .eq('status', 'captured')
+        .select('id')
+        .single();
+
+      if (lockErr || !locked) {
+        return res.status(409).json({
+          message: 'Refund already in progress or completed. Please check the payment status before retrying.'
+        });
+      }
+
       if (razorpayInstance) {
         // Issue partial refund to the payment_id
         await razorpayInstance.payments.refund(payment.razorpay_payment_id, {
