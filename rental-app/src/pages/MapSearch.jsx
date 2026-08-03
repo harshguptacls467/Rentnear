@@ -198,18 +198,31 @@ const MapSearch = () => {
         <div className="bg-primary/10 text-primary p-2 rounded-full">
           <MapIcon size={20} />
         </div>
-        <div className="flex-1 px-2">
+        <div className="flex-1 px-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          {[1, 3, 5, 10, 25].map(km => (
+            <button
+              key={km}
+              onClick={() => setRadius(km)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                radius === km
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {km} km
+            </button>
+          ))}
           <select 
-            className="w-full bg-transparent font-bold text-gray-800 outline-none cursor-pointer"
+            className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer border border-gray-200 rounded-full px-2 py-1"
             value={radius}
             onChange={(e) => setRadius(Number(e.target.value))}
           >
-            <option value={1}>Within 1 km</option>
-            <option value={3}>Within 3 km</option>
-            <option value={5}>Within 5 km</option>
-            <option value={10}>Within 10 km</option>
-            <option value={50}>Within 50 km</option>
-            <option value={99999}>Show Everywhere</option>
+            <option value={1}>1 km</option>
+            <option value={3}>3 km</option>
+            <option value={5}>5 km</option>
+            <option value={10}>10 km</option>
+            <option value={25}>25 km</option>
+            <option value={99999}>Everywhere</option>
           </select>
         </div>
         {productsFeedStatus === 'connected' && (
@@ -219,10 +232,10 @@ const MapSearch = () => {
         )}
         <button 
           onClick={locateUser}
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-full transition-colors flex items-center justify-center"
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-full transition-colors flex items-center justify-center flex-shrink-0"
           title="Recenter on me"
         >
-          <LocateFixed size={20} />
+          <LocateFixed size={18} />
         </button>
       </div>
 

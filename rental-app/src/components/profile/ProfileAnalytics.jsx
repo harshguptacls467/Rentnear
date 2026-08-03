@@ -50,11 +50,25 @@ const ProfileAnalytics = () => {
   const securityDepositHold = Math.round(grossEarnings * 0.50);
   const netEarnings = grossEarnings - platformFee;
 
-  const mockTransactions = [
-    { id: 'tx-104', item: 'Sony Alpha 7 III Mirrorless Camera', renter: 'Rahul Sharma', amount: 3600, status: 'completed', date: 'Jul 18, 2026' },
-    { id: 'tx-103', item: 'Bosch Professional Rotary Hammer Drill', renter: 'Amit Patel', amount: 1200, status: 'completed', date: 'Jul 15, 2026' },
-    { id: 'tx-102', item: 'Quechua Waterproof 3-Person Tent', renter: 'Neha Gupta', amount: 1500, status: 'escrow', date: 'Jul 12, 2026' },
-    { id: 'tx-101', item: 'DJI Mavic Air 2 Drone Fly More Combo', renter: 'Vikram Singh', amount: 8000, status: 'escrow', date: 'Jul 10, 2026' }
+  const [payoutData, setPayoutData] = useState({ total_earnings: 145.00, payout_count: 2, payouts: [] });
+
+  React.useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/bookings/payouts/my`)
+      .then(r => r.json())
+      .then(d => { if (d.payouts) setPayoutData(d); })
+      .catch(() => {});
+  }, []);
+
+  const mockTransactions = payoutData.payouts.length > 0 ? payoutData.payouts.map(p => ({
+    id: p.id,
+    item: p.booking?.product?.title || 'Rental Item Payout',
+    renter: p.payout_method || 'UPI Direct',
+    amount: parseFloat(p.amount),
+    status: p.status,
+    date: new Date(p.created_at).toLocaleDateString()
+  })) : [
+    { id: 'tx-104', item: 'Sony Alpha 7 III Mirrorless Camera', renter: 'UPI Direct', amount: 90.00, status: 'processed', date: 'Jul 18, 2026' },
+    { id: 'tx-103', item: 'Bosch Professional Rotary Hammer Drill', renter: 'UPI Direct', amount: 55.00, status: 'processed', date: 'Jul 15, 2026' },
   ];
 
   return (

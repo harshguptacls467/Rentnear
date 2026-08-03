@@ -9,13 +9,14 @@ import TextArea from '../components/TextArea';
 import { 
   Camera, Edit2, Save, X, Star, User as UserIcon, Phone, Mail, Calendar, 
   ShieldCheck, AlertCircle, Quote, MapPin, CreditCard, Shield, Lock, 
-  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp, Sparkles, LogOut
+  CheckCircle2, Key, Smartphone, ChevronRight, TrendingUp, Sparkles, LogOut, Gift, Building, Terminal
 } from 'lucide-react';
 import { MOCK_USER, MOCK_REVIEWS } from '../data/mockData';
 import { getLocalUsers, saveLocalUsers } from '../utils/localDb';
 import AnimatedPage from '../components/AnimatedPage';
-import ProfileAnalytics from '../components/profile/ProfileAnalytics';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
+import { trustService } from '../api/trustService';
+import RewardsDashboard from '../components/profile/RewardsDashboard';
 
 const parsePhone = (fullPhone) => {
   if (!fullPhone) return { countryCode: '+91', phoneNum: '' };
@@ -90,6 +91,16 @@ const Profile = () => {
   const [isRequestingEmail, setIsRequestingEmail] = useState(false);
   const [isSimulatedOtp, setIsSimulatedOtp] = useState(false);
   const [profileTab, setProfileTab] = useState('overview');
+  const [trustData, setTrustData] = useState({ trust_score: 50, badges: [] });
+
+  useEffect(() => {
+    if (user?.id && !isMock) {
+      const token = session?.access_token;
+      trustService.getUserTrustInfo(user.id, token)
+        .then(res => { if (res.success) setTrustData({ trust_score: res.trustScore, badges: res.badges }); })
+        .catch(() => {});
+    }
+  }, [user, isMock, session]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -438,10 +449,28 @@ const Profile = () => {
               </div>
               
               {!isEditing && (
-                <Button onClick={() => setIsEditing(true)} variant="secondary" className="flex items-center gap-2 rounded-xl bg-gray-50 border-gray-200">
-                  <Edit2 size={16} /> Edit Details
-                </Button>
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-2xl flex items-center gap-2">
+                    <Sparkles size={18} className="text-indigo-600" />
+                    <div>
+                      <div className="text-[10px] uppercase font-black text-indigo-900 tracking-wider">Trust Score</div>
+                      <div className="text-lg font-black text-indigo-600 leading-none">{trustData.trust_score || 50} <span className="text-sm font-bold opacity-50">/ 100</span></div>
+                    </div>
+                  </div>
+                  <Button onClick={() => setIsEditing(true)} variant="secondary" className="flex items-center gap-2 rounded-xl bg-gray-50 border-gray-200">
+                    <Edit2 size={16} /> Edit Details
+                  </Button>
+                </div>
               )}
+            </div>
+
+            {/* Server-Verified Peer Trust Badges Banner */}
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              {trustData.badges?.map((badge, idx) => (
+                <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-700 border border-emerald-300 shadow-sm">
+                  <ShieldCheck size={14} className="text-emerald-600" /> {badge}
+                </span>
+              ))}
             </div>
 
             {error && (
@@ -465,20 +494,41 @@ const Profile = () => {
                   Overview & Verification
                 </button>
                 <button
-                  onClick={() => setProfileTab('analytics')}
-                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${
-                    profileTab === 'analytics'
-                      ? 'text-primary border-primary font-black'
-                      : 'text-gray-400 border-transparent hover:text-gray-700'
-                  }`}
+                  onClick={() => navigate('/owner-dashboard')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 text-gray-400 border-transparent hover:text-gray-700`}
                 >
                   <TrendingUp size={16} />
                   Earnings & Analytics
                 </button>
+                <button
+                  onClick={() => setProfileTab('rewards')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${
+                    profileTab === 'rewards'
+                      ? 'text-primary border-primary font-black'
+                      : 'text-gray-400 border-transparent hover:text-gray-700'
+                  }`}
+                >
+                  <Gift size={16} />
+                  Rewards & Wallet
+                </button>
+                <button
+                  onClick={() => navigate('/workspace')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 text-gray-400 border-transparent hover:text-gray-700`}
+                >
+                  <Building size={16} />
+                  Business Workspace
+                </button>
+                <button
+                  onClick={() => navigate('/developer')}
+                  className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all border-b-2 text-gray-400 border-transparent hover:text-gray-700`}
+                >
+                  <Terminal size={16} />
+                  Developer Portal
+                </button>
               </div>
             )}
 
-            {isEditing || profileTab === 'overview' ? (
+            {(isEditing || profileTab === 'overview') && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-8">
               
               {/* Left Column: Details & Edit Form */}
@@ -853,14 +903,14 @@ const Profile = () => {
                 </div>
               </div>
             </div>
-            ) : (
-              <div className="mt-8">
-                <ProfileAnalytics />
-              </div>
-            )}
-          </div>
         </div>
       </div>
+
+      {profileTab === 'rewards' && (
+        <div className="mt-8">
+          <RewardsDashboard />
+        </div>
+      )}
 
       {/* =========================================================================
           EMAIL VERIFICATION OTP MODAL

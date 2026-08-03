@@ -7,10 +7,13 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.warn('[SECURITY WARNING] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. All API calls will fail.');
+  throw new Error(
+    '[Config Error] SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required. ' +
+    'Please set them in your environment or your .env file.'
+  );
 }
 
-const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseKey || 'placeholder', {
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

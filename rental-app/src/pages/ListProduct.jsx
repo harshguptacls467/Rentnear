@@ -42,10 +42,20 @@ const ListProduct = () => {
   const [formData, setFormData] = useState({
     title: '', category: '', description: '', photos: [], condition: 'Good',
     price_per_day: '', price_per_hour: '', deposit_amount: '0', is_available: true,
-    location: '', latitude: null, longitude: null,
+    instant_booking_enabled: false, calendar_blocked_dates: [], blockDateInput: '',
+    location: '', latitude: null, longitude: null
   });
 
-  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [pricingRec, setPricingRec] = useState({ min: 15, max: 45, avg: 25 });
+
+  useEffect(() => {
+    if (formData.category) {
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/products/pricing-recommendation?category=${encodeURIComponent(formData.category)}`)
+        .then(r => r.json())
+        .then(d => { if (d.recommendation) setPricingRec(d.recommendation); })
+        .catch(() => {});
+    }
+  }, [formData.category]);
 
   // Auto-detect GPS location on load for new listings
   useEffect(() => {
@@ -106,6 +116,7 @@ const ListProduct = () => {
           title: data.title || '', category: data.category || '', description: data.description || '',
           photos: data.images || [], condition: data.condition || 'Good', price_per_day: data.price_per_day || '',
           price_per_hour: data.price_per_hour || '', deposit_amount: data.deposit_amount || '0', is_available: data.is_available !== false,
+          instant_booking_enabled: data.instant_booking_enabled === true, calendar_blocked_dates: data.calendar_blocked_dates || [], blockDateInput: '',
           location: data.location || '', latitude: data.latitude || null, longitude: data.longitude || null,
         });
       } catch (err) {
@@ -117,6 +128,7 @@ const ListProduct = () => {
               title: foundProduct.title || '', category: foundProduct.category || '', description: foundProduct.description || '',
               photos: foundProduct.images || [], condition: foundProduct.condition || 'Good', price_per_day: foundProduct.price_per_day || '',
               price_per_hour: foundProduct.price_per_hour || '', deposit_amount: foundProduct.deposit_amount || '0', is_available: foundProduct.is_available !== false,
+              instant_booking_enabled: foundProduct.instant_booking_enabled === true, calendar_blocked_dates: foundProduct.calendar_blocked_dates || [], blockDateInput: '',
               location: foundProduct.location || '', latitude: foundProduct.latitude || null, longitude: foundProduct.longitude || null,
             });
           } else {
@@ -178,13 +190,14 @@ const ListProduct = () => {
           price_per_hour: formData.price_per_hour ? parseFloat(formData.price_per_hour) : null,
           deposit_amount: parseFloat(formData.deposit_amount),
           is_available: formData.is_available,
+          instant_booking_enabled: formData.instant_booking_enabled,
+          calendar_blocked_dates: formData.calendar_blocked_dates,
           images: uploadedImageUrls,
-          owner_id: user.id,
-          location: formData.location || 'New Delhi',
+          location: formData.location || 'New Delhi, India',
           latitude: formData.latitude || 28.6139,
           longitude: formData.longitude || 77.2090,
-          status: 'approved',
-          created_at: new Date().toISOString(),
+          owner_id: user.id,
+          created_at: new Date().toISOString()
         };
 
         const localProducts = getLocalProducts();
@@ -315,6 +328,27 @@ const ListProduct = () => {
             {step === 3 && (
               <div className="space-y-6 animate-fade-in-up">
                 <h2 className="text-2xl font-black text-gray-900 mb-6">Set your price</h2>
+                
+                {pricingRec && (
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="font-extrabold text-emerald-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        ⚡ Smart Pricing Engine Recommendation
+                      </h4>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        Recommended daily rate for <strong>{formData.category || 'this item'}</strong>: <strong>${pricingRec.min} – ${pricingRec.max}</strong> / day (Market avg: ${pricingRec.avg}).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, price_per_day: pricingRec.avg })}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all whitespace-nowrap"
+                    >
+                      Apply ${pricingRec.avg}
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <Input label="Price per day ($) *" name="price_per_day" type="number" min="1" step="0.01" value={formData.price_per_day} onChange={handleChange} placeholder="25.00" className="bg-gray-50 border-gray-200 focus:bg-white text-lg font-bold" />
                   <Input label="Price per hour ($) (Optional)" name="price_per_hour" type="number" min="1" step="0.01" value={formData.price_per_hour} onChange={handleChange} placeholder="5.00" className="bg-gray-50 border-gray-200 focus:bg-white text-lg" />
@@ -329,6 +363,64 @@ const ListProduct = () => {
                     <input type="checkbox" name="is_available" checked={formData.is_available} onChange={handleChange} className="sr-only peer" />
                     <div className="w-14 h-8 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
                   </label>
+                </div>
+
+                <div className="flex items-center justify-between p-5 bg-amber-50/50 border border-amber-200 rounded-2xl mt-4">
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1 flex items-center gap-1.5">⚡ Enable Instant Booking</h4>
+                    <p className="text-xs text-gray-600">Auto-approve requests for verified renters without waiting for manual confirmation.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="instant_booking_enabled" checked={formData.instant_booking_enabled} onChange={handleChange} className="sr-only peer" />
+                    <div className="w-14 h-8 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+
+                <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 mt-4 space-y-3">
+                  <h4 className="font-bold text-gray-900 text-sm">Owner Unavailable Dates (Blackout Calendar)</h4>
+                  <p className="text-xs text-gray-500">Block specific dates when you'll be using the item or traveling.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={formData.blockDateInput}
+                      onChange={(e) => setFormData({ ...formData, blockDateInput: e.target.value })}
+                      className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (formData.blockDateInput && !formData.calendar_blocked_dates.includes(formData.blockDateInput)) {
+                          setFormData({
+                            ...formData,
+                            calendar_blocked_dates: [...formData.calendar_blocked_dates, formData.blockDateInput],
+                            blockDateInput: ''
+                          });
+                        }
+                      }}
+                      className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold transition-all"
+                    >
+                      Block Date
+                    </button>
+                  </div>
+                  {formData.calendar_blocked_dates.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {formData.calendar_blocked_dates.map((d) => (
+                        <span key={d} className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs font-bold">
+                          {d}
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              calendar_blocked_dates: formData.calendar_blocked_dates.filter(item => item !== d)
+                            })}
+                            className="hover:text-red-900"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

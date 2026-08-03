@@ -230,11 +230,26 @@ const Payment = () => {
                 <span className="flex items-center gap-1"><ShieldAlert size={14}/> Refundable Deposit</span>
                 <span className="font-medium text-gray-900">${Number(booking.deposit_amount).toFixed(2)}</span>
               </div>
+              
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="applyWalletCredit"
+                    defaultChecked
+                    className="w-4 h-4 text-primary rounded border-gray-300 accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="applyWalletCredit" className="text-xs font-bold text-indigo-900 cursor-pointer">
+                    Apply Store Credit (-$10)
+                  </label>
+                </div>
+                <span className="text-xs font-black text-indigo-700">-$10.00</span>
+              </div>
             </div>
 
             <div className="flex justify-between items-center">
               <span className="font-bold text-gray-900">Total</span>
-              <span className="text-3xl font-black text-primary">${Number(booking.total_amount).toFixed(2)}</span>
+              <span className="text-3xl font-black text-primary">${Math.max(0, Number(booking.total_amount) - 10).toFixed(2)}</span>
             </div>
           </div>
         </div>

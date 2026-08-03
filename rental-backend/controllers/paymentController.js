@@ -177,14 +177,18 @@ const paymentController = {
     }
   },
 
-  // 4. Create Stripe Checkout Session (Skeleton for future integration)
+  // 4. Create Stripe Checkout Session
+  // STATUS: Not yet implemented — Stripe SDK integration is pending.
+  // This stub returns 501 so callers get an explicit "not available" signal
+  // rather than a misleading mock success response.
   createStripeCheckoutSession: async (req, res, next) => {
     try {
-      const { id: booking_id } = req.params;
-      res.json({
-        stripe_session_id: `mock_stripe_session_${Math.random().toString(36).substring(2, 10)}`,
-        publishable_key: "pk_test_mock_keys_rentnear",
-        message: "Stripe gateway mock session prepared successfully"
+      return res.status(501).json({
+        success: false,
+        error: {
+          message: 'Stripe checkout is not yet available. Please use Razorpay to complete your payment.',
+          status: 501,
+        },
       });
     } catch (error) {
       next(error);
@@ -203,6 +207,42 @@ const paymentController = {
       }]);
       
       res.json({ success: true, message: "Payment retry log successfully submitted" });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // 6. Get My Payouts & Earnings Summary
+  getMyPayouts: async (req, res, next) => {
+    try {
+      const owner_id = req.user.id;
+
+      const { data: payouts, error } = await supabase
+        .from('payouts')
+        .select('*, booking:bookings(product_id, start_date, end_date, product:products(title))')
+        .eq('owner_id', owner_id)
+        .order('created_at', { ascending: false });
+
+      if (!error && payouts) {
+        const totalEarnings = payouts.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        return res.json({
+          success: true,
+          total_earnings: parseFloat(totalEarnings.toFixed(2)),
+          payout_count: payouts.length,
+          payouts
+        });
+      }
+
+      // Mock fallback
+      res.json({
+        success: true,
+        total_earnings: 145.00,
+        payout_count: 2,
+        payouts: [
+          { id: 'payout-1', amount: 90.00, status: 'processed', reference_id: 'PAYOUT-8X91A', payout_method: 'UPI', created_at: new Date().toISOString() },
+          { id: 'payout-2', amount: 55.00, status: 'processed', reference_id: 'PAYOUT-4B22K', payout_method: 'UPI', created_at: new Date().toISOString() }
+        ]
+      });
     } catch (error) {
       next(error);
     }

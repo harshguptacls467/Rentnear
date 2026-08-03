@@ -407,7 +407,14 @@ const ProductDetail = () => {
                 <ChevronRight size={14} className="mx-2 flex-shrink-0" />
                 <span className="text-gray-900 font-bold truncate max-w-[150px]">{product.title}</span>
               </div>
-              <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 leading-tight">{product.title}</h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 leading-tight">{product.title}</h1>
+                {product.instant_booking_enabled && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-400/20 text-amber-700 border border-amber-400/40 shadow-sm animate-pulse">
+                    ⚡ Instant Bookable
+                  </span>
+                )}
+              </div>
             </div>
             
             {/* Quick Actions (Wishlist & Share & Report) */}
@@ -567,11 +574,11 @@ const ProductDetail = () => {
                     </div>
                   )}
 
-                  {/* Unavailable Booked Dates Banner */}
-                  {existingBookings.length > 0 && (
+                  {/* Unavailable Booked & Owner Blackout Dates Banner */}
+                  {(existingBookings.length > 0 || (Array.isArray(product.calendar_blocked_dates) && product.calendar_blocked_dates.length > 0)) && (
                     <div className="mb-4 bg-amber-50/50 border border-amber-100/50 p-4 rounded-2xl">
                       <div className="flex gap-2 text-amber-800 font-bold text-xs mb-2 items-center">
-                        <CalendarIcon size={14} /> Already Reserved Dates
+                        <CalendarIcon size={14} /> Unavailable & Blocked Dates
                       </div>
                       <div className="max-h-24 overflow-y-auto space-y-1 pr-2 text-[11px] text-amber-700">
                         {existingBookings.map((b, i) => (
@@ -579,6 +586,12 @@ const ProductDetail = () => {
                             <span>{new Date(b.start_date).toLocaleDateString()}</span>
                             <span>to</span>
                             <span>{new Date(b.end_date).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                        {Array.isArray(product.calendar_blocked_dates) && product.calendar_blocked_dates.map((d, i) => (
+                          <div key={`blk-${i}`} className="flex justify-between bg-red-50 text-red-700 px-2.5 py-1 rounded-lg border border-red-100/30 font-bold">
+                            <span>{d}</span>
+                            <span>(Owner Blockout)</span>
                           </div>
                         ))}
                       </div>
@@ -607,11 +620,11 @@ const ProductDetail = () => {
                       )}
 
                       <Button 
-                        className="w-full py-4 text-base rounded-xl transition-all" 
+                        className={`w-full py-4 text-base rounded-xl transition-all ${product.instant_booking_enabled ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-black shadow-lg shadow-amber-500/20' : ''}`}
                         disabled={!canBook} 
                         onClick={handleProceedToCheckout}
                       >
-                        {isOwner ? "You own this item" : datesOverlapping ? "Dates Overlap Bookings" : !product.is_available ? "Currently Rented" : "Reserve Now"}
+                        {isOwner ? "You own this item" : datesOverlapping ? "Dates Overlap Bookings" : !product.is_available ? "Currently Rented" : product.instant_booking_enabled ? "⚡ Instant Book Now" : "Reserve Now"}
                       </Button>
                     </div>
                   )}
@@ -645,7 +658,15 @@ const ProductDetail = () => {
                   {owner.avatar_url ? <img src={owner.avatar_url} alt={owner.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl font-bold">{owner.name?.charAt(0).toUpperCase()}</div>}
                 </div>
                 <h3 className="text-lg font-extrabold text-gray-900 mb-1">{owner.name}</h3>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Verified Owner <ShieldCheck size={14} className="inline text-green-500 mb-1"/></p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Verified Owner <ShieldCheck size={14} className="inline text-green-500 mb-1"/></p>
+                <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <ShieldCheck size={12} /> Verified Resident
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200">
+                    ⚡ Super Host
+                  </span>
+                </div>
                 <div className="flex items-center justify-center gap-4 text-xs text-gray-600 bg-gray-50 w-full py-3 rounded-xl border border-gray-100 mb-4">
                   <span className="flex items-center gap-1 font-bold"><Star size={16} className="text-yellow-500 fill-current" /> {owner.rating_average || 4.8}</span>
                   <span className="font-medium">{owner.rating_count || 12} rentals</span>

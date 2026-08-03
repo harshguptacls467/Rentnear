@@ -173,6 +173,15 @@ const NotificationBell = () => {
               ))
             )}
           </div>
+
+          <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
+            <button
+              onClick={() => { setIsOpen(false); navigate('/notifications'); }}
+              className="text-xs font-black text-primary hover:text-primary-dark transition-colors"
+            >
+              View All Notifications Center →
+            </button>
+          </div>
         </div>
       )}
     </div>

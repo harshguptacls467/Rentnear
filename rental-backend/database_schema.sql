@@ -26,8 +26,26 @@ CREATE TABLE users (
   is_banned BOOLEAN DEFAULT false,
   email_verified BOOLEAN DEFAULT false,
   aadhar_number TEXT,
+  trust_score INT DEFAULT 100,
+  badges TEXT[] DEFAULT '{}',
+  referral_code TEXT UNIQUE,
+  wallet_balance NUMERIC(10, 2) DEFAULT 0,
+  risk_score NUMERIC(5, 2) DEFAULT 0,
+  flagged_reasons TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 11. REFERRALS TABLE
+CREATE TABLE referrals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  referrer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  referred_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  referral_code TEXT NOT NULL,
+  status TEXT DEFAULT 'pending', -- pending, rewarded
+  reward_amount NUMERIC(10, 2) DEFAULT 10.00,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
 
 -- 2. PRODUCTS TABLE
 CREATE TABLE products (
@@ -40,10 +58,15 @@ CREATE TABLE products (
   price_per_day NUMERIC(10, 2),
   price_per_hour NUMERIC(10, 2),
   deposit_amount NUMERIC(10, 2) DEFAULT 0,
+  views_count INT DEFAULT 0,
   location TEXT,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   is_available BOOLEAN DEFAULT true,
+  instant_booking_enabled BOOLEAN DEFAULT false,
+  calendar_blocked_dates JSONB DEFAULT '[]'::jsonb,
+  suggested_price_min NUMERIC(10, 2),
+  suggested_price_max NUMERIC(10, 2),
   images TEXT[] DEFAULT '{}', -- Array of image URLs
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -60,6 +83,10 @@ CREATE TABLE bookings (
   deposit_amount NUMERIC(10, 2) DEFAULT 0,
   message TEXT,
   status booking_status DEFAULT 'pending',
+  parent_booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  is_extension BOOLEAN DEFAULT false,
+  risk_score NUMERIC(5, 2) DEFAULT 0,
+  flagged_reasons TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -89,6 +116,7 @@ CREATE TABLE condition_checks (
   photos TEXT[] NOT NULL,
   notes TEXT,
   is_return BOOLEAN DEFAULT false,
+  ai_inspection_result JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_condition_booking ON condition_checks(booking_id);
@@ -130,6 +158,35 @@ CREATE TABLE reviews (
   UNIQUE(booking_id, reviewer_id)
 );
 CREATE INDEX idx_reviews_reviewee ON reviews(reviewee_id);
+
+-- 9. DISPUTES & ESCROW CLAIMS TABLE
+CREATE TABLE disputes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  opened_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  claim_reason TEXT,
+  deposit_claimed_amount NUMERIC(10, 2) DEFAULT 0,
+  claim_evidence_urls TEXT[] DEFAULT '{}',
+  status TEXT DEFAULT 'open', -- open, under_review, resolved, rejected
+  resolution_notes TEXT,
+  resolved_amount NUMERIC(10, 2),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_disputes_booking ON disputes(booking_id);
+
+-- 10. PAYOUTS TABLE
+CREATE TABLE payouts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  amount NUMERIC(10, 2) NOT NULL,
+  status TEXT DEFAULT 'processed', -- pending, processing, processed, failed
+  reference_id TEXT,
+  payout_method TEXT DEFAULT 'UPI',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_payouts_owner ON payouts(owner_id);
 
 -- TRIGGER FUNCTION FOR AVERAGE RATINGS
 CREATE OR REPLACE FUNCTION update_user_rating()
@@ -197,6 +254,46 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER after_booking_status_update
 AFTER UPDATE ON bookings
 FOR EACH ROW EXECUTE FUNCTION log_booking_status_change();
+
+-- 12. WISHLISTS TABLE
+CREATE TABLE wishlists (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_user_product_wishlist UNIQUE (user_id, product_id)
+);
+
+CREATE INDEX idx_wishlists_user ON wishlists(user_id);
+CREATE INDEX idx_wishlists_product ON wishlists(product_id);
+
+-- 13. NOTIFICATIONS TABLE
+CREATE TABLE notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  data JSONB DEFAULT '{}'::jsonb,
+  is_read BOOLEAN DEFAULT false,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user_created ON notifications(user_id, created_at DESC);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
+
+-- 14. USER NOTIFICATION PREFERENCES TABLE
+CREATE TABLE user_notification_preferences (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  booking_notifications BOOLEAN DEFAULT true,
+  chat_notifications BOOLEAN DEFAULT true,
+  promotions BOOLEAN DEFAULT true,
+  system_alerts BOOLEAN DEFAULT true,
+  email_notifications BOOLEAN DEFAULT true,
+  push_notifications BOOLEAN DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -------------------------------------------------------
 -- SECURITY (ROW LEVEL SECURITY POLICIES)
@@ -363,7 +460,8 @@ CREATE POLICY "Authenticated users can upload disputes" ON storage.objects FOR I
 
 -- KYC Documents Bucket Policies (Private bucket for security)
 INSERT INTO storage.buckets (id, name, public) VALUES ('kyc-documents', 'kyc-documents', false) ON CONFLICT DO NOTHING;
-CREATE POLICY "Public Access for kyc documents" ON storage.objects FOR SELECT USING (bucket_id = 'kyc-documents');
+CREATE POLICY "Users can read their own kyc documents" ON storage.objects 
+  FOR SELECT USING (bucket_id = 'kyc-documents' AND auth.uid()::text = (storage.foldername(name))[1]);
 CREATE POLICY "Authenticated users can upload kyc documents" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'kyc-documents' AND auth.role() = 'authenticated');
 
 -------------------------------------------------------
@@ -494,4 +592,322 @@ CREATE INDEX idx_admin_audit_logs_admin_id ON public.admin_audit_logs(admin_id);
 CREATE INDEX idx_admin_audit_logs_action ON public.admin_audit_logs(action);
 CREATE INDEX idx_admins_email ON public.admins(email);
 
+-- 17. TRUST SCORE HISTORY TABLE
+CREATE TABLE trust_score_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  previous_score INT NOT NULL,
+  new_score INT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_trust_history_user ON trust_score_history(user_id);
 
+-- 18. WALLET TRANSACTIONS TABLE
+CREATE TABLE wallet_transactions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount NUMERIC(10, 2) NOT NULL,
+  type TEXT NOT NULL, -- 'referral_bonus', 'welcome_bonus', 'booking_discount'
+  reference_id UUID,
+  description TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_wallet_tx_user ON wallet_transactions(user_id);
+
+-- 19. PRICING RECOMMENDATIONS TABLE
+CREATE TABLE pricing_recommendations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID NOT NULL UNIQUE REFERENCES products(id) ON DELETE CASCADE,
+  suggested_daily_price NUMERIC(10, 2) NOT NULL,
+  suggested_weekly_price NUMERIC(10, 2) NOT NULL,
+  suggested_monthly_price NUMERIC(10, 2) NOT NULL,
+  price_min NUMERIC(10, 2) NOT NULL,
+  price_max NUMERIC(10, 2) NOT NULL,
+  demand_level TEXT NOT NULL DEFAULT 'medium', -- 'low', 'medium', 'high', 'peak'
+  competitiveness_score INT DEFAULT 85,
+  rationale JSONB DEFAULT '[]'::jsonb,
+  market_stats JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_pricing_rec_product ON pricing_recommendations(product_id);
+
+-- 20. PRICING HISTORY TABLE
+CREATE TABLE pricing_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  previous_price NUMERIC(10, 2) NOT NULL,
+  new_price NUMERIC(10, 2) NOT NULL,
+  applied_ai_recommendation BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_pricing_hist_product ON pricing_history(product_id);
+
+-- 21. BOOKING SCHEDULES TABLE
+CREATE TABLE booking_schedules (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  handover_method TEXT NOT NULL CHECK (handover_method IN ('self_pickup', 'home_delivery')),
+  handover_date DATE NOT NULL,
+  handover_time_slot TEXT NOT NULL,
+  handover_address TEXT NOT NULL,
+  handover_latitude DOUBLE PRECISION,
+  handover_longitude DOUBLE PRECISION,
+  return_method TEXT NOT NULL CHECK (return_method IN ('self_return', 'home_pickup')),
+  return_date DATE NOT NULL,
+  return_time_slot TEXT NOT NULL,
+  status TEXT DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'in_transit', 'arrived', 'completed')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_booking_schedules_booking ON booking_schedules(booking_id);
+
+-- 22. AI INTERACTIONS TABLE
+CREATE TABLE ai_interactions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  prompt TEXT NOT NULL,
+  response TEXT NOT NULL,
+  token_count INT DEFAULT 0,
+  cost NUMERIC(10, 5) DEFAULT 0.00000,
+  category TEXT DEFAULT 'general',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_ai_interactions_user ON ai_interactions(user_id);
+
+-- 23. ORGANIZATIONS TABLE
+CREATE TABLE organizations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  company_logo TEXT,
+  tax_id TEXT,
+  business_document_url TEXT,
+  is_verified BOOLEAN DEFAULT false,
+  credit_limit NUMERIC(10, 2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 24. ORGANIZATIONAL MEMBERSHIPS TABLE
+CREATE TABLE organization_memberships (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id, user_id)
+);
+CREATE INDEX idx_org_member_user ON organization_memberships(user_id);
+
+-- 25. ORGANIZATIONAL INVITATIONS TABLE
+CREATE TABLE organization_invitations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  accepted BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Alter products and bookings tables to add organization_id
+ALTER TABLE products ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL;
+ALTER TABLE bookings ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL;
+
+-- 26. DEVELOPER KEYS TABLE
+CREATE TABLE developer_keys (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  key_prefix VARCHAR(8) NOT NULL,
+  hashed_key TEXT NOT NULL UNIQUE,
+  scopes TEXT[] NOT NULL DEFAULT '{"read:products"}'::TEXT[],
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_dev_keys_hash ON developer_keys(hashed_key);
+
+-- 27. WEBHOOK ENDPOINTS TABLE
+CREATE TABLE webhook_endpoints (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT[] NOT NULL DEFAULT '{"booking.created"}'::TEXT[],
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_webhooks_user ON webhook_endpoints(user_id);
+
+-- 28. API LOGS TABLE
+CREATE TABLE api_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  key_id UUID REFERENCES developer_keys(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  endpoint TEXT NOT NULL,
+  method TEXT NOT NULL,
+  status_code INT NOT NULL,
+  ip_address TEXT,
+  duration_ms INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_api_logs_key ON api_logs(key_id);
+
+-- 29. API USAGE TABLE
+CREATE TABLE api_usage (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  key_id UUID NOT NULL REFERENCES developer_keys(id) ON DELETE CASCADE,
+  request_count INT DEFAULT 0,
+  usage_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  UNIQUE(key_id, usage_date)
+);
+
+-- 30. USER RISK SCORES TABLE
+CREATE TABLE user_risk_scores (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  risk_score INT DEFAULT 0 CHECK (risk_score BETWEEN 0 AND 100),
+  factors TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_user_risk_val ON user_risk_scores(risk_score);
+
+-- 31. FRAUD EVENTS TABLE
+CREATE TABLE fraud_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN ('failed_login', 'location_mismatch', 'cancellation_spike', 'payment_failure', 'dispute_penalty')),
+  severity TEXT DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high')),
+  metadata JSONB DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_fraud_events_user ON fraud_events(user_id);
+
+-- 32. FRAUD INVESTIGATIONS TABLE
+CREATE TABLE fraud_investigations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'under_review', 'resolved_safe', 'resolved_fraud')),
+  assigned_admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_fraud_invest_status ON fraud_investigations(status);
+
+-- 33. TENANTS TABLE
+CREATE TABLE tenants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  subdomain TEXT UNIQUE NOT NULL,
+  custom_domain TEXT UNIQUE,
+  branding JSONB DEFAULT '{"primary_color": "#4f46e5", "logo_url": ""}'::JSONB,
+  ai_prompt_override TEXT,
+  plan TEXT DEFAULT 'basic' CHECK (plan IN ('basic', 'pro', 'enterprise')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_tenants_subdomain ON tenants(subdomain);
+
+-- Create a default tenant for existing single-tenant backward compatibility
+INSERT INTO tenants (id, name, subdomain) VALUES ('00000000-0000-0000-0000-000000000000', 'Default RentNear', 'default') ON CONFLICT DO NOTHING;
+
+-- Add column references to target tables
+ALTER TABLE users ADD COLUMN tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE products ADD COLUMN tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE bookings ADD COLUMN tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE organizations ADD COLUMN tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000';
+
+-- Indexes for tenant lookups
+CREATE INDEX idx_users_tenant ON users(tenant_id);
+CREATE INDEX idx_products_tenant ON products(tenant_id);
+CREATE INDEX idx_bookings_tenant ON bookings(tenant_id);
+
+-- 34. REGIONS TABLE
+CREATE TABLE regions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  country_code VARCHAR(3) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 35. FEDERATION REGISTRY TABLE
+CREATE TABLE federation_registries (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  region_id UUID REFERENCES regions(id) ON DELETE SET NULL,
+  opt_in_search BOOLEAN DEFAULT true,
+  revenue_share_pct NUMERIC(5, 2) DEFAULT 10.00,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tenant_id)
+);
+CREATE INDEX idx_fed_opt_in ON federation_registries(opt_in_search);
+
+-- 36. SETTLEMENTS TABLE
+CREATE TABLE settlements (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  from_tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  to_tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  net_amount NUMERIC(10, 2) NOT NULL,
+  fee_amount NUMERIC(10, 2) NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'cleared')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_settlements_status ON settlements(status);
+
+-- 37. PLUGINS TABLE
+CREATE TABLE plugins (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL CHECK (category IN ('theme', 'payment', 'analytics', 'logistics', 'crm')),
+  developer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  price NUMERIC(10, 2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 38. PLUGIN VERSIONS TABLE
+CREATE TABLE plugin_versions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  plugin_id UUID NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+  version VARCHAR(16) NOT NULL,
+  code_bundle TEXT NOT NULL,
+  manifest JSONB DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(plugin_id, version)
+);
+
+-- 39. PLUGIN INSTALLATIONS TABLE
+CREATE TABLE plugin_installations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  plugin_id UUID NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'enabled' CHECK (status IN ('enabled', 'disabled')),
+  settings JSONB DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(plugin_id, tenant_id)
+);
+CREATE INDEX idx_plugin_inst_tenant ON plugin_installations(tenant_id);
+
+-- 40. WORKFLOWS TABLE
+CREATE TABLE workflows (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  trigger_event TEXT NOT NULL,
+  actions JSONB NOT NULL DEFAULT '[]'::JSONB,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_workflows_tenant ON workflows(tenant_id);
+
+-- 41. WORKFLOW LOGS TABLE
+CREATE TABLE workflow_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  execution_status TEXT DEFAULT 'success' CHECK (execution_status IN ('success', 'failed')),
+  error_message TEXT,
+  execution_time_ms INT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_work_logs_flow ON workflow_logs(workflow_id);

@@ -57,6 +57,7 @@ const Navbar = () => {
                 {/* Authenticated Links */}
                 <Link to="/home" className="text-gray-300 hover:text-white font-medium transition-colors">Dashboard</Link>
                 <Link to="/products" className="text-gray-300 hover:text-white font-medium transition-colors">Discover</Link>
+                <Link to="/wishlist" className="text-gray-300 hover:text-white font-medium transition-colors flex items-center gap-1"><span className="text-red-400">♥</span> Saved</Link>
                 <Link to="/map" className="text-gray-300 hover:text-white font-medium transition-colors border border-gray-600 px-3 py-1 rounded-full text-xs">Map View</Link>
                 <Link to="/list-product" className="text-gray-300 hover:text-white font-medium transition-colors">List Item</Link>
                 <Link to="/my-listings" className="text-gray-300 hover:text-white font-medium transition-colors">My Listings</Link>

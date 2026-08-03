@@ -9,6 +9,22 @@ const adminRoutes = require('./routes/admin');
 const productRoutes = require('./routes/products');
 const reviewRoutes = require('./routes/reviews');
 const kycRoutes = require('./routes/kyc');
+const referralRoutes = require('./routes/referrals');
+const wishlistRoutes = require('./routes/wishlist');
+const notificationRoutes = require('./routes/notifications');
+const analyticsRoutes = require('./routes/analytics');
+const trustRoutes = require('./routes/trust');
+const rewardsRoutes = require('./routes/rewards');
+const pricingRoutes = require('./routes/pricing');
+const schedulingRoutes = require('./routes/scheduling');
+const aiRoutes = require('./routes/ai');
+const orgRoutes = require('./routes/org');
+const developerRoutes = require('./routes/developer');
+const riskRoutes = require('./routes/risk');
+const tenantRoutes = require('./routes/tenant');
+const federationRoutes = require('./routes/federation');
+const pluginRoutes = require('./routes/plugin');
+const workflowRoutes = require('./routes/workflow');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -80,6 +96,22 @@ app.use('/api/bookings', strictLimiter, bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/kyc', kycRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/trust', trustRoutes);
+app.use('/api/rewards', rewardsRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/scheduling', schedulingRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/orgs', orgRoutes);
+app.use('/api/v1/developer', developerRoutes);
+app.use('/api/admin/risk', riskRoutes);
+app.use('/api/tenant', tenantRoutes);
+app.use('/api/v1/federation', federationRoutes);
+app.use('/api/plugins', pluginRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

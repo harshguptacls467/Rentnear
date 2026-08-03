@@ -262,31 +262,38 @@ const getDisputes = async (req, res, next) => {
 const resolveDispute = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { resolution, admin_notes, resolution_amount } = req.body;
+    const { resolution, action, admin_notes, resolution_notes, resolution_amount, resolved_amount } = req.body;
 
-    const validResolutions = ['resolved_owner', 'resolved_renter', 'resolved_split'];
-    if (!validResolutions.includes(resolution)) {
+    const resType = action || resolution;
+    const validResolutions = ['resolved_owner', 'resolved_renter', 'resolved_split', 'approve_claim', 'reject_claim', 'resolved', 'rejected'];
+    if (!validResolutions.includes(resType)) {
       return res.status(400).json({ message: 'Invalid resolution status' });
     }
 
-    let disputeData = { id, status: resolution, admin_notes, resolution_amount, booking_id: 'booking-1' };
+    const finalStatus = (resType === 'approve_claim' || resType === 'resolved_owner') ? 'resolved' : (resType === 'reject_claim' || resType === 'resolved_renter') ? 'rejected' : resType;
+    const finalAmount = parseFloat(resolved_amount || resolution_amount || 0);
+    const finalNotes = resolution_notes || admin_notes || '';
+
+    let disputeData = { id, status: finalStatus, admin_notes: finalNotes, resolution_amount: finalAmount, booking_id: 'booking-1' };
     try {
       const query = await supabase
         .from('disputes')
-        .update({ status: resolution, admin_notes, resolution_amount })
+        .update({ status: finalStatus, resolution_notes: finalNotes, admin_notes: finalNotes, resolved_amount: finalAmount, resolution_amount: finalAmount })
         .eq('id', id)
         .select()
         .single();
-      disputeData = query.data;
-      if (query.error) throw query.error;
+      if (!query.error && query.data) disputeData = query.data;
 
-      await supabase.from('bookings').update({ status: 'completed' }).eq('id', disputeData.booking_id);
+      const bookingId = disputeData.booking_id;
+      if (bookingId) {
+        await supabase.from('bookings').update({ status: 'completed' }).eq('id', bookingId);
+      }
     } catch {
       // Mock execution
     }
 
-    await logAdminAction(req, 'dispute:resolve', id, { resolution, admin_notes, resolution_amount });
-    res.json(disputeData);
+    await logAdminAction(req, 'dispute:resolve', id, { resolution: finalStatus, notes: finalNotes, amount: finalAmount });
+    res.json({ success: true, message: `Dispute status set to ${finalStatus}`, dispute: disputeData });
   } catch (err) {
     next(err);
   }

@@ -13,6 +13,9 @@ import { getLocalProducts, getLocalWishlist, saveLocalWishlist, getLocalSavedSea
 import useAuthStore from '../store/authStore';
 import useRealtimeStore from '../store/realtimeStore';
 import useRealtimeProducts from '../hooks/useRealtimeProducts';
+import useDebounce from '../hooks/useDebounce';
+import ProductFilters from '../components/ProductFilters';
+import ActiveFilterChips from '../components/ActiveFilterChips';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
@@ -24,6 +27,9 @@ const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest Arrivals' },
   { value: 'price_asc', label: 'Price: Low to High' },
   { value: 'price_desc', label: 'Price: High to Low' },
+  { value: 'rating_desc', label: 'Highest Rated Owners' },
+  { value: 'popular', label: 'Most Popular' },
+  { value: 'nearest', label: 'Nearest to Me' },
 ];
 
 const Products = () => {
@@ -42,16 +48,22 @@ const Products = () => {
   const [pageSize, setPageSize] = useState(8);
   const [hasMore, setHasMore] = useState(true);
 
-  // Search & Filter states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [category, setCategory] = useState('All');
+  // Consolidated Search & Filter State
+  const [filters, setFilters] = useState({
+    category: 'All',
+    searchQuery: '',
+    maxPrice: 300,
+    maxDistance: 100,
+    instantBookOnly: false,
+    condition: 'All',
+    minRating: 0
+  });
+
   const [sortBy, setSortBy] = useState('newest');
-  
-  // Advanced filters
-  const [maxPrice, setMaxPrice] = useState(300);
-  const [maxDistance, setMaxDistance] = useState(100);
-  const [showFilters, setShowFilters] = useState(false);
+  const [isOpenMobileFilters, setIsOpenMobileFilters] = useState(false);
+
+  // Debounced Search Query (300ms)
+  const debouncedSearchQuery = useDebounce(filters.searchQuery, 300);
 
   // User geolocation coordinates
   const [userCoords, setUserCoords] = useState(null);
@@ -169,27 +181,44 @@ const Products = () => {
     return R * c;
   };
 
-  // Filtering & Sorting Logic
+  // Filtering & Multi-Axis Sorting Logic
   useEffect(() => {
     let result = [...allProducts];
 
     // Filter by Category
-    if (category !== 'All') {
-      result = result.filter(p => p.category === category);
+    if (filters.category !== 'All') {
+      result = result.filter(p => p.category === filters.category);
+    }
+
+    // Filter by Instant Booking
+    if (filters.instantBookOnly) {
+      result = result.filter(p => p.instant_booking_enabled === true);
+    }
+
+    // Filter by Condition
+    if (filters.condition !== 'All') {
+      result = result.filter(p => p.condition?.toLowerCase() === filters.condition.toLowerCase());
+    }
+
+    // Filter by Owner Rating
+    if (filters.minRating > 0) {
+      result = result.filter(p => (p.owner?.rating_average || 0) >= filters.minRating);
     }
 
     // Filter by Search Query
-    if (debouncedQuery.trim() !== '') {
-      const query = debouncedQuery.toLowerCase();
+    if (debouncedSearchQuery.trim() !== '') {
+      const query = debouncedSearchQuery.toLowerCase();
       result = result.filter(
         p =>
           p.title?.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query)
+          p.description?.toLowerCase().includes(query) ||
+          p.category?.toLowerCase().includes(query) ||
+          p.owner?.name?.toLowerCase().includes(query)
       );
     }
 
     // Filter by Price Limit
-    result = result.filter(p => Number(p.price_per_day) <= maxPrice);
+    result = result.filter(p => Number(p.price_per_day) <= filters.maxPrice);
 
     // Filter by GPS Distance
     if (userCoords) {
@@ -201,23 +230,30 @@ const Products = () => {
           p.latitude,
           p.longitude
         );
-        p.distance = distance; // cache for view rendering
-        return distance <= maxDistance;
+        p.distance = distance;
+        return distance <= filters.maxDistance;
       });
     }
 
-    // Sorting options
-    if (sortBy === 'newest') {
-      result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    } else if (sortBy === 'price_asc') {
+    // Multi-Axis Sorting
+    if (sortBy === 'price_asc') {
       result.sort((a, b) => Number(a.price_per_day) - Number(b.price_per_day));
     } else if (sortBy === 'price_desc') {
       result.sort((a, b) => Number(b.price_per_day) - Number(a.price_per_day));
+    } else if (sortBy === 'rating_desc') {
+      result.sort((a, b) => (b.owner?.rating_average || 0) - (a.owner?.rating_average || 0));
+    } else if (sortBy === 'popular') {
+      result.sort((a, b) => (b.owner?.rating_count || 0) - (a.owner?.rating_count || 0));
+    } else if (sortBy === 'nearest' && userCoords) {
+      result.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    } else {
+      // 'newest' default
+      result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
 
     setFilteredProducts(result);
     setPageSize(8); // Reset pagination on filter update
-  }, [allProducts, category, debouncedQuery, maxPrice, maxDistance, sortBy, userCoords]);
+  }, [allProducts, filters, debouncedSearchQuery, sortBy, userCoords]);
 
   // Pagination Slice
   useEffect(() => {
@@ -337,17 +373,16 @@ const Products = () => {
                 <Search size={20} className="text-gray-400" />
               </div>
               <input 
-                type="text"
-                placeholder="Search for tools, cameras, camping gear..." 
-                value={searchQuery}
-                onFocus={() => setShowSuggestions(true)}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit(searchQuery)}
+                type="text" 
+                placeholder="Search equipment, cameras, tools, or owner name..."
+                value={filters.searchQuery}
+                onChange={(e) => setFilters(f => ({ ...f, searchQuery: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit(filters.searchQuery)}
                 className="pl-12 pr-4 bg-gray-50 border border-gray-200 h-14 text-base rounded-2xl w-full outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
               />
               
               {/* Saved Searches Hook Action */}
-              {debouncedQuery.trim() && (
+              {filters.searchQuery.trim() && (
                 <button 
                   onClick={handleSaveSearch}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors flex items-center gap-1 text-xs font-bold bg-white px-3 py-1.5 rounded-lg border border-gray-100"
@@ -379,7 +414,10 @@ const Products = () => {
                             {recentSearches.map((term, idx) => (
                               <div key={idx} className="flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg group">
                                 <button 
-                                  onClick={() => handleSearchSubmit(term)}
+                                  onClick={() => {
+                                    setFilters(f => ({ ...f, searchQuery: term }));
+                                    setShowSuggestions(false);
+                                  }}
                                   className="text-sm text-gray-600 hover:text-primary font-bold text-left flex-1"
                                 >
                                   {term}
@@ -399,7 +437,10 @@ const Products = () => {
                           {POPULAR_SEARCHES.map((tag, idx) => (
                             <button
                               key={idx}
-                              onClick={() => handleSearchSubmit(tag)}
+                              onClick={() => {
+                                setFilters(f => ({ ...f, searchQuery: tag }));
+                                setShowSuggestions(false);
+                              }}
                               className="px-3.5 py-1.5 bg-gray-50 hover:bg-primary hover:text-white rounded-lg text-xs font-bold text-gray-600 transition-colors"
                             >
                               {tag}
@@ -417,14 +458,24 @@ const Products = () => {
             {/* Filter Action & Sort Toggles */}
             <div className="flex gap-3 w-full lg:w-auto">
               <button 
-                onClick={() => setShowFilters(!showFilters)}
-                className={`h-14 px-6 rounded-2xl border flex items-center justify-center gap-2 font-bold text-sm transition-all ${
-                  showFilters 
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' 
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-900'
-                }`}
+                onClick={() => setIsOpenMobileFilters(true)}
+                className="lg:hidden h-14 px-5 rounded-2xl bg-white border border-gray-200 hover:border-gray-900 font-bold text-xs flex items-center gap-2 transition-all relative"
               >
                 <SlidersHorizontal size={18} /> Filters
+                {(filters.category !== 'All' || filters.instantBookOnly || filters.maxPrice < 300 || filters.condition !== 'All' || filters.minRating > 0) && (
+                  <span className="w-2 h-2 rounded-full bg-primary absolute top-3 right-3 animate-ping" />
+                )}
+              </button>
+              
+              <button 
+                onClick={() => setFilters(f => ({ ...f, instantBookOnly: !f.instantBookOnly }))}
+                className={`h-14 px-5 rounded-2xl border font-bold text-xs flex items-center gap-2 transition-all ${
+                  filters.instantBookOnly 
+                    ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-md font-black' 
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-amber-400'
+                }`}
+              >
+                ⚡ Instant Bookable
               </button>
               
               <div className="h-14 bg-gray-50 border border-gray-200 rounded-2xl flex items-center px-2 flex-1 md:flex-none">
@@ -447,288 +498,209 @@ const Products = () => {
 
           </div>
 
-          {/* Active Saved Searches Row */}
-          {savedSearches.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs border-t border-gray-50 pt-4">
-              <span className="font-bold text-gray-400 mr-2 flex items-center gap-1"><Bookmark size={10}/> Saved Searches:</span>
-              {savedSearches.map((term, idx) => (
-                <span key={idx} className="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold flex items-center gap-2">
-                  <span className="cursor-pointer" onClick={() => handleSearchSubmit(term)}>{term}</span>
-                  <X size={12} className="cursor-pointer hover:text-red-500" onClick={() => deleteSavedSearch(term)} />
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Active Filter Chips Bar */}
+          <ActiveFilterChips 
+            filters={filters}
+            onRemoveFilter={(key) => {
+              if (key === 'category') setFilters(f => ({ ...f, category: 'All' }));
+              if (key === 'searchQuery') setFilters(f => ({ ...f, searchQuery: '' }));
+              if (key === 'maxPrice') setFilters(f => ({ ...f, maxPrice: 300 }));
+              if (key === 'maxDistance') setFilters(f => ({ ...f, maxDistance: 100 }));
+              if (key === 'instantBookOnly') setFilters(f => ({ ...f, instantBookOnly: false }));
+              if (key === 'condition') setFilters(f => ({ ...f, condition: 'All' }));
+              if (key === 'minRating') setFilters(f => ({ ...f, minRating: 0 }));
+            }}
+            onClearAll={() => setFilters({
+              category: 'All',
+              searchQuery: '',
+              maxPrice: 300,
+              maxDistance: 100,
+              instantBookOnly: false,
+              condition: 'All',
+              minRating: 0
+            })}
+          />
 
-          {/* Advanced Sliders Drawer */}
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden mt-6 pt-6 border-t border-gray-100"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Main Workspace Layout with Desktop Filters Sidebar */}
+          <div className="flex gap-8 mt-6 items-start">
+            
+            <ProductFilters 
+              filters={filters}
+              setFilters={setFilters}
+              isOpenMobile={isOpenMobileFilters}
+              onCloseMobile={() => setIsOpenMobileFilters(false)}
+              onReset={() => setFilters({
+                category: 'All',
+                searchQuery: '',
+                maxPrice: 300,
+                maxDistance: 100,
+                instantBookOnly: false,
+                condition: 'All',
+                minRating: 0
+              })}
+            />            <div className="flex-1 w-full min-w-0">
+              {error && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-center font-bold mb-8 text-sm border border-red-100">{error}</div>}
+
+              {/* Loading State */}
+              {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {[1, 2, 3, 4].map(n => (
+                    <div key={n} className="bg-white rounded-[2rem] p-4 border border-gray-100 shadow-sm">
+                      <Skeleton className="w-full aspect-[4/3] mb-4 rounded-xl" />
+                      <Skeleton variant="text" className="w-3/4 mb-3" />
+                      <Skeleton variant="text" className="w-1/2 mb-4" />
+                      <div className="flex justify-between items-end mt-6">
+                        <Skeleton variant="text" className="w-1/3 h-6" />
+                        <Skeleton variant="text" className="w-1/3 h-8" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : visibleProducts.length === 0 ? (
+                <EmptyState 
+                  icon={Inbox}
+                  title="No products found"
+                  message="We couldn't find any items matching your current filters or search query."
+                  actionLabel="Clear all filters"
+                  onAction={() => setFilters({
+                    category: 'All',
+                    searchQuery: '',
+                    maxPrice: 300,
+                    maxDistance: 100,
+                    instantBookOnly: false,
+                    condition: 'All',
+                    minRating: 0
+                  })}
+                />
+              ) : (
+                <div className="space-y-8">
                   
-                  {/* Price Slider */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-black text-gray-500 uppercase tracking-wider">
-                      <span>Max Rental Price</span>
-                      <span className="text-primary font-black">${maxPrice}/day</span>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="10" 
-                      max="500" 
-                      value={maxPrice} 
-                      onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-                      className="w-full accent-primary h-2 bg-gray-100 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  {/* GRID LAYOUT VIEW */}
+                  {layoutMode === 'grid' ? (
+                    <motion.div initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {visibleProducts.map(product => {
+                        const image = getProductImage(product);
+                        const productIsNew = newProductIds.has(product.id);
+                        const isWishlisted = wishlist.includes(product.id);
+                        return (
+                          <motion.div 
+                            layout 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0 }}
+                            key={product.id} 
+                            className="h-full"
+                          >
+                            <TiltCard scaleOnHover={1.03}>
+                              <div className={`group bg-white rounded-[2rem] p-4 border shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col h-full relative ${
+                                productIsNew ? 'border-primary/40 ring-2 ring-primary/10' : 'border-gray-100 hover:border-primary/20'
+                              }`}>
+                                <Link to={`/products/${product.id}`} className="absolute inset-0 z-0"></Link>
+                                
+                                {/* Image Box */}
+                                <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-4 relative z-10">
+                                  <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                                  
+                                  {/* Heart Button */}
+                                  <button 
+                                    onClick={(e) => toggleWishlist(product.id, e)}
+                                    className="absolute top-3 right-3 bg-white/90 hover:bg-white p-2 rounded-full shadow-md z-30 transition-transform active:scale-95"
+                                  >
+                                    <Heart size={16} className={isWishlisted ? 'text-red-500 fill-current' : 'text-gray-400'} />
+                                  </button>
 
-                  {/* Distance Slider (Requires coordinates) */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-black text-gray-500 uppercase tracking-wider">
-                      <span>Distance Range</span>
-                      <span className="text-primary font-black">{maxDistance} km</span>
-                    </div>
-                    {userCoords ? (
-                      <input 
-                        type="range" 
-                        min="5" 
-                        max="200" 
-                        value={maxDistance} 
-                        onChange={(e) => setMaxDistance(parseInt(e.target.value))}
-                        className="w-full accent-primary h-2 bg-gray-100 rounded-lg cursor-pointer"
-                      />
-                    ) : (
+                                  {productIsNew && (
+                                    <div className="absolute top-3 left-3 bg-primary text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1 animate-pulse">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span> NEW
+                                    </div>
+                                  )}
+                                  
+                                  {!product.is_available && (
+                                    <div className="absolute top-3 left-3 bg-red-500/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-lg">
+                                      Rented
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col px-2 relative z-10">
+                                  <span className="text-[10px] font-black text-primary uppercase tracking-widest mb-1.5">{product.category}</span>
+                                  <h3 className="font-extrabold text-gray-900 text-base leading-tight mb-2 line-clamp-2 group-hover:text-primary transition-colors">{product.title}</h3>
+                                  
+                                  <div className="flex items-center text-gray-400 text-xs mt-1 mb-4 gap-1.5">
+                                    <MapPin size={13} className="flex-shrink-0" />
+                                    <span className="truncate">{product.location || 'Local Area'}</span>
+                                    {product.distance !== undefined && (
+                                      <span className="text-primary font-bold">({product.distance.toFixed(1)} km)</span>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-auto flex items-end justify-between pt-4 border-t border-gray-100">
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-xl font-black text-gray-900">${product.price_per_day}</span>
+                                      <span className="text-xs text-gray-500 font-bold uppercase">/day</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </TiltCard>
+                          </motion.div>
+                        );
+                      })}
+                    </motion.div>
+                  ) : (
+                    
+                    /* LIST LAYOUT VIEW */
+                    <motion.div initial="hidden" animate="visible" className="space-y-4">
+                      {visibleProducts.map(product => {
+                        const image = getProductImage(product);
+                        const isWishlisted = wishlist.includes(product.id);
+                        return (
+                          <motion.div key={product.id} layout className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 relative group">
+                            <Link to={`/products/${product.id}`} className="absolute inset-0 z-0"></Link>
+                            <div className="w-full sm:w-48 aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0 relative z-10">
+                              <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            </div>
+                            <div className="flex-1 flex flex-col justify-between relative z-10 py-1">
+                              <div>
+                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">{product.category}</span>
+                                <h3 className="font-extrabold text-gray-900 text-lg">{product.title}</h3>
+                                <p className="text-gray-500 text-xs line-clamp-2 mt-1">{product.description}</p>
+                              </div>
+                              <div className="flex items-center justify-between mt-4">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-xl font-black text-gray-900">${product.price_per_day}</span>
+                                  <span className="text-xs text-gray-500 font-bold">/day</span>
+                                </div>
+                                <button onClick={(e) => toggleWishlist(product.id, e)} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-400">
+                                  <Heart size={16} className={isWishlisted ? 'text-red-500 fill-current' : ''} />
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+
+                  {/* Pagination Load More trigger */}
+                  {hasMore && (
+                    <div className="flex justify-center pt-8">
                       <button 
-                        onClick={enableLocationSearch}
-                        disabled={gpsLoading}
-                        className="w-full py-2 bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+                        onClick={handleLoadMore}
+                        className="px-8 py-3.5 bg-white border border-gray-200 hover:border-primary text-gray-700 hover:text-primary font-bold rounded-2xl shadow-sm text-sm transition-all flex items-center gap-2"
                       >
-                        {gpsLoading ? 'Detecting...' : '🛰️ Enable GPS Distance Filter'}
+                        Load More Listings <ChevronDown size={16} />
                       </button>
-                    )}
-                  </div>
-
-                  {/* Quick Filters Reset */}
-                  <div className="flex items-end">
-                    <button 
-                      onClick={() => {
-                        setMaxPrice(300);
-                        setMaxDistance(100);
-                        setUserCoords(null);
-                      }}
-                      className="w-full h-11 bg-gray-50 border border-gray-200 hover:border-red-200 text-gray-600 hover:text-red-500 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Trash2 size={14} /> Clear Advanced Filters
-                    </button>
-                  </div>
+                    </div>
+                  )}
 
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Categories Horizontal Scrolling bar */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <div className="flex overflow-x-auto gap-3 pb-2 hide-scrollbar">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`whitespace-nowrap px-5 py-2.5 rounded-full text-xs md:text-sm font-bold transition-all ${
-                    category === cat 
-                      ? 'bg-navy text-white shadow-md' 
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+              )}
             </div>
+
           </div>
 
         </div>
-
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-center font-bold mb-8 text-sm md:text-base border border-red-100">{error}</div>}
-
-        {/* Loading State */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map(n => (
-              <div key={n} className="bg-white rounded-[2rem] p-4 border border-gray-100 shadow-sm">
-                <Skeleton className="w-full aspect-[4/3] mb-4 rounded-xl" />
-                <Skeleton variant="text" className="w-3/4 mb-3" />
-                <Skeleton variant="text" className="w-1/2 mb-4" />
-                <div className="flex justify-between items-end mt-6">
-                  <Skeleton variant="text" className="w-1/3 h-6" />
-                  <Skeleton variant="text" className="w-1/3 h-8" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : visibleProducts.length === 0 ? (
-          <EmptyState 
-            icon={Inbox}
-            title="No products found"
-            message="We couldn't find any items matching your current filters or search query."
-            actionLabel="Clear all filters"
-            onAction={() => { setCategory('All'); setSearchQuery(''); setMaxPrice(300); setUserCoords(null); }}
-          />
-        ) : (
-          <div className="space-y-12">
-            
-            {/* GRID LAYOUT VIEW */}
-            {layoutMode === 'grid' ? (
-              <motion.div initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {visibleProducts.map(product => {
-                  const image = getProductImage(product);
-                  const productIsNew = newProductIds.has(product.id);
-                  const isWishlisted = wishlist.includes(product.id);
-                  return (
-                    <motion.div 
-                      layout 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                      key={product.id} 
-                      className="h-full"
-                    >
-                      <TiltCard scaleOnHover={1.03}>
-                        <div className={`group bg-white rounded-[2rem] p-4 border shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col h-full relative ${
-                          productIsNew ? 'border-primary/40 ring-2 ring-primary/10' : 'border-gray-100 hover:border-primary/20'
-                        }`}>
-                          <Link to={`/products/${product.id}`} className="absolute inset-0 z-0"></Link>
-                          
-                          {/* Image Box */}
-                          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-4 relative z-10">
-                            <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                            
-                            {/* Heart Button */}
-                            <button 
-                              onClick={(e) => toggleWishlist(product.id, e)}
-                              className="absolute top-3 right-3 bg-white/90 hover:bg-white p-2 rounded-full shadow-md z-30 transition-transform active:scale-95"
-                            >
-                              <Heart size={16} className={isWishlisted ? 'text-red-500 fill-current' : 'text-gray-400'} />
-                            </button>
-
-                            {productIsNew && (
-                              <div className="absolute top-3 left-3 bg-primary text-white px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1 animate-pulse">
-                                <span className="w-1.5 h-1.5 rounded-full bg-white"></span> NEW
-                              </div>
-                            )}
-                            
-                            {!product.is_available && (
-                              <div className="absolute top-3 left-3 bg-red-500/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-lg">
-                                Rented
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex-1 flex flex-col px-2 relative z-10">
-                            <span className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">{product.category}</span>
-                            <h3 className="font-extrabold text-gray-900 text-lg leading-tight mb-2 line-clamp-2 group-hover:text-primary transition-colors">{product.title}</h3>
-                            
-                            <div className="flex items-center text-gray-400 text-xs mt-1 mb-4 gap-1.5">
-                              <MapPin size={13} className="flex-shrink-0" />
-                              <span className="truncate">{product.location || 'Local Area'}</span>
-                              {product.distance !== undefined && (
-                                <span className="text-primary font-bold">({product.distance.toFixed(1)} km away)</span>
-                              )}
-                            </div>
-
-                            <div className="mt-auto flex items-end justify-between pt-4 border-t border-gray-100">
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-gray-900">${product.price_per_day}</span>
-                                <span className="text-xs text-gray-500 font-bold uppercase">/day</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </TiltCard>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            ) : (
-              
-              /* LIST LAYOUT VIEW */
-              <motion.div initial="hidden" animate="visible" className="space-y-4">
-                {visibleProducts.map(product => {
-                  const image = getProductImage(product);
-                  const isWishlisted = wishlist.includes(product.id);
-                  return (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0 }}
-                      key={product.id}
-                      className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-6 hover:shadow-md hover:border-primary/20 transition-all relative group"
-                    >
-                      <Link to={`/products/${product.id}`} className="absolute inset-0 z-0"></Link>
-                      
-                      <div className="w-full md:w-56 aspect-[4/3] md:aspect-square bg-gray-100 rounded-2xl overflow-hidden flex-shrink-0 relative z-10">
-                        <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                        
-                        <button 
-                          onClick={(e) => toggleWishlist(product.id, e)}
-                          className="absolute top-3 right-3 bg-white/90 p-2 rounded-full shadow-md z-30"
-                        >
-                          <Heart size={16} className={isWishlisted ? 'text-red-500 fill-current' : 'text-gray-400'} />
-                        </button>
-                      </div>
-
-                      <div className="flex-1 flex flex-col justify-between py-2 relative z-10">
-                        <div>
-                          <div className="flex justify-between items-start gap-4">
-                            <div>
-                              <span className="text-[10px] font-black text-primary uppercase tracking-widest">{product.category}</span>
-                              <h3 className="font-extrabold text-gray-900 text-xl leading-snug mt-1 group-hover:text-primary transition-colors">{product.title}</h3>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-2xl font-black text-gray-900">${product.price_per_day}</span>
-                              <span className="text-xs text-gray-500 font-bold block">/day</span>
-                            </div>
-                          </div>
-                          
-                          <p className="text-sm text-gray-500 mt-3 line-clamp-2 md:line-clamp-3 leading-relaxed">{product.description}</p>
-                        </div>
-
-                        <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-6">
-                          <div className="flex items-center text-gray-400 text-xs gap-1.5">
-                            <MapPin size={14} />
-                            <span className="truncate">{product.location || 'Local Area'}</span>
-                            {product.distance !== undefined && (
-                              <span className="text-primary font-bold">({product.distance.toFixed(1)} km away)</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            )}
-
-            {/* Pagination Load More trigger */}
-            {hasMore && (
-              <div className="flex justify-center pt-8">
-                <button 
-                  onClick={handleLoadMore}
-                  className="px-8 py-3.5 bg-white border border-gray-200 hover:border-primary text-gray-700 hover:text-primary font-bold rounded-2xl shadow-sm text-sm transition-all flex items-center gap-2"
-                >
-                  Load More Listings <ChevronDown size={16} />
-                </button>
-              </div>
-            )}
-
-          </div>
-        )}
-
       </div>
     </AnimatedPage>
   );

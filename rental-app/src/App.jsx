@@ -58,9 +58,20 @@ const Payment = lazyWithRetry(() => import('./pages/Payment'));
 const Invoice = lazyWithRetry(() => import('./pages/Invoice'));
 const ChatWindow = lazyWithRetry(() => import('./pages/ChatWindow'));
 const DisputeForm = lazyWithRetry(() => import('./pages/DisputeForm'));
+const InviteEarn = lazyWithRetry(() => import('./pages/InviteEarn'));
 const DisputeDetail = lazyWithRetry(() => import('./pages/DisputeDetail'));
 const Settings = lazyWithRetry(() => import('./pages/Settings'));
 const Support = lazyWithRetry(() => import('./pages/Support'));
+const Wishlist = lazyWithRetry(() => import('./pages/Wishlist'));
+const Notifications = lazyWithRetry(() => import('./pages/Notifications'));
+const OwnerDashboard = lazyWithRetry(() => import('./pages/OwnerDashboard'));
+const OrgWorkspace = lazyWithRetry(() => import('./pages/OrgWorkspace'));
+const DevPortal = lazyWithRetry(() => import('./pages/DevPortal'));
+const AdminRiskDashboard = lazyWithRetry(() => import('./pages/AdminRiskDashboard'));
+const SuperAdminConsole = lazyWithRetry(() => import('./pages/SuperAdminConsole'));
+const GlobalFederationPortal = lazyWithRetry(() => import('./pages/GlobalFederationPortal'));
+const AppMarketplace = lazyWithRetry(() => import('./pages/AppMarketplace'));
+const RentalOSDashboard = lazyWithRetry(() => import('./pages/RentalOSDashboard'));
 
 // Full-screen loading fallback for Suspense
 const PageLoader = () => (
@@ -114,14 +125,25 @@ const AnimatedRoutes = () => {
             <Route path="chat" element={<Chat />} />
             <Route path="chat/:bookingId" element={<ChatWindow />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="wishlist" element={<Wishlist />} />
+            <Route path="notifications" element={<Notifications />} />
+            <Route path="invite" element={<InviteEarn />} />
             <Route path="kyc" element={<KYCForm />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="workspace" element={<OrgWorkspace />} />
+            <Route path="developer" element={<DevPortal />} />
           </Route>
 
           {/* Admin Routes */}
           <Route element={<ProtectedRoute adminOnly={true} />}>
             <Route path="admin" element={<Admin />} />
             <Route path="dashboard" element={<Admin />} />
+            <Route path="admin/risk" element={<AdminRiskDashboard />} />
+            <Route path="super-admin" element={<SuperAdminConsole />} />
+            <Route path="federation" element={<GlobalFederationPortal />} />
+            <Route path="marketplace" element={<AppMarketplace />} />
+            <Route path="rental-os" element={<RentalOSDashboard />} />
           </Route>
         </Route>
       </Routes>

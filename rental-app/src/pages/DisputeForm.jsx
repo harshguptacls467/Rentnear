@@ -90,8 +90,12 @@ const DisputeForm = () => {
       setError('Please provide a detailed description.');
       return;
     }
-    if (photos.length === 0) {
-      setError('Please upload at least one piece of evidence.');
+    if (isOwner && (!claimedAmount || parseFloat(claimedAmount) <= 0)) {
+      setError('Please specify a valid security deposit claim amount.');
+      return;
+    }
+    if (isOwner && parseFloat(claimedAmount) > (booking?.deposit_amount || 0)) {
+      setError(`Claim amount ($${claimedAmount}) cannot exceed total security deposit ($${booking?.deposit_amount || 0}).`);
       return;
     }
 
@@ -99,43 +103,56 @@ const DisputeForm = () => {
       setSubmitting(true);
       setError('');
 
-      // 1. Insert Dispute Record
-      const { error: disputeError } = await supabase
-        .from('disputes')
-        .insert([{
-          booking_id: booking.id,
-          reported_by: user.id,
-          reason,
-          description,
-          evidence_photos: photos
-        }]);
-
-      if (disputeError) {
-        if (disputeError.code === '23505') throw new Error('A dispute is already open for this booking.');
-        throw disputeError;
-      }
-
-      // 2. Call Backend to formally update booking status and trigger notifications if needed
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${API_URL}/bookings/${booking.id}/process-return`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ action: 'dispute' })
-      });
 
-      if (!res.ok) {
-        // Even if backend fails, the dispute was recorded. We can fallback to direct supabase update.
-        await supabase.from('bookings').update({ status: 'disputed' }).eq('id', booking.id);
+      if (isOwner) {
+        // Escrow Security Deposit Damage Claim endpoint
+        const res = await fetch(`${API_URL}/bookings/${booking.id}/claim-deposit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({
+            deposit_claimed_amount: parseFloat(claimedAmount),
+            claim_reason: `${reason}: ${description}`,
+            claim_evidence_urls: photos
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error?.message || 'Failed to submit deposit claim');
+      } else {
+        // General dispute record
+        const { error: disputeError } = await supabase
+          .from('disputes')
+          .insert([{
+            booking_id: booking.id,
+            reported_by: user.id,
+            reason,
+            description,
+            evidence_photos: photos
+          }]);
+
+        if (disputeError) {
+          if (disputeError.code === '23505') throw new Error('A dispute is already open for this booking.');
+          throw disputeError;
+        }
+
+        await fetch(`${API_URL}/bookings/${booking.id}/process-return`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ action: 'dispute' })
+        });
       }
 
-      // 3. Navigate to Dispute Detail page
       navigate(`/bookings/${booking.id}/dispute`);
 
     } catch (err) {
-      setError(err.message || 'Failed to submit dispute.');
+      setError(err.message || 'Failed to submit claim.');
     } finally {
       setSubmitting(false);
     }
@@ -168,6 +185,30 @@ const DisputeForm = () => {
 
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             
+            {isOwner && (
+              <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200">
+                <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider mb-2">
+                  Claimed Security Deposit Amount ($) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-amber-800">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    max={booking?.deposit_amount || 500}
+                    value={claimedAmount}
+                    onChange={(e) => setClaimedAmount(e.target.value)}
+                    placeholder={`Max deposit: $${booking?.deposit_amount || 0}`}
+                    className="w-full bg-white border border-amber-300 rounded-xl pl-8 pr-4 py-3 font-extrabold text-amber-900 outline-none text-lg"
+                  />
+                </div>
+                <p className="text-[11px] text-amber-700 mt-2">
+                  Total held security deposit for this rental is <strong>${booking?.deposit_amount || 0}</strong>. Claims are locked under escrow pending admin review.
+                </p>
+              </div>
+            )}
+
             {/* Reason Dropdown */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Reason for Dispute</label>

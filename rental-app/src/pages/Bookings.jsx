@@ -14,6 +14,10 @@ import { MOCK_BOOKINGS } from '../data/mockData';
 import useRealtimeBookings from '../hooks/useRealtimeBookings';
 import { getLocalBookings, saveLocalBookings } from '../utils/localDb';
 import { motion, AnimatePresence } from 'framer-motion';
+import { schedulingService } from '../api/schedulingService';
+import SchedulePicker from '../components/scheduling/SchedulePicker';
+import ScheduleTimeline from '../components/scheduling/ScheduleTimeline';
+import DeliveryTrackerMap from '../components/scheduling/DeliveryTrackerMap';
 
 const safeFormatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -32,16 +36,74 @@ const Bookings = () => {
   // Collapsed states for individual bookings details
   const [expandedBookingIds, setExpandedBookingIds] = useState(new Set());
 
+  // Scheduling State
+  const [schedules, setSchedules] = useState({});
+  const [routings, setRoutings] = useState({});
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const fetchScheduleForBooking = async (bookingId) => {
+    if (isMock) {
+      // Mock schedule fallback
+      setSchedules(prev => ({
+        ...prev,
+        [bookingId]: {
+          booking_id: bookingId,
+          handover_method: 'self_pickup',
+          handover_date: new Date().toISOString().split('T')[0],
+          handover_time_slot: '09:00 - 11:00',
+          handover_address: '123 Main St, Bengaluru',
+          return_method: 'self_return',
+          return_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+          return_time_slot: '17:00 - 19:00',
+          status: 'scheduled'
+        }
+      }));
+      setRoutings(prev => ({
+        ...prev,
+        [bookingId]: {
+          distance: 4.8,
+          etaMinutes: 15,
+          startCoordinates: [12.9716, 77.5946],
+          endCoordinates: [12.9279, 77.6271]
+        }
+      }));
+      return;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await schedulingService.getSchedule(bookingId, session.access_token);
+      if (res.success) {
+        setSchedules(prev => ({ ...prev, [bookingId]: res.schedule }));
+        setRoutings(prev => ({ ...prev, [bookingId]: res.routing }));
+      }
+    } catch (err) {
+      console.warn('No schedule found or error loading:', err);
+    }
+  };
+
   // Review Modal State
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedReviewBooking, setSelectedReviewBooking] = useState(null);
   
   // Extension Modal State
-  const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [extensionBooking, setExtensionBooking] = useState(null);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [extensionDate, setExtensionDate] = useState('');
+  const [extensionDays, setExtensionDays] = useState(1);
   const [extensionLoading, setExtensionLoading] = useState(false);
   const [extensionSuccess, setExtensionSuccess] = useState(false);
+
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    const fetchSessionToken = async () => {
+      if (isMock) return;
+      const { data } = await supabase.auth.getSession();
+      setToken(data?.session?.access_token);
+    };
+    fetchSessionToken();
+  }, [isMock]);
 
   // View Mode ('renter' or 'owner')
   const [viewMode, setViewMode] = useState(user?.role === 'owner' ? 'owner' : 'renter');
@@ -77,10 +139,16 @@ const Bookings = () => {
 
       if (!dbErr && directData) {
         setBookings(directData);
+        // Pre-fetch schedules for active/approved bookings
+        const activeBookings = directData.filter(b => ['approved', 'awaiting_handover', 'active'].includes(b.status));
+        activeBookings.forEach(b => fetchScheduleForBooking(b.id));
       } else {
         const localBookings = getLocalBookings().filter(b => b.renter_id === user.id || b.owner_id === user.id);
         const isDemoUser = user?.email === 'demo@rentnear.app';
         setBookings(localBookings.length > 0 ? localBookings : (isDemoUser ? MOCK_BOOKINGS : []));
+        // Mock schedules pre-fetch for demo
+        const activeBookings = (localBookings.length > 0 ? localBookings : (isDemoUser ? MOCK_BOOKINGS : [])).filter(b => ['approved', 'awaiting_handover', 'active'].includes(b.status));
+        activeBookings.forEach(b => fetchScheduleForBooking(b.id));
       }
     } catch {
       const localBookings = getLocalBookings().filter(b => b.renter_id === user?.id || b.owner_id === user?.id);
@@ -103,6 +171,7 @@ const Bookings = () => {
       next.delete(id);
     } else {
       next.add(id);
+      fetchScheduleForBooking(id);
     }
     setExpandedBookingIds(next);
   };
@@ -139,6 +208,32 @@ const Bookings = () => {
     }
   };
 
+  const updateScheduleStatus = async (bookingId, scheduleId, nextStatus) => {
+    try {
+      setUpdatingStatus(true);
+      if (isMock) {
+        setSchedules(prev => ({
+          ...prev,
+          [bookingId]: { ...prev[bookingId], status: nextStatus }
+        }));
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await schedulingService.updateStatus(scheduleId, nextStatus, session.access_token);
+      if (res.success) {
+        setSchedules(prev => ({
+          ...prev,
+          [bookingId]: { ...prev[bookingId], status: nextStatus }
+        }));
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update delivery status.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const handleApprove = (id) => updateBookingStatus(id, 'approved');
   const handleReject = (id) => {
     const reason = window.prompt("Why are you rejecting this request? (Optional)");
@@ -156,26 +251,42 @@ const Bookings = () => {
   // Submit booking date extension request
   const handleRequestExtension = async (e) => {
     e.preventDefault();
-    if (!extensionDate) return;
+    if (!extensionDays || !extensionBooking) return;
     setExtensionLoading(true);
     try {
-      // Create a mocked extension or notify through database
-      if (!isMock) {
-        // Send a custom chat message or flag status in Supabase database
-        await supabase.from('admin_audit_logs').insert([{
-          action: 'booking_extension_requested',
-          details: { booking_id: extensionBooking.id, new_end_date: extensionDate, requested_by: user.id }
-        }]);
+      if (isMock) {
+        const daysToAdd = parseInt(extensionDays, 10);
+        const curEnd = new Date(extensionBooking.end_date);
+        curEnd.setDate(curEnd.getDate() + daysToAdd);
+        const addCost = daysToAdd * (extensionBooking.product?.price_per_day || 25);
+
+        const local = getLocalBookings();
+        const updated = local.map(b => b.id === extensionBooking.id ? {
+          ...b,
+          end_date: curEnd.toISOString(),
+          total_amount: (parseFloat(b.total_amount) + addCost).toFixed(2),
+          is_extension: true
+        } : b);
+        saveLocalBookings(updated);
+        setBookings(updated.filter(b => b.renter_id === user?.id || b.owner_id === user?.id));
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(`${API_URL}/bookings/${extensionBooking.id}/extend`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ extension_days: parseInt(extensionDays, 10) })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error?.message || 'Extension failed');
+
+        fetchBookings();
       }
       setExtensionSuccess(true);
-      
-      // Patch local bookings state to show visual indicator
-      const local = getLocalBookings();
-      const updated = local.map(b => b.id === extensionBooking.id ? { ...b, extension_requested: extensionDate } : b);
-      saveLocalBookings(updated);
-      setBookings(updated.filter(b => b.renter_id === user?.id || b.owner_id === user?.id));
     } catch (err) {
-      alert('Extension failed to send.');
+      alert(err.message || 'Extension failed.');
     } finally {
       setExtensionLoading(false);
     }
@@ -381,6 +492,39 @@ const Bookings = () => {
                               </div>
                             )}
 
+                            {/* Delivery & Pickup Scheduling Section */}
+                            {['approved', 'awaiting_handover', 'active'].includes(booking.status) && (
+                              <div className="space-y-4 pt-2">
+                                {schedules[booking.id] ? (
+                                  <>
+                                    <ScheduleTimeline
+                                      schedule={schedules[booking.id]}
+                                      onStatusUpdate={(nextStatus) => updateScheduleStatus(booking.id, schedules[booking.id].id, nextStatus)}
+                                      updating={updatingStatus}
+                                      isRenter={booking.renter_id === user?.id}
+                                      isOwner={booking.owner_id === user?.id}
+                                    />
+                                    {schedules[booking.id].handover_method === 'home_delivery' && routings[booking.id] && (
+                                      <DeliveryTrackerMap routing={routings[booking.id]} />
+                                    )}
+                                  </>
+                                ) : (
+                                  booking.renter_id === user?.id && (
+                                    <SchedulePicker
+                                      booking={booking}
+                                      token={token}
+                                      isMock={isMock}
+                                      onComplete={(newSched) => {
+                                        setSchedules(prev => ({ ...prev, [booking.id]: newSched }));
+                                        // mock / fetch routing again
+                                        fetchScheduleForBooking(booking.id);
+                                      }}
+                                    />
+                                  )
+                                )}
+                              </div>
+                            )}
+
                             {/* Refundable Deposit Breakdown */}
                             <div className="bg-white p-4 rounded-2xl border border-gray-100 space-y-3">
                               <h4 className="font-black text-navy text-xs uppercase tracking-wider flex items-center gap-1.5">
@@ -415,16 +559,17 @@ const Bookings = () => {
                               </Button>
 
                               {/* Request Extension Trigger */}
-                              {booking.status === 'active' && (
+                              {['approved', 'awaiting_handover', 'active'].includes(booking.status) && (
                                 <Button 
                                   onClick={() => {
                                     setExtensionBooking(booking);
+                                    setExtensionDays(1);
                                     setExtensionSuccess(false);
                                     setShowExtensionModal(true);
                                   }}
                                   className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5"
                                 >
-                                  <Plus size={14} /> Request Extension
+                                  <Plus size={14} /> Extend Rental
                                 </Button>
                               )}
 
@@ -578,6 +723,22 @@ const Bookings = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Delivery Scheduling for Owners */}
+                    {schedules[booking.id] && (
+                      <div className="mt-4 space-y-4">
+                        <ScheduleTimeline
+                          schedule={schedules[booking.id]}
+                          onStatusUpdate={(nextStatus) => updateScheduleStatus(booking.id, schedules[booking.id].id, nextStatus)}
+                          updating={updatingStatus}
+                          isRenter={booking.renter_id === user?.id}
+                          isOwner={booking.owner_id === user?.id}
+                        />
+                        {schedules[booking.id].handover_method === 'home_delivery' && routings[booking.id] && (
+                          <DeliveryTrackerMap routing={routings[booking.id]} />
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="lg:w-48 flex flex-col gap-3 justify-center border-t lg:border-t-0 lg:border-l border-gray-100 pt-4 lg:pt-0 lg:pl-6 text-center">
@@ -638,20 +799,37 @@ const Bookings = () => {
                 <form onSubmit={handleRequestExtension} className="space-y-4">
                   <div className="text-center">
                     <CalendarIcon className="text-primary mx-auto mb-2" size={36} />
-                    <h3 className="text-lg font-black text-navy">Extend Rental Booking</h3>
-                    <p className="text-xs text-gray-400 mt-1">Select a new return date for owner approval.</p>
+                    <h3 className="text-lg font-black text-navy">One-Click Rental Extension</h3>
+                    <p className="text-xs text-gray-400 mt-1">Keep your rented item longer without returning early.</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase mb-2">New Return Date</label>
-                    <input 
-                      type="date" 
-                      value={extensionDate}
-                      min={extensionBooking ? extensionBooking.end_date : ''}
-                      onChange={(e) => setExtensionDate(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm"
-                    />
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Extension Duration</label>
+                    <select
+                      value={extensionDays}
+                      onChange={(e) => setExtensionDays(parseInt(e.target.value, 10))}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold"
+                    >
+                      {[1, 2, 3, 4, 5, 7, 10, 14].map(days => (
+                        <option key={days} value={days}>
+                          + {days} {days === 1 ? 'Day' : 'Days'} (${(days * (extensionBooking?.product?.price_per_day || 25)).toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
+                  {extensionBooking && (
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-xs space-y-1">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Current End Date:</span>
+                        <span className="font-bold text-gray-900">{new Date(extensionBooking.end_date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Additional Daily Fee:</span>
+                        <span className="font-bold text-gray-900">${(extensionDays * (extensionBooking.product?.price_per_day || 25)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex gap-3">
                     <Button 
@@ -663,20 +841,20 @@ const Bookings = () => {
                       Cancel
                     </Button>
                     <Button 
-                      className="flex-1" 
-                      disabled={extensionLoading || !extensionDate}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold" 
+                      disabled={extensionLoading}
                       type="submit"
                     >
-                      {extensionLoading ? 'Requesting...' : 'Request Extension'}
+                      {extensionLoading ? 'Extending...' : 'Confirm Extension'}
                     </Button>
                   </div>
                 </form>
               ) : (
                 <div className="text-center py-6">
                   <CheckCircle2 size={44} className="text-green-500 mx-auto mb-3" />
-                  <h4 className="font-extrabold text-navy text-base">Request Submitted</h4>
+                  <h4 className="font-extrabold text-navy text-base">Rental Extended!</h4>
                   <p className="text-xs text-gray-500 mt-2 max-w-xs mx-auto">
-                    The owner has been notified of your extension request. You will see an alert on their decision.
+                    Your rental duration has been extended successfully. Your updated return schedule is reflected in your dashboard.
                   </p>
                   <Button className="mt-6 w-full" onClick={() => setShowExtensionModal(false)}>Close</Button>
                 </div>

@@ -87,38 +87,63 @@ const sendPersonalPushNotification = async (userId, title, message, data = {}) =
   }
 };
 
-/**
- * Sends an in-app notification to a user by inserting it into the database,
- * and automatically triggers a physical push notification to the user's device.
- */
-const sendNotification = async (userId, type, message, bookingId = null) => {
+const sendNotification = async (userId, type, message, bookingId = null, extraData = {}) => {
   try {
+    const titleMap = {
+      booking_request: 'New Booking Request 📦',
+      booking_approved: 'Booking Approved! 🎉',
+      booking_rejected: 'Booking Declined ❌',
+      booking_cancelled: 'Booking Cancelled ⚠️',
+      payment_success: 'Payment Confirmed 💳',
+      refund_completed: 'Refund Processed 💸',
+      product_saved: 'Item Saved to Wishlist ❤️',
+      product_unavailable: 'Item Unavailable ⏳',
+      new_message: 'New Message 💬',
+      review_received: 'New Review Received ⭐',
+      system_announcement: 'System Update 📢',
+      admin_notice: 'Security & Moderation Alert 🛡️',
+      account_verification: 'Identity Verification Update 🆔'
+    };
+
+    const title = extraData.title || titleMap[type] || 'RentNear Alert';
+
+    // Insert database notification for in-app timeline & Realtime WebSocket broadcast
     const { error } = await supabase
       .from('notifications')
-      .insert({
+      .insert([{
         user_id: userId,
         type,
+        title,
         message,
-        booking_id: bookingId,
-      });
+        data: { bookingId, ...extraData },
+        is_read: false
+      }]);
 
     if (error) {
-      console.error('Failed to insert notification:', error);
+      console.error('Failed to insert in-app notification:', error);
     }
-    
-    // Auto-trigger push notification
-    const titleMap = {
-      booking_request: 'New Booking Request',
-      booking_approved: 'Booking Approved! 🎉',
-      booking_rejected: 'Booking Declined',
-      booking_cancelled: 'Booking Cancelled',
-      dispute_opened: 'Dispute Raised ⚠️',
-      message: 'New Message 💬'
-    };
-    
-    const title = titleMap[type] || 'RentNear Update';
-    await sendPersonalPushNotification(userId, title, message, { type, bookingId });
-    
+
+    // Check user notification preferences before sending OneSignal physical device push
+    try {
+      const { data: prefs } = await supabase
+        .from('user_notification_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (prefs) {
+        if (!prefs.push_notifications) return true;
+        if (type.startsWith('booking_') && !prefs.booking_notifications) return true;
+        if (type === 'new_message' && !prefs.chat_notifications) return true;
+        if (type === 'system_announcement' && !prefs.promotions) return true;
+      }
+    } catch {
+      // Proceed if preference lookup is missing or defaults
+    }
+
+    // Dispatch OneSignal physical device push
+    await sendPersonalPushNotification(userId, title, message, { type, bookingId, ...extraData });
+
     return true;
   } catch (err) {
     console.error('Exception in sendNotification:', err);
