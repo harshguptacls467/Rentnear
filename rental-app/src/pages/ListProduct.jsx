@@ -37,6 +37,7 @@ const ListProduct = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [initialFetchLoading, setInitialFetchLoading] = useState(!!id);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const [error, setError] = useState('');
   
   const [formData, setFormData] = useState({

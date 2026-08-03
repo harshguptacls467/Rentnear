@@ -115,14 +115,6 @@ const Products = () => {
     }
   }, [user]);
 
-  // Handle Search Debounce
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 450);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
   // Main fetch products hook/logic
   const fetchProducts = useCallback(async () => {
     setLoading(true);
