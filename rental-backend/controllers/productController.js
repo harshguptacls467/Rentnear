@@ -240,7 +240,13 @@ const productController = {
         longitude, 
         images,
         instant_booking_enabled,
-        calendar_blocked_dates
+        calendar_blocked_dates,
+        brand,
+        city,
+        locality,
+        tags,
+        popularity_score,
+        delivery_available
       } = req.body;
       const owner_id = req.user.id;
 
@@ -248,27 +254,63 @@ const productController = {
         return res.status(400).json({ success: false, error: { message: 'title and price_per_day are required.', status: 400 } });
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .insert([{
-          owner_id,
-          title,
-          description,
-          category,
-          condition: condition || 'Good',
-          price_per_day,
-          price_per_hour,
-          deposit_amount: deposit_amount || 0,
-          location,
-          latitude,
-          longitude,
-          images: images || [],
-          is_available: true,
-          instant_booking_enabled: instant_booking_enabled === true,
-          calendar_blocked_dates: Array.isArray(calendar_blocked_dates) ? calendar_blocked_dates : []
-        }])
-        .select()
-        .single();
+      const payload = {
+        owner_id,
+        title,
+        description,
+        category,
+        condition: condition || 'Good',
+        price_per_day,
+        price_per_hour,
+        deposit_amount: deposit_amount || 0,
+        location,
+        latitude,
+        longitude,
+        images: images || [],
+        is_available: true,
+        instant_booking_enabled: instant_booking_enabled === true,
+        calendar_blocked_dates: Array.isArray(calendar_blocked_dates) ? calendar_blocked_dates : []
+      };
+
+      if (brand !== undefined) payload.brand = brand;
+      if (city !== undefined) payload.city = city;
+      if (locality !== undefined) payload.locality = locality;
+      if (tags !== undefined) payload.tags = Array.isArray(tags) ? tags : [];
+      if (popularity_score !== undefined) payload.popularity_score = parseInt(popularity_score, 10) || 0;
+      if (delivery_available !== undefined) payload.delivery_available = delivery_available !== false;
+
+      let data, error;
+      try {
+        const insertRes = await supabase
+          .from('products')
+          .insert([payload])
+          .select()
+          .single();
+        data = insertRes.data;
+        error = insertRes.error;
+      } catch (dbErr) {
+        error = dbErr;
+      }
+
+      // Handle fallback if columns do not exist in schema cache (PGRST204)
+      if (error && (error.code === 'PGRST204' || String(error.message).includes('column'))) {
+        console.warn('[DB Fallback] Schema lacks new search fields, retrying fallback insert.');
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.brand;
+        delete fallbackPayload.city;
+        delete fallbackPayload.locality;
+        delete fallbackPayload.tags;
+        delete fallbackPayload.popularity_score;
+        delete fallbackPayload.delivery_available;
+
+        const fallbackRes = await supabase
+          .from('products')
+          .insert([fallbackPayload])
+          .select()
+          .single();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) throw error;
 
@@ -298,12 +340,12 @@ const productController = {
       const { id } = req.params;
       const owner_id = req.user.id;
       // SECURITY: Use explicit field allowlist — never pass raw req.body to DB
-      // This prevents mass-assignment attacks (e.g. user setting owner_id or created_at)
       const {
         title, description, category, condition,
         price_per_day, price_per_hour, deposit_amount,
         location, latitude, longitude, images, is_available,
-        instant_booking_enabled, calendar_blocked_dates
+        instant_booking_enabled, calendar_blocked_dates,
+        brand, city, locality, tags, popularity_score, delivery_available
       } = req.body;
 
       const allowedUpdates = {};
@@ -321,6 +363,12 @@ const productController = {
       if (is_available !== undefined) allowedUpdates.is_available = is_available;
       if (instant_booking_enabled !== undefined) allowedUpdates.instant_booking_enabled = instant_booking_enabled;
       if (calendar_blocked_dates !== undefined) allowedUpdates.calendar_blocked_dates = calendar_blocked_dates;
+      if (brand !== undefined) allowedUpdates.brand = brand;
+      if (city !== undefined) allowedUpdates.city = city;
+      if (locality !== undefined) allowedUpdates.locality = locality;
+      if (tags !== undefined) allowedUpdates.tags = Array.isArray(tags) ? tags : [];
+      if (popularity_score !== undefined) allowedUpdates.popularity_score = parseInt(popularity_score, 10) || 0;
+      if (delivery_available !== undefined) allowedUpdates.delivery_available = delivery_available !== false;
 
       // Verify ownership
       const { data: existing, error: fetchError } = await supabase
@@ -337,14 +385,45 @@ const productController = {
         return res.status(403).json({ success: false, error: { message: 'Only the owner can update this product.', status: 403 } });
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .update(allowedUpdates)
-        .eq('id', id)
-        .select()
-        .single();
+      let data, error;
+      try {
+        const updateRes = await supabase
+          .from('products')
+          .update(allowedUpdates)
+          .eq('id', id)
+          .select()
+          .single();
+        data = updateRes.data;
+        error = updateRes.error;
+      } catch (dbErr) {
+        error = dbErr;
+      }
+
+      // Handle fallback if database is missing search columns (PGRST204)
+      if (error && (error.code === 'PGRST204' || String(error.message).includes('column'))) {
+        console.warn('[DB Fallback] Schema lacks new updates columns, retrying fallback update.');
+        const fallbackUpdates = { ...allowedUpdates };
+        delete fallbackUpdates.brand;
+        delete fallbackUpdates.city;
+        delete fallbackUpdates.locality;
+        delete fallbackUpdates.tags;
+        delete fallbackUpdates.popularity_score;
+        delete fallbackUpdates.delivery_available;
+
+        const fallbackRes = await supabase
+          .from('products')
+          .update(fallbackUpdates)
+          .eq('id', id)
+          .select()
+          .single();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (error) throw error;
+
+      // Invalidate catalog cache
+      await cache.delPattern('products:');
 
       res.json(data);
     } catch (error) {
@@ -449,9 +528,341 @@ const productController = {
         recommendation: fallback,
         sample_size: 0
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // GET /api/products/search (Intelligent Search & Smart Ranking API)
+  searchProducts: async (req, res, next) => {
+    const startTime = Date.now();
+    try {
+      const {
+        q, search, category, brand, city, locality, tags,
+        price_min, price_max, distance_max, rating_min, condition,
+        delivery_available, deposit_min, deposit_max, owner_verified,
+        sort_by = 'best_match', limit = 20, cursor
+      } = req.query;
+
+      const searchQuery = (q || search || '').trim();
+      const pageLimit = Math.min(parseInt(limit, 10) || 20, 100);
+      let pageOffset = 0;
+
+      // Decode offset from Base64 cursor if provided
+      if (cursor) {
+        try {
+          const decoded = Buffer.from(cursor, 'base64').toString('ascii');
+          const parsedOffset = parseInt(decoded, 10);
+          if (!isNaN(parsedOffset)) pageOffset = parsedOffset;
+        } catch (e) {
+          console.warn('Invalid pagination cursor ignored:', e.message);
+        }
+      }
+
+      // Generate cache key
+      const cacheKey = `products:search:${searchQuery}:${category || ''}:${brand || ''}:${city || ''}:${locality || ''}:${tags || ''}:${price_min || ''}:${price_max || ''}:${distance_max || ''}:${rating_min || ''}:${condition || ''}:${delivery_available || ''}:${deposit_min || ''}:${deposit_max || ''}:${owner_verified || ''}:${sort_by}:${pageLimit}:${pageOffset}`;
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
+      // 1. Fetch available products with owner details (to avoid N+1 query patterns)
+      let rawProducts, error;
+      try {
+        const res = await supabase
+          .from('products')
+          .select('*, owner:users!owner_id(name, avatar_url, rating_average, rating_count, kyc_verified, trust_score)')
+          .eq('is_available', true)
+          .range(0, 999);
+        rawProducts = res.data;
+        error = res.error;
+      } catch (dbErr) {
+        error = dbErr;
+      }
+
+      if (error) {
+        console.warn('[Search DB Fallback] Fetch with advanced user columns failed, falling back to basic join.');
+        try {
+          const resFallback = await supabase
+            .from('products')
+            .select('*, owner:users!owner_id(name, avatar_url, rating_average, rating_count)')
+            .eq('is_available', true)
+            .range(0, 999);
+          rawProducts = resFallback.data;
+          error = resFallback.error;
+        } catch (dbErr2) {
+          error = dbErr2;
+        }
+
+        if (error) {
+          console.warn('[Search DB Fallback] Join failed completely, fetching products only.');
+          try {
+            const resDoubleFallback = await supabase
+              .from('products')
+              .select('*')
+              .eq('is_available', true)
+              .range(0, 999);
+            rawProducts = resDoubleFallback.data;
+            error = resDoubleFallback.error;
+          } catch (dbErr3) {
+            error = dbErr3;
+          }
+        }
+      }
+
+      if (error) throw error;
+
+      let results = rawProducts || [];
+
+      // 2. Geodistance calculations
+      const centerLat = parseFloat(req.query.lat || req.query.latitude);
+      const centerLng = parseFloat(req.query.lng || req.query.longitude);
+      const hasCoords = !isNaN(centerLat) && !isNaN(centerLng);
+
+      results = results.map(p => {
+        let dist = null;
+        if (hasCoords && p.latitude && p.longitude) {
+          dist = haversineKm(centerLat, centerLng, parseFloat(p.latitude), parseFloat(p.longitude));
+        }
+        return {
+          ...p,
+          distance_km: dist !== null ? parseFloat(dist.toFixed(2)) : null
+        };
+      });
+
+      // 3. Apply Filters
+      if (category && category !== 'All') {
+        results = results.filter(p => p.category?.toLowerCase() === category.toLowerCase());
+      }
+      if (brand) {
+        results = results.filter(p => p.brand?.toLowerCase().includes(brand.toLowerCase()));
+      }
+      if (city) {
+        results = results.filter(p => p.city?.toLowerCase() === city.toLowerCase());
+      }
+      if (locality) {
+        results = results.filter(p => p.locality?.toLowerCase().includes(locality.toLowerCase()));
+      }
+      if (tags) {
+        const tagList = (Array.isArray(tags) ? tags : [tags]).map(t => String(t).toLowerCase());
+        results = results.filter(p => {
+          const prodTags = (p.tags || []).map(t => String(t).toLowerCase());
+          return tagList.some(t => prodTags.includes(t));
+        });
+      }
+      if (price_min) {
+        results = results.filter(p => parseFloat(p.price_per_day) >= parseFloat(price_min));
+      }
+      if (price_max) {
+        results = results.filter(p => parseFloat(p.price_per_day) <= parseFloat(price_max));
+      }
+      if (deposit_min) {
+        results = results.filter(p => parseFloat(p.deposit_amount || 0) >= parseFloat(deposit_min));
+      }
+      if (deposit_max) {
+        results = results.filter(p => parseFloat(p.deposit_amount || 0) <= parseFloat(deposit_max));
+      }
+      if (distance_max && hasCoords) {
+        results = results.filter(p => p.distance_km !== null && p.distance_km <= parseFloat(distance_max));
+      }
+      if (rating_min) {
+        results = results.filter(p => parseFloat(p.owner?.rating_average || 0) >= parseFloat(rating_min));
+      }
+      if (condition && condition !== 'All') {
+        results = results.filter(p => p.condition?.toLowerCase() === condition.toLowerCase());
+      }
+      if (delivery_available === 'true') {
+        results = results.filter(p => p.delivery_available === true);
+      }
+      if (owner_verified === 'true') {
+        results = results.filter(p => p.owner?.kyc_verified === true);
+      }
+
+      // 4. Calculate smart ranking score for "best_match"
+      results = results.map(item => {
+        let score = 0;
+        const queryText = searchQuery.toLowerCase();
+
+        if (queryText) {
+          const title = (item.title || '').toLowerCase();
+          const desc = (item.description || '').toLowerCase();
+          const cat = (item.category || '').toLowerCase();
+          const brandName = (item.brand || '').toLowerCase();
+          const loc = (item.location || '').toLowerCase();
+          const localityName = (item.locality || '').toLowerCase();
+          const cityName = (item.city || '').toLowerCase();
+          const ownerName = (item.owner?.name || '').toLowerCase();
+          const tagsArr = Array.isArray(item.tags) ? item.tags : [];
+
+          // Exact phrases match
+          if (title === queryText) score += 200;
+          else if (title.includes(queryText)) score += 80;
+
+          if (brandName === queryText) score += 100;
+          else if (brandName && brandName.includes(queryText)) score += 40;
+
+          if (desc.includes(queryText)) score += 30;
+          if (cat.includes(queryText)) score += 50;
+          if (loc.includes(queryText) || localityName.includes(queryText) || cityName.includes(queryText)) score += 30;
+          if (ownerName.includes(queryText)) score += 25;
+
+          // Word-by-word tokenized matches
+          const words = queryText.split(/\s+/).filter(w => w.length > 1);
+          words.forEach(word => {
+            if (title.includes(word)) score += 20;
+            if (brandName && brandName.includes(word)) score += 15;
+            if (desc.includes(word)) score += 5;
+            if (tagsArr.some(t => String(t).toLowerCase().includes(word))) score += 25;
+          });
+        } else {
+          score += 50; // default baseline score if query text is empty
+        }
+
+        // Availability boost
+        if (item.is_available) score += 50;
+
+        // Owner Trust score
+        const trust = Number(item.owner?.trust_score) || 100;
+        score += (trust / 10);
+
+        // Owner Verification
+        if (item.owner?.kyc_verified) score += 15;
+
+        // Rating
+        const ratingAvg = Number(item.owner?.rating_average) || 0;
+        const ratingCount = Number(item.owner?.rating_count) || 0;
+        score += (ratingAvg * 8);
+        score += Math.min(ratingCount * 0.5, 15);
+
+        // Popularity views + custom popularity score
+        const popularity = (Number(item.views_count) || 0) + (Number(item.popularity_score) || 0);
+        score += Math.min(popularity * 0.1, 20);
+
+        // Recency Decay Boost
+        const ageInDays = (Date.now() - new Date(item.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24);
+        const recencyBoost = Math.max(20 - ageInDays, 0);
+        score += recencyBoost;
+
+        // Geodistance Penalty
+        if (item.distance_km !== null) {
+          score -= Math.min(item.distance_km * 2, 50);
+        }
+
+        return { ...item, ranking_score: parseFloat(score.toFixed(2)) };
+      });
+
+      // 5. Multi-faceted Sorting
+      if (sort_by === 'newest') {
+        results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      } else if (sort_by === 'nearest') {
+        results.sort((a, b) => {
+          if (a.distance_km === null) return 1;
+          if (b.distance_km === null) return -1;
+          return a.distance_km - b.distance_km;
+        });
+      } else if (sort_by === 'lowest_price') {
+        results.sort((a, b) => parseFloat(a.price_per_day) - parseFloat(b.price_per_day));
+      } else if (sort_by === 'highest_rated') {
+        results.sort((a, b) => (b.owner?.rating_average || 0) - (a.owner?.rating_average || 0));
+      } else if (sort_by === 'most_rented') {
+        results.sort((a, b) => (b.owner?.rating_count || 0) - (a.owner?.rating_count || 0));
+      } else {
+        // 'best_match' (default)
+        results.sort((a, b) => b.ranking_score - a.ranking_score);
+      }
+
+      // 6. Pagination & Cursor Generation
+      const paginatedResults = results.slice(pageOffset, pageOffset + pageLimit);
+      const nextOffset = pageOffset + pageLimit;
+      const nextCursor = nextOffset < results.length
+        ? Buffer.from(String(nextOffset)).toString('base64')
+        : null;
+
+      const searchDuration = Date.now() - startTime;
+
+      // 7. Dynamic AI suggestions matching prefix keywords
+      let aiSuggestions = [];
+      if (searchQuery) {
+        const queryClean = searchQuery.toLowerCase();
+        if (queryClean.includes('drill') || queryClean.includes('tool')) {
+          aiSuggestions = ['Hammer Drill', 'Impact Drill', 'Cordless Drill', 'Circular Saw', 'Rotary Hammer'];
+        } else if (queryClean.includes('camera') || queryClean.includes('lens') || queryClean.includes('photo')) {
+          aiSuggestions = ['Tripod', 'Memory Card', 'Lighting Kit', 'Gimbal', 'Prime Lens', 'Camera Bag'];
+        } else if (queryClean.includes('bike') || queryClean.includes('cycle')) {
+          aiSuggestions = ['Helmet', 'Bike Lock', 'Cycling Gloves', 'Air Pump', 'Saddle Bag'];
+        } else if (queryClean.includes('speaker') || queryClean.includes('audio') || queryClean.includes('sound')) {
+          aiSuggestions = ['JBL Speaker', 'Microphone', 'Soundbar', 'Audio Cable', 'Speaker Stand'];
+        }
+      }
+
+      const responsePayload = {
+        success: true,
+        data: paginatedResults,
+        metadata: {
+          total_count: results.length,
+          has_more: nextCursor !== null,
+          next_cursor: nextCursor,
+          duration_ms: searchDuration,
+          ai_suggestions: aiSuggestions
+        }
+      };
+
+      // Log search query in the background
+      if (searchQuery) {
+        const userId = req.user ? req.user.id : null;
+        supabase
+          .from('search_analytics')
+          .insert([{
+            user_id: userId,
+            query_text: searchQuery,
+            results_count: results.length,
+            duration_ms: searchDuration
+          }])
+          .then(({ error: logErr }) => {
+            if (logErr) console.debug('Search analytics logging failed:', logErr.message);
+          })
+          .catch(() => {});
+      }
+
+      await cache.set(cacheKey, responsePayload, 60);
+      return res.json(responsePayload);
 
     } catch (error) {
       next(error);
+    }
+  },
+
+  // GET /api/products/search/trending
+  getTrendingSearches: async (req, res, next) => {
+    try {
+      const cacheKey = 'products:search:trending';
+      const cached = await cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const { data, error } = await supabase
+        .from('search_analytics')
+        .select('query_text')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      let trendingList = ['Sony A7', 'Mountain Bike', 'DeWalt Drill', 'JBL Speaker', 'PS5 Consoles'];
+
+      if (!error && data && data.length > 0) {
+        const frequencies = {};
+        data.forEach(row => {
+          const q = (row.query_text || '').trim();
+          if (q.length > 2) frequencies[q] = (frequencies[q] || 0) + 1;
+        });
+
+        const sorted = Object.keys(frequencies).sort((a, b) => frequencies[b] - frequencies[a]);
+        if (sorted.length > 0) trendingList = sorted.slice(0, 5);
+      }
+
+      const payload = { success: true, trending: trendingList };
+      await cache.set(cacheKey, payload, 300);
+      return res.json(payload);
+    } catch {
+      res.json({ success: true, trending: ['Sony A7', 'Mountain Bike', 'DeWalt Drill', 'JBL Speaker', 'PS5 Consoles'] });
     }
   },
 

@@ -7,6 +7,7 @@ import { ComponentErrorBoundary } from './ErrorBoundary';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../context/ToastContext';
 import useAuthStore from '../store/authStore';
+import SearchOverlay from './SearchOverlay';
 
 const Layout = () => {
   const { showToast } = useToast();
@@ -108,6 +109,9 @@ const Layout = () => {
       <ComponentErrorBoundary name="AI Rental Assistant">
         <AIChatbot />
       </ComponentErrorBoundary>
+
+      {/* Global Intelligent Search Overlay */}
+      <SearchOverlay />
     </div>
   );
 };

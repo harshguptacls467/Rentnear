@@ -27,6 +27,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000001',
     created_at: '2024-05-01T10:00:00Z',
+    brand: 'Sony',
+    city: 'Delhi',
+    locality: 'Connaught Place',
+    tags: ['camera', 'mirrorless', 'wedding', 'sony', 'video', 'lens'],
+    popularity_score: 95,
+    delivery_available: true
   },
   {
     id: '11111111-0000-4000-8000-000000000002',
@@ -39,6 +45,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000002',
     created_at: '2024-05-02T11:00:00Z',
+    brand: 'Trek',
+    city: 'Delhi',
+    locality: 'Hauz Khas',
+    tags: ['bike', 'bicycle', 'hybrid', 'trek', 'fitness', 'commute'],
+    popularity_score: 80,
+    delivery_available: false
   },
   {
     id: '11111111-0000-4000-8000-000000000003',
@@ -51,6 +63,12 @@ export const MOCK_PRODUCTS = [
     is_available: false,
     owner_id: '00000000-0000-4000-8000-000000000003',
     created_at: '2024-05-03T09:00:00Z',
+    brand: 'DeWalt',
+    city: 'Delhi',
+    locality: 'Lajpat Nagar',
+    tags: ['drill', 'power tool', 'dewalt', 'home', 'diy', 'cordless'],
+    popularity_score: 65,
+    delivery_available: true
   },
   {
     id: '11111111-0000-4000-8000-000000000004',
@@ -63,6 +81,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000002',
     created_at: '2024-05-04T14:00:00Z',
+    brand: 'JBL',
+    city: 'Delhi',
+    locality: 'Saket',
+    tags: ['speaker', 'bluetooth', 'audio', 'jbl', 'waterproof', 'party'],
+    popularity_score: 75,
+    delivery_available: true
   },
   {
     id: '11111111-0000-4000-8000-000000000005',
@@ -75,6 +99,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000001',
     created_at: '2024-05-05T08:00:00Z',
+    brand: 'DJI',
+    city: 'Delhi',
+    locality: 'Dwarka',
+    tags: ['drone', 'dji', 'camera', '4k', 'aerial', 'photography'],
+    popularity_score: 90,
+    delivery_available: true
   },
   {
     id: '11111111-0000-4000-8000-000000000006',
@@ -87,6 +117,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000003',
     created_at: '2024-05-06T12:00:00Z',
+    brand: 'Sony',
+    city: 'Delhi',
+    locality: 'Rohini',
+    tags: ['console', 'playstation', 'ps5', 'gaming', 'sony', 'controller'],
+    popularity_score: 85,
+    delivery_available: true
   },
   {
     id: '11111111-0000-4000-8000-000000000007',
@@ -99,6 +135,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000002',
     created_at: '2024-05-07T10:00:00Z',
+    brand: 'Coleman',
+    city: 'Delhi',
+    locality: 'Janakpuri',
+    tags: ['tent', 'camping', 'sports', 'outdoor', 'travel', 'coleman'],
+    popularity_score: 60,
+    delivery_available: false
   },
   {
     id: '11111111-0000-4000-8000-000000000008',
@@ -111,6 +153,12 @@ export const MOCK_PRODUCTS = [
     is_available: true,
     owner_id: '00000000-0000-4000-8000-000000000001',
     created_at: '2024-05-08T09:00:00Z',
+    brand: 'Apple',
+    city: 'Delhi',
+    locality: 'Vasant Kunj',
+    tags: ['laptop', 'macbook', 'apple', 'computer', 'editor', 'developer'],
+    popularity_score: 92,
+    delivery_available: true
   },
 ];
 

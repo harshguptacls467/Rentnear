@@ -222,7 +222,130 @@ const analyticsController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  // POST /api/analytics/search/event (Log Click & Conversion events)
+  logSearchEvent: async (req, res, next) => {
+    try {
+      const { search_log_id, event_type, product_id, query } = req.body;
+      const userId = req.user ? req.user.id : null;
+
+      if (search_log_id) {
+        const updateFields = {};
+        if (event_type === 'click') {
+          updateFields.clicked = true;
+          if (product_id) updateFields.clicked_product_id = product_id;
+        } else if (event_type === 'conversion') {
+          updateFields.converted = true;
+        }
+
+        const { error } = await supabase
+          .from('search_analytics')
+          .update(updateFields)
+          .eq('id', search_log_id);
+
+        if (error) throw error;
+      } else if (query) {
+        const { data: latest } = await supabase
+          .from('search_analytics')
+          .select('id')
+          .eq('query_text', query)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latest) {
+          const updateFields = {};
+          if (event_type === 'click') {
+            updateFields.clicked = true;
+            if (product_id) updateFields.clicked_product_id = product_id;
+          } else if (event_type === 'conversion') {
+            updateFields.converted = true;
+          }
+
+          await supabase
+            .from('search_analytics')
+            .update(updateFields)
+            .eq('id', latest.id);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.warn('Search event logging failed:', err.message);
+      res.json({ success: true });
+    }
+  },
+
+  // GET /api/analytics/search/report (Admin Search Analytics Dashboard report)
+  getSearchAnalyticsReport: async (req, res, next) => {
+    try {
+      if (!req.user || !req.user.is_admin) {
+        return res.status(403).json({ success: false, error: { message: 'Unauthorized. Admin access required.', status: 403 } });
+      }
+
+      const { data, error } = await supabase
+        .from('search_analytics')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (error) throw error;
+
+      const safeData = data || [];
+      const totalCount = safeData.length;
+      
+      let clickCount = 0;
+      let conversionCount = 0;
+      let totalDuration = 0;
+      const noResultKeywords = {};
+      const mostSearched = {};
+
+      safeData.forEach(row => {
+        if (row.clicked) clickCount++;
+        if (row.converted) conversionCount++;
+        totalDuration += row.duration_ms || 0;
+
+        const q = (row.query_text || '').trim().toLowerCase();
+        if (q) {
+          mostSearched[q] = (mostSearched[q] || 0) + 1;
+          if (row.results_count === 0) {
+            noResultKeywords[q] = (noResultKeywords[q] || 0) + 1;
+          }
+        }
+      });
+
+      const avgDuration = totalCount > 0 ? parseFloat((totalDuration / totalCount).toFixed(1)) : 0;
+      const ctr = totalCount > 0 ? parseFloat(((clickCount / totalCount) * 100).toFixed(2)) : 0;
+      const conversionRate = totalCount > 0 ? parseFloat(((conversionCount / totalCount) * 100).toFixed(2)) : 0;
+
+      const sortedMostSearched = Object.entries(mostSearched)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(entry => ({ keyword: entry[0], count: entry[1] }));
+
+      const sortedNoResult = Object.entries(noResultKeywords)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(entry => ({ keyword: entry[0], count: entry[1] }));
+
+      res.json({
+        success: true,
+        report: {
+          total_searches: totalCount,
+          average_duration_ms: avgDuration,
+          click_through_rate: ctr,
+          conversion_rate: conversionRate,
+          most_searched_keywords: sortedMostSearched,
+          no_result_keywords: sortedNoResult
+        }
+      });
+
+    } catch (err) {
+      next(err);
+    }
   }
 };
 
 module.exports = analyticsController;
+

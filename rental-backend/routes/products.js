@@ -8,6 +8,8 @@ const { validate, rules } = require('../middleware/validate');
 router.get('/', productController.getAllProducts);
 router.get('/nearby', productController.getNearbyProducts);
 router.get('/pricing-recommendation', productController.getPricingRecommendation);
+router.get('/search', productController.searchProducts);
+router.get('/search/trending', productController.getTrendingSearches);
 router.post('/ai-recommend', productController.getAiProductRecommendation);
 router.get('/:id', productController.getProductById);
 

@@ -19,6 +19,7 @@ import ActiveFilterChips from '../components/ActiveFilterChips';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
+import useSearchStore from '../store/searchStore';
 
 const CATEGORIES = ['All', 'Cameras', 'Tools', 'Bikes', 'Electronics', 'Books', 'Speakers', 'Gaming', 'Sports', 'Other'];
 const POPULAR_SEARCHES = ['Sony A7', 'Mountain Bike', 'DeWalt Drill', 'JBL Speaker', 'PS5 Consoles'];
@@ -35,6 +36,7 @@ const SORT_OPTIONS = [
 const Products = () => {
   const { user, isMock } = useAuthStore();
   const navigate = useNavigate();
+  const { setOverlayOpen } = useSearchStore();
   
   // Products states
   const [allProducts, setAllProducts] = useState([]);
@@ -359,93 +361,21 @@ const Products = () => {
         <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-gray-100 mb-8 relative z-20 -mt-20 md:-mt-28">
           <div className="flex flex-col lg:flex-row gap-4" ref={searchContainerRef}>
             
-            {/* Smart Search Query Input & Suggestions */}
+            {/* Click-to-open global intelligent search overlay */}
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
                 <Search size={20} className="text-gray-400" />
               </div>
-              <input 
-                type="text" 
-                placeholder="Search equipment, cameras, tools, or owner name..."
-                value={filters.searchQuery}
-                onChange={(e) => setFilters(f => ({ ...f, searchQuery: e.target.value }))}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit(filters.searchQuery)}
-                className="pl-12 pr-4 bg-gray-50 border border-gray-200 h-14 text-base rounded-2xl w-full outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
-              />
-              
-              {/* Saved Searches Hook Action */}
-              {filters.searchQuery.trim() && (
-                <button 
-                  onClick={handleSaveSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors flex items-center gap-1 text-xs font-bold bg-white px-3 py-1.5 rounded-lg border border-gray-100"
-                >
-                  <Bookmark size={12} /> Save Search
-                </button>
-              )}
-
-              {/* Suggestions Panel */}
-              <AnimatePresence>
-                {showSuggestions && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute top-[105%] left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl p-4 z-50 overflow-hidden"
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      
-                      {/* Left: Search History */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-1.5 text-xs font-black text-gray-400 uppercase tracking-wider">
-                          <History size={12} /> Recent Searches
-                        </div>
-                        {recentSearches.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic">No search logs yet.</p>
-                        ) : (
-                          <div className="space-y-1">
-                            {recentSearches.map((term, idx) => (
-                              <div key={idx} className="flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg group">
-                                <button 
-                                  onClick={() => {
-                                    setFilters(f => ({ ...f, searchQuery: term }));
-                                    setShowSuggestions(false);
-                                  }}
-                                  className="text-sm text-gray-600 hover:text-primary font-bold text-left flex-1"
-                                >
-                                  {term}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Right: Popular tags */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-1.5 text-xs font-black text-gray-400 uppercase tracking-wider">
-                          <Sparkles size={12} /> Popular Searches
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {POPULAR_SEARCHES.map((tag, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setFilters(f => ({ ...f, searchQuery: tag }));
-                                setShowSuggestions(false);
-                              }}
-                              className="px-3.5 py-1.5 bg-gray-50 hover:bg-primary hover:text-white rounded-lg text-xs font-bold text-gray-600 transition-colors"
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <button
+                onClick={() => setOverlayOpen(true)}
+                className="w-full text-left pl-12 pr-4 bg-gray-50 border border-gray-200 h-14 text-base rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium text-gray-400 flex items-center justify-between"
+              >
+                <span>Search gear, cameras, tools, or owner name...</span>
+                <span className="text-[10px] font-black bg-gray-200/60 px-2 py-1 rounded text-gray-500 mr-2 uppercase tracking-widest hidden sm:inline-block">Press / Key</span>
+              </button>
             </div>
+
+
 
             {/* Filter Action & Sort Toggles */}
             <div className="flex gap-3 w-full lg:w-auto">

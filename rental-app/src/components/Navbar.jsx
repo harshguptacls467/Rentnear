@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import useRealtimeStore from '../store/realtimeStore';
-import { Menu, X, Settings, LogOut } from 'lucide-react';
+import { Menu, X, Settings, LogOut, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from './NotificationBell';
 import LogoutConfirmModal from './LogoutConfirmModal';
+import useSearchStore from '../store/searchStore';
 
 const Navbar = () => {
   const { session, user } = useAuthStore();
@@ -14,7 +15,28 @@ const Navbar = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuRef = useRef(null);
 
+  const { setOverlayOpen } = useSearchStore();
+
   const closeMenu = () => setMobileMenuOpen(false);
+
+  // Global Keyboard listener for '/' search trigger
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (
+        document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.isContentEditable
+      ) {
+        return;
+      }
+      if (e.key === '/') {
+        e.preventDefault();
+        setOverlayOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [setOverlayOpen]);
 
   // Close on outside click
   useEffect(() => {
@@ -42,18 +64,36 @@ const Navbar = () => {
             <Link to="/">RentNear</Link>
           </div>
           
-          {/* Hamburger Icon (Mobile Only) */}
-          <button 
-            className="md:hidden text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg p-2 transition-all"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={mobileMenuOpen}
-          >
-            <Menu size={28} />
-          </button>
+          {/* Mobile Search & Hamburger (Mobile Only) */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button 
+              onClick={() => setOverlayOpen(true)}
+              className="text-gray-300 hover:text-white p-2 rounded-lg transition-colors"
+              aria-label="Search equipment"
+            >
+              <Search size={22} />
+            </button>
+            <button 
+              className="text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg p-2 transition-all"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              <Menu size={28} />
+            </button>
+          </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex space-x-6 items-center">
+            {/* Unified Search Icon Button */}
+            <button
+              onClick={() => setOverlayOpen(true)}
+              className="text-gray-300 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title="Intelligent Search (Press /)"
+            >
+              <Search size={18} />
+              <span className="text-[10px] font-black bg-white/15 px-1.5 py-0.5 rounded text-gray-300 select-none">/</span>
+            </button>
             {session ? (
               <>
                 {/* Authenticated Links */}
@@ -149,6 +189,17 @@ const Navbar = () => {
                 </div>
                 
                 <div className="flex flex-col p-6 space-y-6 overflow-y-auto h-full pb-20">
+                  <button
+                    onClick={() => {
+                      closeMenu();
+                      setOverlayOpen(true);
+                    }}
+                    className="w-full bg-slate-800 text-gray-400 px-4 py-3 rounded-2xl flex items-center gap-3 text-sm font-bold border border-slate-750 hover:bg-slate-750 transition-all text-left"
+                  >
+                    <Search size={16} />
+                    <span>Search RentNear...</span>
+                  </button>
+                  
                   {session ? (
                     <>
                       <Link to="/home" onClick={closeMenu} className="text-gray-300 hover:text-white text-lg font-medium">Dashboard</Link>
