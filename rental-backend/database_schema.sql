@@ -984,4 +984,46 @@ GRANT SELECT, INSERT, UPDATE ON TABLE user_activity_logs TO anon;
 GRANT SELECT, INSERT, UPDATE ON TABLE recommendation_caches TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE recommendation_caches TO anon;
 
+-- ============================================================
+-- 44. OWNER BUSINESS INTELLIGENCE (BI) DASHBOARD SCHEMA UPDATES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS owner_analytics_caches (
+  owner_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS financial_reports_registry (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  report_type TEXT NOT NULL,
+  format TEXT NOT NULL,
+  file_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS owner_notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_notif_owner ON owner_notifications(owner_id);
+CREATE INDEX IF NOT EXISTS idx_owner_notif_read ON owner_notifications(read);
+CREATE INDEX IF NOT EXISTS idx_owner_reports_owner ON financial_reports_registry(owner_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE owner_analytics_caches TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE owner_analytics_caches TO anon;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE financial_reports_registry TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE financial_reports_registry TO anon;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE owner_notifications TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE owner_notifications TO anon;
+
+
 
