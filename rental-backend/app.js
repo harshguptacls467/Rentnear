@@ -25,6 +25,7 @@ const tenantRoutes = require('./routes/tenant');
 const federationRoutes = require('./routes/federation');
 const pluginRoutes = require('./routes/plugin');
 const workflowRoutes = require('./routes/workflow');
+const recommendationRoutes = require('./routes/recommendations');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -114,6 +115,7 @@ app.use(['/api/tenant', '/api/v1/tenant'], tenantRoutes);
 app.use(['/api/federation', '/api/v1/federation'], federationRoutes);
 app.use(['/api/plugins', '/api/v1/plugins'], pluginRoutes);
 app.use(['/api/workflows', '/api/v1/workflows'], workflowRoutes);
+app.use(['/api/recommendations', '/api/v1/recommendations'], recommendationRoutes);
 
 // 404 handler for undefined routes
 app.use((req, res, next) => {

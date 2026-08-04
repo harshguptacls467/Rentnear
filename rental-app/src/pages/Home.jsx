@@ -17,6 +17,89 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import TiltCard from '../components/TiltCard';
+import useRecommendationStore from '../store/recommendationStore';
+
+const RecommendationSection = ({ title, description, products, onProductClick }) => {
+  if (!products || products.length === 0) return null;
+  return (
+    <div className="mb-12">
+      <div className="flex justify-between items-end mb-6">
+        <div>
+          <h3 className="text-xl font-black text-navy tracking-tight">{title}</h3>
+          <p className="text-gray-500 text-xs mt-1 font-bold">{description}</p>
+        </div>
+      </div>
+      <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-250 scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+        {products.map((product) => {
+          const image = product.images?.[0] || 'https://via.placeholder.com/400';
+          return (
+            <div key={product.id} className="w-72 flex-shrink-0">
+              <TiltCard scaleOnHover={1.02}>
+                <Link
+                  to={`/products/${product.id}`}
+                  onClick={() => onProductClick(product)}
+                  className="group relative bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm card-hover-lift block h-full flex flex-col"
+                >
+                  <div className="h-44 relative bg-gray-100 overflow-hidden">
+                    <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute top-3 right-3 bg-navy/90 px-3 py-1.5 rounded-xl text-white shadow-sm backdrop-blur-sm border border-white/10">
+                      <span className="text-sm font-black">${product.price_per_day}</span>
+                      <span className="text-[9px] text-gray-400">/day</span>
+                    </div>
+                    {product.distance_km !== null && (
+                      <div className="absolute bottom-3 left-3 bg-primary/95 px-2.5 py-1 rounded-xl text-white text-[9px] font-black shadow-sm backdrop-blur-sm border border-white/10">
+                        📍 {product.distance_km} km away
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[9px] font-black text-primary uppercase tracking-widest mb-1.5 block">{product.category}</span>
+                      <h4 className="font-extrabold text-navy text-sm mb-1 truncate group-hover:text-primary transition-colors">{product.title}</h4>
+                      <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed mb-3">{product.description || 'No description provided'}</p>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden">
+                          <img src={product.owner?.avatar_url || 'https://via.placeholder.com/50'} alt="owner" className="w-full h-full object-cover" />
+                        </div>
+                        <span className="text-[10px] font-black text-gray-500 truncate max-w-[100px]">{product.owner?.name || 'Owner'}</span>
+                      </div>
+                      <div className="flex items-center text-amber-500 text-[10px] font-black gap-0.5">
+                        ★ {product.owner?.rating_average || 5.0}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </TiltCard>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const RecommendationSkeleton = () => {
+  return (
+    <div className="mb-12">
+      <div className="mb-6">
+        <div className="h-6 w-48 bg-gray-200 rounded-xl animate-pulse mb-2"></div>
+        <div className="h-4 w-64 bg-gray-200 rounded-lg animate-pulse"></div>
+      </div>
+      <div className="flex gap-6 overflow-hidden">
+        {[1, 2, 3, 4].map((n) => (
+          <div key={n} className="w-72 bg-white rounded-3xl p-4 border border-gray-100 shadow-sm flex-shrink-0">
+            <div className="w-full h-40 bg-gray-200 rounded-2xl animate-pulse mb-4"></div>
+            <div className="h-4 w-1/3 bg-gray-200 rounded-lg animate-pulse mb-2"></div>
+            <div className="h-5 w-3/4 bg-gray-200 rounded-lg animate-pulse mb-2"></div>
+            <div className="h-8 w-full bg-gray-250 rounded-2xl animate-pulse"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Home = () => {
   const { user, isMock } = useAuthStore();
@@ -37,6 +120,37 @@ const Home = () => {
 
   // Live product feed
   useRealtimeProducts(setRecentProducts, isMock);
+
+  const {
+    feed,
+    loading: recsLoading,
+    fetchRecommendationFeed,
+    logActivity
+  } = useRecommendationStore();
+
+  const [coords, setCoords] = useState({ lat: null, lng: null });
+
+  // Get coordinates
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+        },
+        (err) => {
+          console.debug('Geolocation permission denied or failed:', err.message);
+        }
+      );
+    }
+  }, []);
+
+  // Fetch recommendations whenever user or coords change
+  useEffect(() => {
+    fetchRecommendationFeed(user?.id, isMock, coords.lat, coords.lng);
+  }, [user?.id, isMock, coords.lat, coords.lng, fetchRecommendationFeed]);
 
   const fetchDashboardData = async () => {
     if (!user?.id) {
@@ -455,53 +569,80 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Global Directory Overview header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-navy tracking-tight flex items-center gap-2">
-              <LayoutDashboard className="text-primary" size={22} /> Fresh Listings Near Me
-            </h2>
-            <p className="text-gray-500 text-xs md:text-sm mt-1">Rent tools, camera kits, and camping products locally.</p>
+        {/* Personalized Recommendations Feed */}
+        <div className="border-t border-gray-150/60 pt-10">
+          <div className="flex items-center gap-2 mb-8">
+            <Sparkles className="text-primary" size={24} />
+            <div>
+              <h2 className="text-2xl font-black text-navy tracking-tight leading-none">Personalized Home Feed</h2>
+              <p className="text-gray-400 text-xs mt-1">Curated specifically for you based on activity, budget, and geolocation.</p>
+            </div>
           </div>
-          <Link to="/products" className="group flex items-center justify-center gap-2 text-primary font-bold hover:text-primary-dark transition-colors bg-primary/10 px-5 py-2.5 rounded-full text-xs">
-            Explore Directory <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </div>
 
-        {/* Product Card Row */}
-        {recentProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recentProducts.slice(0, 4).map((product) => {
-              const image = product.images?.[0] || 'https://via.placeholder.com/400';
-              return (
-                <div key={product.id} className="h-full">
-                  <TiltCard scaleOnHover={1.02}>
-                    <Link to={`/products/${product.id}`} className="group relative bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm card-hover-lift block h-full flex flex-col">
-                      <div className="h-44 relative bg-gray-100 overflow-hidden">
-                        <img src={image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        <div className="absolute top-3 right-3 bg-navy/90 px-3 py-1.5 rounded-xl text-white shadow-sm backdrop-blur-sm border border-white/10">
-                          <span className="text-sm font-black">${product.price_per_day}</span>
-                          <span className="text-[9px] text-gray-400">/day</span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-4 flex-1 flex flex-col">
-                        <span className="text-[9px] font-black text-primary uppercase tracking-widest mb-1.5">{product.category}</span>
-                        <h4 className="font-extrabold text-navy text-sm mb-1 truncate group-hover:text-primary transition-colors">{product.title}</h4>
-                        <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed flex-1">{product.description || 'No description provided'}</p>
-                      </div>
-                    </Link>
-                  </TiltCard>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="bg-white rounded-3xl border border-gray-100 p-8 text-center shadow-sm">
-            <PackageOpen size={36} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-bold text-gray-500">No active products added nearby.</p>
-          </div>
-        )}
+          {recsLoading ? (
+            <>
+              <RecommendationSkeleton />
+              <RecommendationSkeleton />
+            </>
+          ) : (
+            <>
+              <RecommendationSection
+                title="Recommended For You"
+                description="Personalized based on your browsing patterns and interests."
+                products={feed.recommendedForYou}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Trending Near You"
+                description="Popular equipment rented by your local community right now."
+                products={feed.trendingNearYou}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Similar To Recently Viewed"
+                description="Items matching categories you recently inspected."
+                products={feed.similarToRecentlyViewed}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Because You Rented"
+                description="Recommended companion gear matching your previous booking patterns."
+                products={feed.becauseYouRented}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Best Rated Nearby"
+                description="Top-rated listings hosted by trusted neighborhood owners."
+                products={feed.bestRatedNearby}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="New Listings Around You"
+                description="Freshly added gear available for rent in your vicinity."
+                products={feed.newListingsAroundYou}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Weekend Picks"
+                description="Perfect outdoor, party, or gaming picks for your upcoming weekend plans."
+                products={feed.weekendPicks}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Budget Friendly"
+                description="Cost-effective items priced at or below $20 per day."
+                products={feed.budgetFriendly}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+              <RecommendationSection
+                title="Premium Collection"
+                description="High-tier professional gear with excellent rating scores."
+                products={feed.premiumCollection}
+                onProductClick={(p) => logActivity(user?.id, isMock, p.id, 'recommendation_click', p.category)}
+              />
+            </>
+          )}
+        </div>
 
       </div>
     </AnimatedPage>

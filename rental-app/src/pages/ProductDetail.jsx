@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedPage from '../components/AnimatedPage';
 import useRealtimeStore from '../store/realtimeStore';
+import useRecommendationStore from '../store/recommendationStore';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -129,6 +130,14 @@ const ProductDetail = () => {
         if (foundProduct) {
           setProduct(foundProduct);
           setOwner(ownerData);
+
+          // Log view activity to recommendation engine
+          try {
+            const { logActivity } = useRecommendationStore.getState();
+            logActivity(user?.id, isMock, foundProduct.id, 'view', foundProduct.category);
+          } catch (logErr) {
+            console.debug('Failed to log view activity:', logErr.message);
+          }
 
           // Fetch Similar Listings
           const allLocalProds = getLocalProducts();
@@ -280,6 +289,14 @@ const ProductDetail = () => {
 
         setBookingId(newBookingId);
         setCheckoutStage('success');
+
+        // Log rent conversion event to recommendation engine
+        try {
+          const { logActivity } = useRecommendationStore.getState();
+          logActivity(user?.id, isMock, product.id, 'rent', product.category);
+        } catch (logErr) {
+          console.debug('Failed to log rent activity:', logErr.message);
+        }
         return;
       }
 
@@ -296,6 +313,14 @@ const ProductDetail = () => {
 
       setBookingId(data.id);
       setCheckoutStage('success');
+
+      // Log rent conversion event to recommendation engine
+      try {
+        const { logActivity } = useRecommendationStore.getState();
+        logActivity(user?.id, isMock, product.id, 'rent', product.category);
+      } catch (logErr) {
+        console.debug('Failed to log rent activity:', logErr.message);
+      }
     } catch (err) {
       setBookingError(err.message);
       setCheckoutStage('dates');
