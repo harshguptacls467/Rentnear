@@ -283,10 +283,10 @@ const Products = () => {
       navigate('/login');
       return;
     }
-    if (!debouncedQuery.trim()) return;
+    if (!debouncedSearchQuery.trim()) return;
     const currentSaved = getLocalSavedSearches(user.id);
-    if (!currentSaved.includes(debouncedQuery)) {
-      const updated = [...currentSaved, debouncedQuery];
+    if (!currentSaved.includes(debouncedSearchQuery)) {
+      const updated = [...currentSaved, debouncedSearchQuery];
       setSavedSearches(updated);
       saveLocalSavedSearches(user.id, updated);
     }
@@ -300,7 +300,7 @@ const Products = () => {
 
   // Add search logs to history
   const handleSearchSubmit = (term) => {
-    setSearchQuery(term);
+    setFilters(f => ({ ...f, searchQuery: term }));
     setShowSuggestions(false);
 
     if (user?.id && term.trim()) {
