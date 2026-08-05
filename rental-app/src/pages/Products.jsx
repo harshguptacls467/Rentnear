@@ -225,7 +225,7 @@ const Products = () => {
           p.longitude
         );
         p.distance = distance;
-        return distance <= filters.maxDistance;
+        return distance !== null && distance <= filters.maxDistance;
       });
     }
 

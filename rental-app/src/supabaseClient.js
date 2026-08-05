@@ -64,3 +64,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     params: { eventsPerSecond: 10 }
   }
 });
+
+// Guard removeChannel globally to prevent uncaught promise rejections during async channel cleanup
+const originalRemoveChannel = supabase.removeChannel.bind(supabase);
+supabase.removeChannel = async (channel) => {
+  try {
+    if (!channel) return;
+    return await originalRemoveChannel(channel);
+  } catch (err) {
+    console.debug('[Supabase] Channel cleanup handled safely:', err.message);
+  }
+};
