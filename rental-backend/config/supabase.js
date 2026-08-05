@@ -13,10 +13,51 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
+const logger = require('../utils/logger');
+
+// SRE Resilience: Custom fetch client with exponential backoff retries and timeout protection
+const customFetchWithRetries = async (url, options = {}) => {
+  const maxRetries = 3;
+  let delay = 100; // ms
+  const timeoutMs = 8000; // 8s timeout to protect connection pools
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const mergedOptions = { ...options, signal: controller.signal };
+
+    try {
+      const response = await fetch(url, mergedOptions);
+      clearTimeout(id);
+
+      if (response.status >= 502 && response.status <= 504) {
+        throw new Error(`Transient server status: ${response.status}`);
+      }
+      return response;
+    } catch (err) {
+      clearTimeout(id);
+      const isTimeout = err.name === 'AbortError';
+      const isTransient = isTimeout || err.message.includes('FetchError') || err.message.includes('ENOTFOUND') || err.message.includes('ECONNREFUSED');
+
+      if (attempt === maxRetries || !isTransient) {
+        logger.error(`[Supabase Fetch] Connection failed after ${attempt} attempts: ${err.message}`, err);
+        throw err;
+      }
+
+      logger.warn(`[Supabase Fetch] Attempt ${attempt} failed: ${err.message}. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+};
+
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
+  },
+  global: {
+    fetch: customFetchWithRetries
   }
 });
 

@@ -8,6 +8,14 @@ const razorpayInstance = process.env.RAZORPAY_KEY_ID ? new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 }) : null;
 
+// SRE Resilience: Protect event loop from blocking by timing out external calls
+const withTimeout = (promise, ms) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Razorpay request timeout')), ms))
+  ]);
+};
+
 const paymentController = {
 
   // 1. Create Razorpay Order
@@ -40,7 +48,7 @@ const paymentController = {
         payment_capture: 1 // We chose Option A: Charge full amount upfront, refund later
       };
 
-      const order = await razorpayInstance.orders.create(options);
+      const order = await withTimeout(razorpayInstance.orders.create(options), 8000);
 
       res.json({
         id: order.id,
@@ -182,12 +190,12 @@ const paymentController = {
 
       if (razorpayInstance) {
         // Issue partial refund to the payment_id
-        await razorpayInstance.payments.refund(payment.razorpay_payment_id, {
+        await withTimeout(razorpayInstance.payments.refund(payment.razorpay_payment_id, {
           amount: Math.round(depositAmount * 100),
           notes: {
             reason: "Security deposit refund upon safe return of item"
           }
-        });
+        }), 8000);
       }
 
       await supabase.from('payments').update({ status: 'partially_refunded' }).eq('id', payment.id);

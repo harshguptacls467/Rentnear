@@ -27,8 +27,12 @@ const pluginRoutes = require('./routes/plugin');
 const workflowRoutes = require('./routes/workflow');
 const recommendationRoutes = require('./routes/recommendations');
 const errorHandler = require('./middleware/errorHandler');
+const traceMiddleware = require('./middleware/traceMiddleware');
 
 const app = express();
+
+// Enable structured tracing & correlation ID mapping on all incoming routes
+app.use(traceMiddleware);
 
 // Trust Render/Vercel's reverse proxy — required for accurate IP-based rate limiting
 app.set('trust proxy', 1);

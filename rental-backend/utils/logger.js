@@ -30,7 +30,15 @@ const redact = (obj) => {
   );
 };
 
+const { AsyncLocalStorage } = require('async_hooks');
+const logStorage = new AsyncLocalStorage();
+
 // ── Logger ─────────────────────────────────────────────────────────────────────
+
+const getCorrelationId = () => {
+  const store = logStorage.getStore();
+  return store?.correlationId || null;
+};
 
 const logger = {
   info: (message, meta = {}) => {
@@ -38,13 +46,14 @@ const logger = {
       timestamp: new Date().toISOString(),
       level: 'INFO',
       message,
+      correlation_id: getCorrelationId(),
       env: process.env.NODE_ENV || 'development',
       ...redact(meta),
     };
     if (process.env.NODE_ENV === 'production') {
       console.log(JSON.stringify(log));
     } else {
-      console.log(`[INFO] ${log.timestamp} - ${message}`, Object.keys(meta).length ? redact(meta) : '');
+      console.log(`[INFO] ${log.timestamp} ${log.correlation_id ? `[Trace: ${log.correlation_id}] ` : ''}- ${message}`, Object.keys(meta).length ? redact(meta) : '');
     }
   },
 
@@ -53,15 +62,15 @@ const logger = {
       timestamp: new Date().toISOString(),
       level: 'ERROR',
       message,
+      correlation_id: getCorrelationId(),
       env: process.env.NODE_ENV || 'development',
-      // Stack traces are safe to log — they contain code paths, not credentials.
       stack: error?.stack || null,
       ...redact(meta),
     };
     if (process.env.NODE_ENV === 'production') {
       console.error(JSON.stringify(log));
     } else {
-      console.error(`[ERROR] ${log.timestamp} - ${message}`, error || '', Object.keys(meta).length ? redact(meta) : '');
+      console.error(`[ERROR] ${log.timestamp} ${log.correlation_id ? `[Trace: ${log.correlation_id}] ` : ''}- ${message}`, error || '', Object.keys(meta).length ? redact(meta) : '');
     }
   },
 
@@ -70,13 +79,14 @@ const logger = {
       timestamp: new Date().toISOString(),
       level: 'WARN',
       message,
+      correlation_id: getCorrelationId(),
       env: process.env.NODE_ENV || 'development',
       ...redact(meta),
     };
     if (process.env.NODE_ENV === 'production') {
       console.log(JSON.stringify(log));
     } else {
-      console.warn(`[WARN] ${log.timestamp} - ${message}`, Object.keys(meta).length ? redact(meta) : '');
+      console.warn(`[WARN] ${log.timestamp} ${log.correlation_id ? `[Trace: ${log.correlation_id}] ` : ''}- ${message}`, Object.keys(meta).length ? redact(meta) : '');
     }
   },
 
@@ -85,6 +95,7 @@ const logger = {
       timestamp: new Date().toISOString(),
       level: 'SECURITY',
       message,
+      correlation_id: getCorrelationId(),
       env: process.env.NODE_ENV || 'development',
       security_event: true,
       ...redact(meta),
@@ -92,9 +103,10 @@ const logger = {
     if (process.env.NODE_ENV === 'production') {
       console.error(JSON.stringify(log));
     } else {
-      console.error(`[SECURITY] ⚠️ ${log.timestamp} - ${message}`, Object.keys(meta).length ? redact(meta) : '');
+      console.error(`[SECURITY] ⚠️ ${log.timestamp} ${log.correlation_id ? `[Trace: ${log.correlation_id}] ` : ''}- ${message}`, Object.keys(meta).length ? redact(meta) : '');
     }
   },
 };
 
+logger.logStorage = logStorage;
 module.exports = logger;
