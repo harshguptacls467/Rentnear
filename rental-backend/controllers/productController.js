@@ -32,7 +32,7 @@ const productController = {
       }
 
       if (search && search.trim()) {
-        const cleanSearch = search.trim();
+        const cleanSearch = search.trim().replace(/[(),]/g, ' ');
         query = query.or(`title.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`);
       }
 

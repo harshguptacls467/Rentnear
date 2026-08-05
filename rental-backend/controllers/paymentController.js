@@ -75,6 +75,17 @@ const paymentController = {
         return res.status(400).json({ message: "Invalid payment signature" });
       }
 
+      // 1. Idempotency Check: Verify if payment has already been captured/processed
+      const { data: existingPayment } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('razorpay_payment_id', razorpay_payment_id)
+        .maybeSingle();
+
+      if (existingPayment) {
+        return res.status(200).json({ success: true, message: "Payment already processed", duplicated: true });
+      }
+
       // Verify booking
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')

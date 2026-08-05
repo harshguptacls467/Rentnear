@@ -32,6 +32,10 @@ const errorHandler = (err, req, res, next) => {
         statusCode = 409;
         message = 'This resource already exists (duplicate key constraint).';
         break;
+      case '23P01': // Exclusion constraint violation (overlapping bookings / date ranges)
+        statusCode = 409;
+        message = 'The requested dates overlap with an existing booking or owner block.';
+        break;
       case '23503': // Foreign key violation
         statusCode = 400;
         message = 'Referenced database resource does not exist.';

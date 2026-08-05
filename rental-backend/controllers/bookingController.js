@@ -228,15 +228,24 @@ const bookingController = {
         return res.status(400).json({ success: false, error: { message: 'Only pending bookings can be cancelled freely. Contact the owner or support for active cancellations.', status: 400 } });
       }
 
-      // Update the booking
+      // Update the booking with optimistic concurrency control (OCC) guard
       const { data: updatedBooking, error: updateError } = await supabase
         .from('bookings')
         .update({ status })
         .eq('id', id)
+        .eq('status', booking.status) // Concurrency Guard: Enforce initial read status
         .select()
         .single();
 
-      if (updateError) throw updateError;
+      if (updateError || !updatedBooking) {
+        return res.status(409).json({
+          success: false,
+          error: {
+            message: 'Conflict: The booking status was updated by another process. Please refresh and try again.',
+            status: 409
+          }
+        });
+      }
 
       // Determine who to notify
       if (status === 'approved') {

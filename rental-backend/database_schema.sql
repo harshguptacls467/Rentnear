@@ -90,6 +90,14 @@ CREATE TABLE bookings (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Prevents concurrent double booking overlap issues
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE bookings ADD CONSTRAINT no_overlapping_bookings
+EXCLUDE USING gist (
+  product_id WITH =,
+  tsrange(start_date, end_date, '[]') WITH &&
+) WHERE (status IN ('pending', 'approved', 'active'));
+
 -- Indexes
 CREATE INDEX idx_products_owner ON products(owner_id);
 CREATE INDEX idx_bookings_product ON bookings(product_id);

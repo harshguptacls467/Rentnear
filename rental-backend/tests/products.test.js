@@ -53,6 +53,14 @@ describe('Products API', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('GET /api/products should handle special characters in search parameter safely', async () => {
+    const res = await request(app)
+      .get('/api/products')
+      .query({ search: 'sony, a7 (camera)' });
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
   // ── Validation middleware on POST ───────────────────────────────────────────
   // These tests bypass auth — validation runs before auth in the route handler order?
   // Actually auth runs first (router.use(authenticate)). So 401 wins.
