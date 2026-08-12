@@ -184,9 +184,9 @@ const Settings = () => {
     showToast('Password updated successfully!', 'success');
   };
 
-  const handleLogout = async (scope = 'local') => {
+  const handleLogout = (scope = 'local') => {
     setShowLogoutModal(false);
-    await logout({ scope });
+    logout({ scope });
     showToast(scope === 'global' ? 'Signed out from all devices.' : 'Signed out successfully.', 'info');
     navigate('/login');
   };

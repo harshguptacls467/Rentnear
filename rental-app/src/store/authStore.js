@@ -232,8 +232,8 @@ export const useAuthStore = create((set, get) => ({
       localStorage.setItem('rentnear_remember_me', String(rememberMe !== false));
     }
 
-    // Clear stale session
-    await supabase.auth.signOut().catch(() => {});
+    // Clear stale session in background
+    supabase.auth.signOut().catch(() => {});
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
@@ -359,11 +359,7 @@ export const useAuthStore = create((set, get) => ({
     }
 
     // 3. Perform network signout asynchronously in background
-    try {
-      await supabase.auth.signOut(options);
-    } catch {
-      // Fail silently
-    }
+    supabase.auth.signOut(options).catch(() => {});
   },
 }));
 

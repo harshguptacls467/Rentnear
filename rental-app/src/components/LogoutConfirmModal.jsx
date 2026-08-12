@@ -21,16 +21,13 @@ const LogoutConfirmModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleConfirmLogout = async () => {
-    setIsLoggingOut(true);
+  const handleConfirmLogout = () => {
     try {
-      await logout();
+      logout();
       onClose();
       navigate('/login');
     } catch (err) {
       console.error('Logout error:', err);
-    } finally {
-      setIsLoggingOut(false);
     }
   };
 
