@@ -95,6 +95,10 @@ const strictLimiter = rateLimit({
 app.use(express.json({ limit: '2mb' })); // Limit body size to 2MB
 
 // ── 6. Routes (Versioned /api/v1 & Backward-Compatible /api Mounts) ───────────
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'RentNear Backend API is running' });
+});
+
 app.use('/api', healthRoutes);
 app.use('/api/v1/health', healthRoutes);
 
