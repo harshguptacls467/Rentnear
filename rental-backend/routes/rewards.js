@@ -10,8 +10,7 @@ router.get('/dashboard/:userId', rewardsController.getDashboard);
 router.get('/transactions/:userId', rewardsController.getTransactions);
 router.get('/referrals/:userId', rewardsController.getReferralsList);
 
-// Internal/Admin trigger (could be protected by a webhook secret or requireAdmin)
-// Leaving it open to authenticate for easy local testing, but it should validate internal source.
-router.post('/trigger-payout', rewardsController.triggerPayout);
+// Internal/Admin trigger (protected by requireAdmin)
+router.post('/trigger-payout', requireAdmin, rewardsController.triggerPayout);
 
 module.exports = router;

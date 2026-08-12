@@ -110,4 +110,83 @@ describe('Rewards Controller Logic', () => {
       expect(res.message).toContain('Payout triggered successfully');
     });
   });
+
+  describe('getDashboard security', () => {
+    it('allows access if logged-in user is the target user', async () => {
+      const req = {
+        user: { id: 'user-123', is_admin: false },
+        params: { userId: 'user-123' }
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+      const next = jest.fn();
+
+      // Mock database calls for wallet_balance, referrals, and transactions
+      supabase.from.mockImplementation((table) => {
+        if (table === 'users') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({
+              data: { wallet_balance: 50, referral_code: 'REF123' },
+              error: null
+            })
+          };
+        }
+        return {
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockResolvedValue({ data: [] })
+        };
+      });
+
+      await rewardsController.getDashboard(req, res, next);
+      expect(res.status).not.toHaveBeenCalledWith(403);
+    });
+
+    it('blocks access with 403 if user is not target user and not an admin (IDOR Check)', async () => {
+      const req = {
+        user: { id: 'attacker-id', is_admin: false },
+        params: { userId: 'victim-id' }
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+      const next = jest.fn();
+
+      await rewardsController.getDashboard(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          message: expect.stringContaining('Unauthorized access')
+        })
+      }));
+    });
+  });
+
+  describe('triggerPayout authorization', () => {
+    it('blocks manual payout triggering if the user is not an admin', async () => {
+      const req = {
+        user: { id: 'user-123', is_admin: false },
+        body: { bookingId: 'booking-xyz' }
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis()
+      };
+      const next = jest.fn();
+
+      await rewardsController.triggerPayout(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          message: expect.stringContaining('Access denied')
+        })
+      }));
+    });
+  });
 });

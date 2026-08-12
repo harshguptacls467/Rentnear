@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Fail fast at startup rather than making silent broken API calls.
 // If either variable is missing, surface a visible error immediately.
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    '[Config] VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in your .env file. ' +
+    '[Config] VITE_SUPABASE_URL and either VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY must be set in your .env file. ' +
     'Copy .env.example to .env and fill in your Supabase project credentials.'
   );
 }

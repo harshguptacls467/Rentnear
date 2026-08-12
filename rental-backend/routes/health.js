@@ -11,7 +11,7 @@ router.get('/health', (req, res) => {
     env: process.env.NODE_ENV || 'development',
     services: {
       supabase_url:       process.env.SUPABASE_URL                ? 'SET' : 'MISSING',
-      supabase_key:       process.env.SUPABASE_SERVICE_ROLE_KEY   ? 'SET' : 'MISSING',
+      supabase_key:       (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) ? 'SET' : 'MISSING',
       frontend_url:       process.env.FRONTEND_URL                ? 'SET' : 'MISSING',
       razorpay:           process.env.RAZORPAY_KEY_ID             ? 'SET' : 'MISSING',
       onesignal:          process.env.ONESIGNAL_REST_API_KEY      ? 'SET' : 'MISSING',

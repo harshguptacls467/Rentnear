@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const cache = require('../utils/cache');
 
 const generateAadharOtp = async (req, res, next) => {
   try {
@@ -136,6 +137,9 @@ const generateEmailOtp = async (req, res, next) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const token = process.env.RESEND_API_KEY;
 
+    // Save code to server-side cache keyed by user ID (valid for 10 minutes)
+    await cache.set(`otp:email:${req.user.id}`, { code, email }, 600);
+
     if (!token) {
       console.warn('RESEND_API_KEY is not configured. Falling back to simulated Email OTP.');
       return res.json({
@@ -179,9 +183,10 @@ const generateEmailOtp = async (req, res, next) => {
       });
     }
 
+    // In production, do NOT leak the OTP code to the response.
     res.json({
       success: true,
-      emailOtp: code,
+      isSimulated: false,
       message: 'Verification code sent to your email.'
     });
 
@@ -193,12 +198,41 @@ const generateEmailOtp = async (req, res, next) => {
 const verifyEmailOtp = async (req, res, next) => {
   try {
     const { otp, generatedOtp } = req.body;
-    if (!otp || !generatedOtp) {
-      return res.status(400).json({ message: 'OTP and generated OTP are required.' });
-    }
+    const isSimulatedMode = !process.env.RESEND_API_KEY;
 
-    if (otp !== generatedOtp) {
-      return res.status(400).json({ message: 'Invalid verification code.' });
+    if (isSimulatedMode) {
+      // Dev/simulated mode fallback: verify using client-supplied generatedOtp
+      if (!otp || !generatedOtp) {
+        return res.status(400).json({ message: 'OTP and generated OTP are required.' });
+      }
+      if (otp !== generatedOtp) {
+        return res.status(400).json({ message: 'Invalid verification code.' });
+      }
+    } else {
+      // Production mode: authoritatively verify against server-side cache
+      if (!otp) {
+        return res.status(400).json({ message: 'Verification OTP is required.' });
+      }
+      const cached = await cache.get(`otp:email:${req.user.id}`);
+      if (!cached) {
+        return res.status(400).json({ message: 'Verification code expired. Please request a new one.' });
+      }
+
+      // Track and increment failed verification attempts
+      cached.attempts = (cached.attempts || 0) + 1;
+
+      if (cached.attempts >= 5) {
+        await cache.set(`otp:email:${req.user.id}`, null, 0); // Invalidate immediately
+        return res.status(400).json({ message: 'Too many incorrect attempts. Please request a new OTP.' });
+      }
+
+      if (cached.code !== otp) {
+        // Save the incremented attempts back to the cache (re-using the remaining TTL conceptually)
+        await cache.set(`otp:email:${req.user.id}`, cached, 600);
+        return res.status(400).json({ message: 'Invalid verification code.' });
+      }
+      // Clear OTP cache upon successful verification
+      await cache.set(`otp:email:${req.user.id}`, null, 0);
     }
 
     // Skip DB update for mock/demo users

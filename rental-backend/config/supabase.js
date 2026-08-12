@@ -2,13 +2,13 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
-// Backend MUST use SERVICE_ROLE_KEY — it bypasses Row Level Security safely on the server.
+// Backend MUST use SECRET_KEY / SERVICE_ROLE_KEY — it bypasses Row Level Security safely on the server.
 // NEVER use the anon key on the backend; it would be blocked by RLS policies.
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error(
-    '[Config Error] SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required. ' +
+    '[Config Error] SUPABASE_URL and either SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY environment variables are required. ' +
     'Please set them in your environment or your .env file.'
   );
 }

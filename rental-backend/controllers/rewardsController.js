@@ -11,6 +11,11 @@ const rewardsController = {
     try {
       const { userId } = req.params;
 
+      // SECURITY Check: Prevent horizontal IDOR access to other users' wallet details
+      if (req.user.id !== userId && req.user.is_admin !== true) {
+        return res.status(403).json({ success: false, error: { message: 'Unauthorized access to wallet dashboard.', status: 403 } });
+      }
+
       const [
         { data: user, error: userErr },
         { data: referrals, error: refErr },
@@ -54,6 +59,12 @@ const rewardsController = {
   getTransactions: async (req, res, next) => {
     try {
       const { userId } = req.params;
+
+      // SECURITY Check: Prevent horizontal IDOR access to other users' transaction logs
+      if (req.user.id !== userId && req.user.is_admin !== true) {
+        return res.status(403).json({ success: false, error: { message: 'Unauthorized access to wallet transactions.', status: 403 } });
+      }
+
       const { data, error } = await supabase
         .from('wallet_transactions')
         .select('*')
@@ -71,6 +82,12 @@ const rewardsController = {
   getReferralsList: async (req, res, next) => {
     try {
       const { userId } = req.params;
+
+      // SECURITY Check: Prevent horizontal IDOR access to other users' referrals list
+      if (req.user.id !== userId && req.user.is_admin !== true) {
+        return res.status(403).json({ success: false, error: { message: 'Unauthorized access to referral data.', status: 403 } });
+      }
+
       const { data, error } = await supabase
         .from('referrals')
         .select(`
@@ -161,6 +178,11 @@ const rewardsController = {
   // API Route wrapper
   triggerPayout: async (req, res, next) => {
     try {
+      // SECURITY Check: Only admin can trigger payouts manually
+      if (req.user.is_admin !== true) {
+        return res.status(403).json({ success: false, error: { message: 'Access denied. Administrator privileges required.', status: 403 } });
+      }
+
       const { bookingId } = req.body;
       const result = await rewardsController.processPayout(bookingId);
       if (!result.success) return res.status(400).json(result);
