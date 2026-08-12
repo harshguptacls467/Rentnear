@@ -59,11 +59,19 @@ const allowedOrigins = [
 // Log allowed origins on startup — visible in Render logs
 console.log('[CORS] Allowed origins:', allowedOrigins);
 
+const isAllowedOrigin = (origin) => {
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow all Vercel project & preview subdomains matching RentNear namespace
+  if (/^https:\/\/rentnear-.*-harshguptacls467s-projects\.vercel\.app$/.test(origin)) return true;
+  if (/^https:\/\/rentnear-.*\.vercel\.app$/.test(origin)) return true;
+  return false;
+};
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (Postman, server-to-server, curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     console.warn(`[CORS] Blocked origin: ${origin}`);
     callback(new Error(`CORS: Origin ${origin} not allowed`));
   },
